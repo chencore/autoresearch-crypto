@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls:*)",
+      "Bash(git -C \"d:\\\\10_skill\\\\autoresearch\" branch -a)",
+      "Bash(uv run python:*)",
+      "Bash(echo:*)"
+    ]
+  }
+}
