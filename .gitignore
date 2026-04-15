@@ -21,3 +21,8 @@ dev/
 
 # Results file
 results.tsv
+data/crypto.rar
+data/crypto/BTCUSDT_5m.parquet
+data/crypto - 副本/BTCUSDT_5m.parquet
+data/crypto - 副本/ETHUSDT_5m.parquet
+uv.lock

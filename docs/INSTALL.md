@@ -62,7 +62,7 @@ uv run python prepare_crypto.py --limit 60
 
 查看数据：
 ```bash
-ls -la ~/.cache/autoresearch/data/crypto/
+ls -la d:/10_skill/autoresearch/data/crypto/
 ```
 
 ### 5. 验证安装

@@ -30,7 +30,7 @@ TOKENIZER_DIR = os.path.join(CACHE_DIR, "tokenizer")
 MAX_SEQ_LEN = 256       # 时间窗口长度 (256 * 5min ≈ 21小时)
 TIME_BUDGET = 300       # 训练时间预算（秒）
 EVAL_STEPS = 500        # 评估步数
-PREDICTION_HORIZON = 12 # 预测未来12根K线（1小时）
+PREDICTION_HORIZON = 6  # 预测未来6根K线（30分钟，更容易学习）
 INITIAL_CAPITAL = 10000.0
 COMMISSION = 0.001       # 0.1% 手续费
 SLIPPAGE = 0.0005       # 0.05% 滑点
@@ -478,20 +478,20 @@ class StrategyEvaluator:
 # 超参数（可直接修改）
 # ---------------------------------------------------------------------------
 
-# 模型架构
-ASPECT_RATIO = 32        # 模型维度 = depth * ASPECT_RATIO
-HEAD_DIM = 64            # 注意力头维度
+# 模型架构（针对小数据集调优：2880条/10天）
+ASPECT_RATIO = 16        # 模型维度 = depth * ASPECT_RATIO (2*16=32, 减少过拟合)
+HEAD_DIM = 32            # 注意力头维度（减小）
 
 # 优化
-TOTAL_BATCH_SIZE = 256   # 总批量大小
-DEVICE_BATCH_SIZE = 64   # 设备批量大小
-LEARNING_RATE = 0.001    # 学习率
-WEIGHT_DECAY = 0.0       # 权重衰减
-WARMUP_RATIO = 0.1       # 预热比例
-WARMDOWN_RATIO = 0.3     # 冷却比例
+TOTAL_BATCH_SIZE = 128   # 总批量大小（减小，更新更频繁）
+DEVICE_BATCH_SIZE = 32   # 设备批量大小
+LEARNING_RATE = 0.0003   # 学习率（降低，更稳定）
+WEIGHT_DECAY = 0.01      # 权重衰减（添加正则化）
+WARMUP_RATIO = 0.2       # 预热比例（更长预热）
+WARMDOWN_RATIO = 0.4     # 冷却比例（更慢衰减）
 
 # 模型规模
-DEPTH = 4                # Transformer 层数
+DEPTH = 2                # Transformer 层数（减少，防止过拟合）
 
 
 # ---------------------------------------------------------------------------

@@ -7,12 +7,13 @@ Usage:
     python prepare_crypto.py --symbol BTCUSDT  # 下载指定交易对
     python prepare_crypto.py --limit 100       # 限制下载天数
 
-数据存储在 ~/.cache/autoresearch/data/crypto/
+数据存储在项目目录下的 data/crypto/
 """
 
 import os
 import time
 import argparse
+import csv
 
 import requests
 import pyarrow as pa
@@ -27,8 +28,9 @@ PROXY = {"http": "http://127.0.0.1:50830", "https": "http://127.0.0.1:50830"}
 # 常量
 # ---------------------------------------------------------------------------
 
-CACHE_DIR = os.path.join(os.path.expanduser("~"), ".cache", "autoresearch")
-DATA_DIR = os.path.join(CACHE_DIR, "data", "crypto")
+# 数据存储在项目目录下的 data/crypto/
+PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
+DATA_DIR = os.path.join(PROJECT_DIR, "data", "crypto")
 
 # 默认交易对和周期
 DEFAULT_SYMBOLS = ["BTCUSDT", "ETHUSDT"]
@@ -148,126 +150,166 @@ def compute_features(df):
 
 
 # ---------------------------------------------------------------------------
-# 数据下载 (使用 CCXT)
+# 数据下载
 # ---------------------------------------------------------------------------
 
 # 支持的交易所配置
 EXCHANGES = {
-    "okx": {
-        "kline_url": "https://www.okx.com/api/v5/market/candles",
-        "params": {"instId": None},  # 会动态设置
+    "binance": {
+        "kline_url": "https://api.binance.com/api/v3/klines",
     },
 }
 
 
-def download_with_requests(symbol, interval, start_time, end_time):
+def download_binance(symbol, interval, start_ts, end_ts):
     """
-    使用 requests 通过代理下载 K线数据
+    使用 Binance API 下载 K线数据
 
-    Args:
-        symbol: 交易对，如 "BTCUSDT"
-        interval: K线周期，如 "5m", "1h", "1d"
-        start_time: 开始时间 (Unix timestamp in milliseconds)
-        end_time: 结束时间 (Unix timestamp in milliseconds)
-
-    Returns:
-        list of ohlcv records
+    Binance API 特点：
+    - 支持 startTime/endTime 指定范围
+    - 每次最多返回 1000 条（我们用 100）
+    - 数据从 startTime 到 endTime 按时间顺序
     """
-    # 转换交易对格式
-    inst_id = symbol.replace("USDT", "-USDT")
-
-    # 转换时间周期
-    interval_map = {"1m": "1m", "5m": "5m", "15m": "15m", "1h": "1H", "4h": "4H", "1d": "1D"}
+    interval_map = {
+        "1m": "1m", "5m": "5m", "15m": "15m",
+        "1h": "1h", "4h": "4h", "1d": "1d"
+    }
     timeframe = interval_map.get(interval, "5m")
 
-    all_ohlcv = []
-    oldest_ts = end_time  # 初始化
+    all_candles = []
+    current_start = start_ts
 
-    while len(all_ohlcv) < 10000:
+    print(f"    开始下载 {symbol} {interval} 从 {days_between(start_ts, end_ts):.1f} 天前...", flush=True)
+
+    while current_start < end_ts:
         max_retries = 3
         for attempt in range(max_retries):
             try:
-                url = EXCHANGES["okx"]["kline_url"]
                 params = {
-                    "instId": inst_id,
-                    "bar": timeframe,
-                    "limit": "100",
+                    "symbol": symbol,
+                    "interval": timeframe,
+                    "startTime": current_start,
+                    "endTime": end_ts,
+                    "limit": 100,
                 }
 
-                # 第一次获取最新数据，之后用 after 分页获取更早数据
-                if not all_ohlcv:
-                    # 第一次获取最新
-                    pass
-                else:
-                    # 用最旧的时间戳获取更早数据
-                    params["after"] = str(oldest_ts)
+                response = requests.get(
+                    EXCHANGES["binance"]["kline_url"],
+                    params=params,
+                    proxies=PROXY,
+                    timeout=30
+                )
 
-                response = requests.get(url, params=params, proxies=PROXY, timeout=30)
+                if response.status_code == 451:
+                    # Binance 451 错误通常是地区限制，尝试不同端点
+                    print(f"    451 错误，尝试备用端点...", flush=True)
+                    response = requests.get(
+                        "https://api.binance.com/api/v3/klines",
+                        params=params,
+                        proxies=PROXY,
+                        timeout=30
+                    )
+
                 response.raise_for_status()
                 data = response.json()
 
-                if data.get("code") != "0":
-                    raise Exception(f"API error: {data.get('msg')}")
+                if not data:
+                    print(f"    无更多数据，停止", flush=True)
+                    return all_candles
 
-                candles = data.get("data", [])
-                if not candles:
-                    break
-
-                # 解析数据: [timestamp, open, high, low, close, volume, ...]
-                for c in candles:
+                # Binance 返回格式:
+                # [open_time, open, high, low, close, volume, close_time, ...]
+                for c in data:
                     ts = int(c[0])
-                    # 只添加在时间范围内的数据
-                    if ts >= start_time:
-                        all_ohlcv.append([
-                            ts,
-                            float(c[1]),
-                            float(c[2]),
-                            float(c[3]),
-                            float(c[4]),
-                            float(c[5]),
-                        ])
+                    if ts >= start_ts and ts <= end_ts:
+                        all_candles.append(c)
 
-                # 更新最旧时间戳
-                oldest_ts = int(candles[-1][0])
+                print(f"    +{len(data)} (累计 {len(all_candles)})", flush=True)
+
+                # 更新下次开始时间
+                current_start = int(data[-1][0]) + 1
                 time.sleep(0.2)
+
+                # 如果返回数据少于 limit，说明到头了
+                if len(data) < 100:
+                    return all_candles
                 break
 
             except Exception as e:
                 if attempt < max_retries - 1:
                     time.sleep(2 ** attempt)
                 else:
-                    raise
+                    print(f"    失败: {e}", flush=True)
+                    return all_candles
 
-        # 如果最旧数据已经早于起始时间则退出
-        if oldest_ts <= start_time:
-            break
-
-    return all_ohlcv
+    return all_candles
 
 
-def parse_ohlcv_to_df(ohlcv_list):
-    """解析 CCXT ohlcv 响应为 pandas DataFrame"""
+def days_between(ts1, ts2):
+    """计算天数差"""
+    return (ts2 - ts1) / (24 * 3600 * 1000)
+
+
+def prepare_crypto_data_streaming(symbol, interval, start_days):
+    """
+    使用 Binance API 下载数据
+    """
+    os.makedirs(DATA_DIR, exist_ok=True)
+    filepath_parquet = os.path.join(DATA_DIR, f"{symbol}_{interval}.parquet")
+
+    # 检查是否已存在
+    if os.path.exists(filepath_parquet):
+        print(f"  {symbol}: 数据已存在，跳过", flush=True)
+        return True
+
+    end_time = int(time.time() * 1000)
+    start_time = int((time.time() - start_days * 24 * 3600) * 1000)
+
+    print(f"  {symbol}: 使用 Binance API 下载 {start_days} 天数据...", flush=True)
+
+    # 使用 Binance API 下载
+    candles = download_binance(symbol, interval, start_time, end_time)
+
+    if not candles:
+        print(f"  {symbol}: 无数据", flush=True)
+        return False
+
+    print(f"  共获取 {len(candles)} 根K线", flush=True)
+
+    # Binance 返回已按时间排序（从早到晚）
     records = []
-    for k in ohlcv_list:
-        # CCXT 格式: [timestamp, open, high, low, close, volume]
+    for c in candles:
+        ts = int(c[0])
+        dt = pd.to_datetime(ts, unit="ms")
         records.append({
-            "timestamp": int(k[0]),
-            "open": float(k[1]),
-            "high": float(k[2]),
-            "low": float(k[3]),
-            "close": float(k[4]),
-            "volume": float(k[5]),
-            "quote_volume": float(k[4]) * float(k[5]),  # 估算
-            "num_trades": 0,  # CCXT 基础响应不含此字段
-            "taker_buy_volume": float(k[5]) * 0.5,  # 估算
-            "taker_buy_quote_volume": float(k[4]) * float(k[5]) * 0.5,  # 估算
+            "timestamp": ts,
+            "open": float(c[1]),
+            "high": float(c[2]),
+            "low": float(c[3]),
+            "close": float(c[4]),
+            "volume": float(c[5]),
+            "quote_volume": float(c[4]) * float(c[5]),
+            "num_trades": int(c[8]) if len(c) > 8 else 0,
+            "taker_buy_volume": float(c[9]) if len(c) > 9 else float(c[5]) * 0.5,
+            "taker_buy_quote_volume": float(c[10]) if len(c) > 10 else float(c[4]) * float(c[5]) * 0.5,
+            "datetime": dt,
         })
-    return pd.DataFrame(records)
 
+    df = pd.DataFrame(records)
 
-# ---------------------------------------------------------------------------
-# 主流程
-# ---------------------------------------------------------------------------
+    # 去重（按 timestamp）
+    df = df.drop_duplicates(subset=["timestamp"]).sort_values("timestamp")
+
+    # 计算技术指标
+    print(f"  计算技术指标...", flush=True)
+    df = compute_features(df)
+
+    # 保存
+    table = pa.Table.from_pandas(df)
+    pq.write_table(table, filepath_parquet)
+    print(f"  保存至 {filepath_parquet}", flush=True)
+    return True
+
 
 def prepare_crypto_data(symbols=None, interval=None, start_days=None):
     """下载并处理加密货币数据"""
@@ -280,47 +322,13 @@ def prepare_crypto_data(symbols=None, interval=None, start_days=None):
 
     os.makedirs(DATA_DIR, exist_ok=True)
 
-    end_time = int(time.time() * 1000)
-    start_time = int((time.time() - start_days * 24 * 3600) * 1000)
-
     print(f"数据目录: {DATA_DIR}")
     print(f"下载周期: {interval}, 从 {start_days} 天前开始")
     print(f"交易对: {symbols}")
     print()
 
     for symbol in symbols:
-        filepath = os.path.join(DATA_DIR, f"{symbol}_{interval}.parquet")
-
-        # 检查是否已存在
-        if os.path.exists(filepath):
-            print(f"  {symbol}: 数据已存在，跳过")
-            continue
-
-        print(f"  {symbol}: 下载中...")
-
-        # 使用 requests 下载数据
-        ohlcv = download_with_requests(symbol, interval, start_time, end_time)
-
-        if not ohlcv:
-            print(f"  {symbol}: 无数据")
-            continue
-
-        print(f"    获取 {len(ohlcv)} 根K线")
-
-        # 解析为 DataFrame
-        df = parse_ohlcv_to_df(ohlcv)
-
-        # 计算技术指标
-        print(f"    计算技术指标...")
-        df = compute_features(df)
-
-        # 转换 timestamp 为 UTC 时间（方便查看）
-        df["datetime"] = pd.to_datetime(df["timestamp"], unit="ms")
-
-        # 保存为 Parquet
-        table = pa.Table.from_pandas(df)
-        pq.write_table(table, filepath)
-        print(f"    保存至 {filepath}")
+        prepare_crypto_data_streaming(symbol, interval, start_days)
 
     print()
     print("数据准备完成!")
