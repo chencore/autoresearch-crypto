@@ -1,0 +1,12 @@
+{
+  "symbol": "BTCUSDT",
+  "interval": "5m",
+  "initial_capital": 10000.0,
+  "capital": 10000.0,
+  "shares": 0.0,
+  "position": 0,
+  "trades": [],
+  "last_signal": 1,
+  "last_price": 77117.17,
+  "last_update": "2026-04-18T07:57:40.882592"
+}

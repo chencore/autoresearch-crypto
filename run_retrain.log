@@ -1,0 +1,34 @@
+warning: `VIRTUAL_ENV=D:\tools\Python\Python313` does not match the project environment path `.venv` and will be ignored; use `--active` to target the active environment instead
+============================================================
+º”√‹ªı±“¡øªØ≤ﬂ¬‘—µ¡∑
+============================================================
+’“µΩ 1 ∏ˆ ˝æ›Œƒº˛
+  BTCUSDT_5m.parquet
+
+º”‘ÿ ˝æ›...
+ ˝æ›ºØ¥Û–°: 34298 ∏ˆ—˘±æ
+Ãÿ’˜ ˝¡ø: 16
+
+ƒ£–Õ≈‰÷√:
+  depth: 3
+  n_embd: 96
+  n_head: 2
+  seq_len: 256
+ƒ£–Õ≤Œ ˝¡ø: 0.3M
+
+ø™ º—µ¡∑ ( ±º‰‘§À„: 300s)
+step 0000 (0.0%) | loss: 0.0744 | lr: 0.000 | dt: 957ms |  £”‡: 300s    step 0010 (3.1%) | loss: 0.5527 | lr: 0.455 | dt: 919ms |  £”‡: 291s    step 0020 (6.1%) | loss: 0.7183 | lr: 0.909 | dt: 918ms |  £”‡: 282s    step 0030 (9.2%) | loss: 0.7852 | lr: 1.000 | dt: 919ms |  £”‡: 272s    step 0040 (12.3%) | loss: 0.7874 | lr: 1.000 | dt: 968ms |  £”‡: 263s    step 0050 (15.4%) | loss: 0.8007 | lr: 1.000 | dt: 892ms |  £”‡: 254s    step 0060 (18.3%) | loss: 0.8299 | lr: 1.000 | dt: 878ms |  £”‡: 245s    step 0070 (21.3%) | loss: 0.7485 | lr: 1.000 | dt: 870ms |  £”‡: 236s    step 0080 (24.3%) | loss: 0.7314 | lr: 1.000 | dt: 877ms |  £”‡: 227s    step 0090 (27.3%) | loss: 0.7342 | lr: 1.000 | dt: 1197ms |  £”‡: 218s    step 0100 (31.3%) | loss: 0.7690 | lr: 0.943 | dt: 1206ms |  £”‡: 206s    step 0110 (35.4%) | loss: 0.7918 | lr: 0.755 | dt: 1196ms |  £”‡: 194s    step 0120 (39.4%) | loss: 0.7683 | lr: 0.566 | dt: 1206ms |  £”‡: 182s    step 0130 (43.4%) | loss: 0.7657 | lr: 0.377 | dt: 1217ms |  £”‡: 170s    step 0140 (47.4%) | loss: 0.7257 | lr: 0.189 | dt: 1195ms |  £”‡: 158s    step 0150 (51.4%) | loss: 0.7504 | lr: 0.000 | dt: 1173ms |  £”‡: 146s    step 0160 (54.9%) | loss: 0.7418 | lr: 0.000 | dt: 977ms |  £”‡: 135s    step 0170 (59.0%) | loss: 0.7391 | lr: 0.000 | dt: 1222ms |  £”‡: 123s    step 0180 (63.0%) | loss: 0.7681 | lr: 0.000 | dt: 1193ms |  £”‡: 111s    step 0190 (66.2%) | loss: 0.7623 | lr: 0.000 | dt: 921ms |  £”‡: 102s    step 0200 (69.2%) | loss: 0.7743 | lr: 0.000 | dt: 892ms |  £”‡: 93s    step 0210 (72.1%) | loss: 0.7699 | lr: 0.000 | dt: 881ms |  £”‡: 84s    step 0220 (75.1%) | loss: 0.7841 | lr: 0.000 | dt: 900ms |  £”‡: 75s    step 0230 (78.0%) | loss: 0.7601 | lr: 0.000 | dt: 864ms |  £”‡: 66s    step 0240 (81.0%) | loss: 0.7715 | lr: 0.000 | dt: 880ms |  £”‡: 57s    step 0250 (84.0%) | loss: 0.7692 | lr: 0.000 | dt: 901ms |  £”‡: 48s    step 0260 (86.9%) | loss: 0.7926 | lr: 0.000 | dt: 886ms |  £”‡: 39s    step 0270 (89.8%) | loss: 0.7964 | lr: 0.000 | dt: 875ms |  £”‡: 30s    step 0280 (92.8%) | loss: 0.7770 | lr: 0.000 | dt: 887ms |  £”‡: 22s    step 0290 (95.7%) | loss: 0.7437 | lr: 0.000 | dt: 920ms |  £”‡: 13s    step 0300 (98.7%) | loss: 0.7693 | lr: 0.000 | dt: 894ms |  £”‡: 4s    
+
+ƒ£–Õ“—±£¥Ê: D:\10_skill\autoresearch\checkpoints\quant_model.pt
+
+∆¿π¿÷–...
+Traceback (most recent call last):
+  File "D:\10_skill\autoresearch\train_quant.py", line 734, in <module>
+    main()
+  File "D:\10_skill\autoresearch\train_quant.py", line 715, in main
+    score, metrics = evaluator.evaluate(model, val_loader, device)
+  File "D:\10_skill\autoresearch\train_quant.py", line 490, in evaluate
+    metrics = self.compute_metrics(equity)
+  File "D:\10_skill\autoresearch\train_quant.py", line 455, in compute_metrics
+    trade_pnls = [t for t in trades if t.get("pnl") is not None]
+NameError: name 'trades' is not defined

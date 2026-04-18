@@ -1,0 +1,46 @@
+{
+  "symbol": "BTC-USDT",
+  "interval": "5m",
+  "initial_capital": 100.0,
+  "initial_equity": 79987.22391620571,
+  "position": 0,
+  "strategy_btc": 0.0,
+  "trades": [
+    {
+      "time": "2026-04-17T14:35:29.573598",
+      "type": "BUY",
+      "instId": "BTC-USDT",
+      "orderId": "3486483979808542723",
+      "sz": 100.0,
+      "estimated_btc": 0.0013266000244461095
+    },
+    {
+      "time": "2026-04-17T17:30:22.936447",
+      "type": "SELL",
+      "instId": "BTC-USDT",
+      "orderId": "3486836051229806592",
+      "sz": 0.0013266000244461095
+    },
+    {
+      "time": "2026-04-18T01:25:30.378875",
+      "type": "BUY",
+      "instId": "BTC-USDT",
+      "orderId": "3487792913504800768",
+      "sz": 100.0,
+      "estimated_btc": 0.0012953485505977286
+    },
+    {
+      "time": "2026-04-18T05:20:23.486723",
+      "type": "SELL",
+      "instId": "BTC-USDT",
+      "orderId": "3488265763835613185",
+      "sz": 0.0012936828355554
+    }
+  ],
+  "last_signal": 0,
+  "last_price": 2408.77,
+  "last_update": "2026-04-18T05:20:23.486723",
+  "bar_count": 160,
+  "entry_price": 77083.5,
+  "entry_bar": 65
+}

@@ -4,7 +4,20 @@
       "Bash(ls:*)",
       "Bash(git -C \"d:\\\\10_skill\\\\autoresearch\" branch -a)",
       "Bash(uv run python:*)",
-      "Bash(echo:*)"
+      "Bash(echo:*)",
+      "Bash(dir:*)",
+      "mcp__web-search-prime__web_search_prime",
+      "Bash(uv add:*)",
+      "Bash(.venv\\\\Scripts\\\\python:*)",
+      "Bash(.venv/Scripts/python.exe:*)",
+      "Bash(set PYTHONUNBUFFERED=1)",
+      "Bash(export PYTHONUNBUFFERED=1:*)",
+      "Bash(tasklist:*)",
+      "Bash(wmic process:*)",
+      "Bash(taskkill /F:*)",
+      "Bash(taskkill //F //PID 42200:*)",
+      "Bash(taskkill:*)",
+      "Bash(taskkill //F //PID 92848:*)"
     ]
   }
 }
