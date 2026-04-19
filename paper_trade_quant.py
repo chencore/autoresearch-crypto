@@ -22,8 +22,10 @@ import torch
 from inference_quant import fetch_latest_data
 from train_quant import BollingerStrategy
 
-STATE_FILE = "paper_trade_state.json"
-LOG_FILE = "paper_trade_log.txt"
+LOG_DIR = "logs"
+os.makedirs(LOG_DIR, exist_ok=True)
+STATE_FILE = os.path.join(LOG_DIR, "paper_trade_state.json")
+LOG_FILE = os.path.join(LOG_DIR, "paper_trade_log.txt")
 
 
 def load_state():

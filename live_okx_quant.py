@@ -40,9 +40,11 @@ from okx.MarketData import MarketAPI
 
 from train_quant import BollingerStrategy
 
-STATE_FILE = "live_okx_state.json"
-LOG_FILE = "live_okx_log.txt"
-LOCK_FILE = "live_okx_quant.lock"
+LOG_DIR = "logs"
+os.makedirs(LOG_DIR, exist_ok=True)
+STATE_FILE = os.path.join(LOG_DIR, "live_okx_state.json")
+LOG_FILE = os.path.join(LOG_DIR, "live_okx_log.txt")
+LOCK_FILE = os.path.join(LOG_DIR, "live_okx_quant.lock")
 MIN_ORDER_USDT = 5.0  # OKX 现货最小下单金额（USDT")
 
 try:
@@ -399,7 +401,8 @@ def main():
     parser.add_argument("--symbol", type=str, default="BTC-USDT", help="交易对，如 BTC-USDT, ETH-USDT")
     parser.add_argument("--interval", type=str, default="5m", help="K线周期: 1m, 5m, 15m, 1H, 4H, 1D")
     parser.add_argument("--checkpoint", type=str, default="checkpoints/quant_model.pt", help="策略参数路径")
-    parser.add_argument("--capital", type=float, default=100.0, help="每次交易金额（USDT）")
+    parser.add_argument("--capital", type=float, default=100.0, help="每次交易保证金（USDT）")
+    parser.add_argument("--leverage", type=float, default=1.0, help="杠杆倍数，实际下单=capital×leverage")
     parser.add_argument("--demo", action="store_true", help="Demo Trading 模拟盘（默认）")
     parser.add_argument("--live", action="store_true", help="实盘交易（真钱！）")
     parser.add_argument("--once", action="store_true", help="只运行一次然后退出")
@@ -429,8 +432,24 @@ def main():
         atr_multiplier=params.get("atr_multiplier", 2.5),
         max_hold_bars=params.get("max_hold_bars", 48),
         adx_threshold=params.get("adx_threshold", 25),
+        rsi_threshold=params.get("rsi_threshold", 30),
+        # 多指标扩展参数
+        use_adx=params.get("use_adx", False),
+        use_volume=params.get("use_volume", False),
+        volume_threshold=params.get("volume_threshold", 1.2),
+        use_macd=params.get("use_macd", False),
+        macd_confirm_mode=params.get("macd_confirm_mode", "direction"),
+        use_ma_cross=params.get("use_ma_cross", False),
+        use_mfi=params.get("use_mfi", False),
+        mfi_period=params.get("mfi_period", 14),
+        mfi_threshold=params.get("mfi_threshold", 20),
+        use_stochastic=params.get("use_stochastic", False),
+        stoch_period=params.get("stoch_period", 14),
+        stoch_threshold=params.get("stoch_threshold", 20),
     )
-    log_message(f"策略参数: 周期={strategy.window}, 标准差倍数={strategy.std_dev}, ATR止损={strategy.atr_multiplier}, 最大持仓={strategy.max_hold_bars}根K线, ADX阈值={strategy.adx_threshold}")
+    active_indicators = [k for k in ["use_adx", "use_volume", "use_macd", "use_ma_cross", "use_mfi", "use_stochastic"] if getattr(strategy, k)]
+    indicators_str = ", ".join(active_indicators) if active_indicators else "无"
+    log_message(f"策略参数: 周期={strategy.window}, 标准差={strategy.std_dev}, ATR止损={strategy.atr_multiplier}, 最大持仓={strategy.max_hold_bars}根K线, RSI阈值={strategy.rsi_threshold}, 活跃指标=[{indicators_str}]")
 
     # 初始化 OKX API
     account_api, trade_api, market_api = init_okx_api(flag=flag)
@@ -462,7 +481,7 @@ def main():
             "entry_price": 0.0,
             "entry_bar": 0,
         }
-        log_message(f"初始化账户，单次下单金额: {args.capital:.2f} USDT，初始权益: {initial_equity:.2f} USDT")
+        log_message(f"初始化账户，保证金: {args.capital:.2f} USDT, 杠杆: {args.leverage}x, 实际下单: {args.capital * args.leverage:.2f} USDT，初始权益: {initial_equity:.2f} USDT")
     else:
         log_message("恢复上一次交易状态")
         if "initial_equity" not in state:
@@ -503,7 +522,7 @@ def main():
                     log_message(f"布林带: 上轨={bb_info['upper']:.2f} 中轨={bb_info['mid']:.2f} 下轨={bb_info['lower']:.2f}")
 
                     state["bar_count"] = state.get("bar_count", 0) + 1
-                    state = execute_trade(signal_id, trade_api, account_api, args.symbol, args.capital, state, current_price)
+                    state = execute_trade(signal_id, trade_api, account_api, args.symbol, args.capital * args.leverage, state, current_price)
                     print_status(account_api, args.symbol, state)
                     save_state(state)
 

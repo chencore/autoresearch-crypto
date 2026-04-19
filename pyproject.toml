@@ -17,7 +17,7 @@ dependencies = [
     "rustbpe>=0.1.0",
     "tiktoken>=0.11.0",
     "setuptools<70",
-    "torch==2.5.0",
+    "torch>=2.5.0",
     "torchvision>=0.20.0",
 ]
 
@@ -25,6 +25,10 @@ dependencies = [
 index-url = "https://pypi.tuna.tsinghua.edu.cn/simple"
 
 [[tool.uv.index]]
-name = "pytorch"
-url = "https://download.pytorch.org/whl/cu121"
+name = "pytorch-cu124"
+url = "https://download.pytorch.org/whl/cu124"
 explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch-cu124" }
+torchvision = { index = "pytorch-cu124" }

@@ -23,10 +23,10 @@ PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(PROJECT_DIR, "data", "crypto")
 TOKENIZER_DIR = os.path.join(PROJECT_DIR, "tokenizer")
 
-TIME_BUDGET = 300       # 训练/搜索时间预算（秒）
+TIME_BUDGET = 600       # 训练/搜索时间预算（秒）
 INITIAL_CAPITAL = 10000.0
-COMMISSION = 0.001       # 0.1% 手续费
-SLIPPAGE = 0.0005       # 0.05% 滑点
+COMMISSION = 0.0002       # 0.02% 手续费（DEX Maker费率）
+SLIPPAGE = 0.0002        # 0.02% 滑点
 
 # ---------------------------------------------------------------------------
 # 数据加载
@@ -52,23 +52,49 @@ def load_crypto_data(filepath):
 
 class BollingerStrategy:
     """
-    稳健型布林带策略（只做多/空仓）
+    布林带 + 均线趋势混合策略（多空双向）
     核心逻辑：
-    1. 价格触及下轨买入，触及上轨卖出（均值回归）
-    2. ATR 追踪止损：根据市场波动率动态调整止损
-    3. 趋势过滤：ADX 判断市场是否有趋势，避免在强趋势中抄底
-    4. 时间退出：持仓过久不盈利则平仓
+    1. 快慢均线判断方向趋势
+    2. 布林带内轨找入场点（顺势回调入场）
+    3. RSI 辅助确认超卖/超买
+    4. ATR 追踪止损 + 时间退出
     """
 
     def __init__(self, window=20, std_dev=2.0,
                  atr_period=14, atr_multiplier=2.5,
-                 max_hold_bars=48, adx_threshold=25):
+                 max_hold_bars=48, adx_threshold=25,
+                 entry_zone=1.0, rsi_threshold=30,
+                 # P0: ADX 趋势过滤 + 量价确认
+                 use_adx=False, use_volume=False, volume_threshold=1.2,
+                 # P1: MACD 动量确认 + MA 交叉事件
+                 use_macd=False, macd_confirm_mode="direction",
+                 use_ma_cross=False,
+                 # P2: MFI 量价动量 + 随机指标
+                 use_mfi=False, mfi_period=14, mfi_threshold=20,
+                 use_stochastic=False, stoch_period=14, stoch_threshold=20):
         self.window = window
         self.std_dev = std_dev
         self.atr_period = atr_period
         self.atr_multiplier = atr_multiplier
         self.max_hold_bars = max_hold_bars
-        self.adx_threshold = adx_threshold  # ADX > 此值表示强趋势，不买入
+        self.adx_threshold = adx_threshold
+        self.entry_zone = entry_zone
+        self.rsi_threshold = rsi_threshold
+        # P0
+        self.use_adx = use_adx
+        self.use_volume = use_volume
+        self.volume_threshold = volume_threshold
+        # P1
+        self.use_macd = use_macd
+        self.macd_confirm_mode = macd_confirm_mode
+        self.use_ma_cross = use_ma_cross
+        # P2
+        self.use_mfi = use_mfi
+        self.mfi_period = mfi_period
+        self.mfi_threshold = mfi_threshold
+        self.use_stochastic = use_stochastic
+        self.stoch_period = stoch_period
+        self.stoch_threshold = stoch_threshold
 
     def _compute_atr(self, df, period):
         """计算 ATR"""
@@ -89,7 +115,7 @@ class BollingerStrategy:
         return atr
 
     def _compute_adx(self, df, period=14):
-        """计算 ADX"""
+        """计算 ADX, +DI, -DI（用于趋势强度过滤和方向确认）"""
         high = df["high"].values
         low = df["low"].values
         close = df["close"].values
@@ -123,46 +149,182 @@ class BollingerStrategy:
         for i in range(period * 2, len(high)):
             adx[i] = (adx[i-1] * (period - 1) + dx[i]) / period
 
-        return adx
+        return adx, plus_di, minus_di
 
-    def generate_signals(self, df):
+    def _compute_rsi(self, close, period=14):
+        """计算 RSI"""
+        deltas = np.diff(close, prepend=close[0])
+        gain = np.where(deltas > 0, deltas, 0.0)
+        loss = np.where(deltas < 0, -deltas, 0.0)
+
+        avg_gain = np.zeros(len(close))
+        avg_loss = np.zeros(len(close))
+        avg_gain[period] = np.mean(gain[1:period+1])
+        avg_loss[period] = np.mean(loss[1:period+1])
+
+        for i in range(period + 1, len(close)):
+            avg_gain[i] = (avg_gain[i-1] * (period - 1) + gain[i]) / period
+            avg_loss[i] = (avg_loss[i-1] * (period - 1) + loss[i]) / period
+
+        rsi = np.full(len(close), 50.0)
+        for i in range(period, len(close)):
+            if avg_loss[i] > 0:
+                rs = avg_gain[i] / avg_loss[i]
+                rsi[i] = 100.0 - 100.0 / (1.0 + rs)
+            else:
+                rsi[i] = 100.0
+        return rsi
+
+    def _compute_ema(self, series, period):
+        """计算 EMA（指数移动平均）"""
+        alpha = 2.0 / (period + 1)
+        ema = np.empty_like(series, dtype=float)
+        ema[0] = series[0]
+        for i in range(1, len(series)):
+            ema[i] = alpha * series[i] + (1 - alpha) * ema[i-1]
+        return ema
+
+    def _compute_macd(self, close, fast=12, slow=26, signal=9):
+        """计算 MACD（线、信号线、柱状图）"""
+        ema_fast = self._compute_ema(close, fast)
+        ema_slow = self._compute_ema(close, slow)
+        macd_line = ema_fast - ema_slow
+        signal_line = self._compute_ema(macd_line, signal)
+        macd_hist = macd_line - signal_line
+        return macd_line, signal_line, macd_hist
+
+    def _compute_mfi(self, df, period=14):
+        """计算 MFI（资金流量指数，量价版 RSI）"""
+        high = df["high"].values
+        low = df["low"].values
+        close = df["close"].values
+        volume = df["volume"].values
+
+        typical_price = (high + low + close) / 3.0
+        money_flow = typical_price * volume
+
+        pos_flow = np.where(typical_price > np.roll(typical_price, 1), money_flow, 0.0)
+        neg_flow = np.where(typical_price < np.roll(typical_price, 1), money_flow, 0.0)
+        pos_flow[0] = 0.0
+        neg_flow[0] = 0.0
+
+        mfi = np.full(len(close), 50.0)
+        for i in range(period, len(close)):
+            pos_sum = np.sum(pos_flow[i-period+1:i+1])
+            neg_sum = np.sum(neg_flow[i-period+1:i+1])
+            if neg_sum > 0:
+                mfi[i] = 100.0 - 100.0 / (1.0 + pos_sum / neg_sum)
+            else:
+                mfi[i] = 100.0
+        return mfi
+
+    def _compute_stochastic(self, df, period=14):
+        """计算随机指标 %K"""
+        high = df["high"].values
+        low = df["low"].values
+        close = df["close"].values
+
+        stoch_k = np.full(len(close), 50.0)
+        for i in range(period - 1, len(close)):
+            lowest = np.min(low[i-period+1:i+1])
+            highest = np.max(high[i-period+1:i+1])
+            if highest > lowest:
+                stoch_k[i] = 100.0 * (close[i] - lowest) / (highest - lowest)
+        return stoch_k
+
+    def generate_signals(self, df, enable_short=False):
+        """
+        生成交易信号。
+        信号: 0=平仓, 1=观望/持有, 2=做多(买入), 3=做空(卖出)
+
+        多指标过滤器管道：
+        1. 快慢均线判断趋势方向 + MA 交叉事件检测
+        2. ADX 趋势强度过滤（过滤震荡市）
+        3. 成交量确认（过滤假突破）
+        4. MACD 动量方向确认
+        5. RSI/MFI 超买超卖 + Stochastic 回调确认
+        6. 布林带上下轨入场触发
+        7. ATR 追踪止损 + 时间退出
+        """
         close = df["close"].values
         high = df["high"].values
         low = df["low"].values
         n = len(close)
 
+        # --- 基础指标 ---
+        # 布林带
         rolling_mean = pd.Series(close).rolling(window=self.window, min_periods=self.window).mean()
         rolling_std = pd.Series(close).rolling(window=self.window, min_periods=self.window).std()
         upper = rolling_mean + self.std_dev * rolling_std
         lower = rolling_mean - self.std_dev * rolling_std
 
-        atr = self._compute_atr(df, self.atr_period)
-        adx = self._compute_adx(df, self.atr_period)
+        # 快慢均线
+        fast_ma = pd.Series(close).rolling(window=self.window, min_periods=self.window).mean()
+        slow_ma = pd.Series(close).rolling(window=self.window * 2, min_periods=self.window * 2).mean()
 
+        atr = self._compute_atr(df, self.atr_period)
+        rsi = self._compute_rsi(close, 14)
+
+        # --- 可选指标 ---
+        adx = plus_di = minus_di = None
+        if self.use_adx:
+            adx, plus_di, minus_di = self._compute_adx(df, 14)
+
+        vol_ratio = None
+        if self.use_volume:
+            vol = df["volume"].values.astype(float)
+            vol_ma = pd.Series(vol).rolling(window=20, min_periods=20).mean().values
+            vol_ratio = np.where(vol_ma > 0, vol / vol_ma, 1.0)
+
+        macd_line = macd_signal_line = macd_hist = None
+        if self.use_macd:
+            macd_line, macd_signal_line, macd_hist = self._compute_macd(close)
+
+        mfi = None
+        if self.use_mfi:
+            mfi = self._compute_mfi(df, self.mfi_period)
+
+        stoch_k = None
+        if self.use_stochastic:
+            stoch_k = self._compute_stochastic(df, self.stoch_period)
+
+        # --- MA 交叉事件预计算 ---
+        golden_cross = None
+        death_cross = None
+        if self.use_ma_cross:
+            fast_prev = fast_ma.shift(1)
+            slow_prev = slow_ma.shift(1)
+            golden_cross = (fast_ma > slow_ma) & (fast_prev <= slow_prev)
+            death_cross = (fast_ma < slow_ma) & (fast_prev >= slow_prev)
+
+        # --- 信号生成主循环 ---
         signals = np.ones(n, dtype=int)
         position = 0
         entry_price = 0.0
         entry_bar = 0
         highest_after_entry = 0.0
+        lowest_after_entry = float('inf')
 
-        for i in range(self.window, n):
+        min_profit_pct = 0.005  # 最低盈利目标 0.5%（覆盖手续费）
+
+        for i in range(self.window * 2, n):
             price = close[i]
 
-            # 强趋势判断：ADX > threshold 表示趋势强劲，均值回归策略应避免买入
-            is_strong_trend = adx[i] > self.adx_threshold if i >= self.atr_period * 2 else False
+            is_uptrend = fast_ma.iloc[i] > slow_ma.iloc[i]
+            is_downtrend = fast_ma.iloc[i] < slow_ma.iloc[i]
 
+            # --- 持仓管理（不受新指标影响） ---
             if position == 1:
-                # 更新持仓期间的最高价（用于追踪止损）
+                # === 多头持仓管理 ===
                 if high[i] > highest_after_entry:
                     highest_after_entry = high[i]
 
-                # 1. 触及上轨 → 止盈
-                if price >= upper.iloc[i]:
+                profit_pct = (price - entry_price) / entry_price
+                if profit_pct > min_profit_pct and price < close[i-1]:
                     signals[i] = 0
                     position = 0
                     continue
 
-                # 2. ATR 追踪止损（从最高点回落 atr_multiplier * ATR）
                 if highest_after_entry > 0:
                     atr_stop = highest_after_entry - self.atr_multiplier * atr[i]
                     if price < atr_stop:
@@ -170,7 +332,11 @@ class BollingerStrategy:
                         position = 0
                         continue
 
-                # 3. 时间退出（最多持仓 max_hold_bars 根K线）
+                if is_downtrend:
+                    signals[i] = 0
+                    position = 0
+                    continue
+
                 if i - entry_bar >= self.max_hold_bars:
                     signals[i] = 0
                     position = 0
@@ -179,20 +345,163 @@ class BollingerStrategy:
                 signals[i] = 2
                 continue
 
-            if position == 0:
-                # 只在以下情况买入：
-                # 1. 价格触及下轨（均值回归）
-                # 2. 不是强趋势市场
-                if price <= lower.iloc[i] and not is_strong_trend:
-                    signals[i] = 1
-                    position = 1
-                    entry_price = price
-                    entry_bar = i
-                    highest_after_entry = high[i]
+            elif position == -1:
+                # === 空头持仓管理 ===
+                if low[i] < lowest_after_entry:
+                    lowest_after_entry = low[i]
+
+                profit_pct = (entry_price - price) / entry_price
+                if profit_pct > min_profit_pct and price > close[i-1]:
+                    signals[i] = 0
+                    position = 0
                     continue
 
-                # 其他情况保持观望
-                signals[i] = 1  # 观望/持有
+                if lowest_after_entry < float('inf'):
+                    atr_stop = lowest_after_entry + self.atr_multiplier * atr[i]
+                    if price > atr_stop:
+                        signals[i] = 0
+                        position = 0
+                        continue
+
+                if is_uptrend:
+                    signals[i] = 0
+                    position = 0
+                    continue
+
+                if i - entry_bar >= self.max_hold_bars:
+                    signals[i] = 0
+                    position = 0
+                    continue
+
+                signals[i] = 3
+                continue
+
+            # === 空仓：寻找入场机会 ===
+            if position == 0:
+                # --- 过滤器状态计算 ---
+
+                # ADX 趋势强度过滤
+                adx_pass = True
+                if self.use_adx and adx is not None:
+                    adx_pass = adx[i] >= self.adx_threshold
+
+                # 成交量确认（仅用于突破类入场）
+                vol_pass = True
+                if self.use_volume and vol_ratio is not None:
+                    vol_pass = vol_ratio[i] >= self.volume_threshold
+
+                # MACD 动量确认
+                macd_long_ok = True
+                macd_short_ok = True
+                if self.use_macd and macd_line is not None:
+                    if self.macd_confirm_mode in ("direction", "both"):
+                        macd_long_ok = macd_line[i] > macd_signal_line[i]
+                        macd_short_ok = macd_line[i] < macd_signal_line[i]
+                    if self.macd_confirm_mode in ("histogram", "both") and i > 0:
+                        if macd_hist[i] < macd_hist[i-1]:
+                            macd_long_ok = False
+                        if macd_hist[i] > macd_hist[i-1]:
+                            macd_short_ok = False
+
+                # 超买超卖判断（MFI 优先于 RSI）
+                is_oversold = rsi[i] < self.rsi_threshold
+                is_overbought = rsi[i] > (100 - self.rsi_threshold)
+                if self.use_mfi and mfi is not None:
+                    is_oversold = mfi[i] < self.mfi_threshold
+                    is_overbought = mfi[i] > (100 - self.mfi_threshold)
+
+                # Stochastic 回调确认
+                stoch_oversold = True  # 默认通过
+                stoch_overbought = True
+                if self.use_stochastic and stoch_k is not None:
+                    stoch_oversold = stoch_k[i] < self.stoch_threshold
+                    stoch_overbought = stoch_k[i] > (100 - self.stoch_threshold)
+
+                # ADX DI 方向增强趋势判断
+                adx_long_trend = is_uptrend
+                adx_short_trend = is_downtrend
+                if self.use_adx and plus_di is not None:
+                    if plus_di[i] > minus_di[i]:
+                        adx_long_trend = True
+                        adx_short_trend = False
+                    elif minus_di[i] > plus_di[i]:
+                        adx_long_trend = False
+                        adx_short_trend = True
+
+                # --- 入场决策（按优先级） ---
+
+                # 优先级 1: MA 交叉事件（最强信号）
+                if self.use_ma_cross and golden_cross is not None and adx_pass:
+                    if golden_cross.iloc[i] and macd_long_ok:
+                        signals[i] = 2
+                        position = 1
+                        entry_price = price
+                        entry_bar = i
+                        highest_after_entry = high[i]
+                        continue
+                    if enable_short and death_cross.iloc[i] and macd_short_ok:
+                        signals[i] = 3
+                        position = -1
+                        entry_price = price
+                        entry_bar = i
+                        lowest_after_entry = low[i]
+                        continue
+
+                # 优先级 2: 趋势跟随 + 布林带突破
+                if adx_long_trend and adx_pass:
+                    # 上升趋势 + 突破上轨 + 量能 + MACD 确认
+                    if price >= upper.iloc[i] and vol_pass and macd_long_ok:
+                        signals[i] = 2
+                        position = 1
+                        entry_price = price
+                        entry_bar = i
+                        highest_after_entry = high[i]
+                        continue
+                    # 上升趋势 + 超卖回调（RSI/MFI + Stochastic 双确认）
+                    if is_oversold and stoch_oversold:
+                        signals[i] = 2
+                        position = 1
+                        entry_price = price
+                        entry_bar = i
+                        highest_after_entry = high[i]
+                        continue
+
+                if enable_short and adx_short_trend and adx_pass:
+                    # 下降趋势 + 跌破下轨 + 量能 + MACD 确认
+                    if price <= lower.iloc[i] and vol_pass and macd_short_ok:
+                        signals[i] = 3
+                        position = -1
+                        entry_price = price
+                        entry_bar = i
+                        lowest_after_entry = low[i]
+                        continue
+                    # 下降趋势 + 超买卖回调
+                    if is_overbought and stoch_overbought:
+                        signals[i] = 3
+                        position = -1
+                        entry_price = price
+                        entry_bar = i
+                        lowest_after_entry = low[i]
+                        continue
+
+                # 优先级 3: 无趋势 + 布林带均值回归
+                if not is_uptrend and not is_downtrend:
+                    if price <= lower.iloc[i]:
+                        signals[i] = 2
+                        position = 1
+                        entry_price = price
+                        entry_bar = i
+                        highest_after_entry = high[i]
+                        continue
+                    if enable_short and price >= upper.iloc[i]:
+                        signals[i] = 3
+                        position = -1
+                        entry_price = price
+                        entry_bar = i
+                        lowest_after_entry = low[i]
+                        continue
+
+                signals[i] = 1
 
         return signals
 
@@ -211,12 +520,12 @@ class StrategyEvaluator:
 
     def simulate(self, signals, prices, df=None):
         """
-        模拟交易（只做多/空仓，不做空）
-        支持 ATR 止损和时间退出
+        模拟交易（支持做多/做空/空仓）
+        信号: 0=平仓, 1=持有, 2=做多, 3=做空
         """
         capital = self.initial_capital
-        shares = 0.0
-        position = 0
+        shares = 0.0  # 正数=多头, 负数=空头
+        position = 0  # 1=多头, -1=空头, 0=空仓
         equity = []
         trades = []
         entry_cost_basis = 0.0
@@ -227,24 +536,19 @@ class StrategyEvaluator:
             signal = signals[i]
             price = prices[i]
 
+            # 解析信号 → 目标仓位
             if signal == 2:
                 target_pos = 1
+            elif signal == 3:
+                target_pos = -1
             elif signal == 0:
                 target_pos = 0
             else:
                 target_pos = position
 
             if target_pos != position:
-                if target_pos == 1 and position == 0:
-                    exec_price = price * (1 + self.slippage)
-                    shares = capital * (1 - self.commission) / exec_price
-                    entry_cost_basis = capital
-                    entry_price = exec_price
-                    entry_step = i
-                    capital = 0.0
-                    trades.append({"type": "buy", "step": i})
-                    position = 1
-                elif target_pos == 0 and position == 1:
+                # 先平掉当前仓位
+                if position == 1 and target_pos <= 0:
                     exec_price = price * (1 - self.slippage)
                     gross = shares * exec_price
                     cost = gross * self.commission
@@ -254,9 +558,59 @@ class StrategyEvaluator:
                     shares = 0.0
                     position = 0
 
-            current_equity = capital + shares * price
+                elif position == -1 and target_pos >= 0:
+                    exec_price = price * (1 + self.slippage)
+                    # 空头平仓：买入还给市场
+                    buy_cost = abs(shares) * exec_price
+                    buy_cost_total = buy_cost * (1 + self.commission)
+                    pnl = entry_cost_basis - buy_cost_total
+                    capital = capital + pnl
+                    # 防护：不允许负资金
+                    if capital < 0:
+                        capital = 0
+                    trades.append({"type": "buy_cover", "step": i, "pnl": float(pnl)})
+                    shares = 0.0
+                    position = 0
+
+                # 开新仓（资金不足则跳过）
+                if target_pos == 1 and position == 0 and capital > 0:
+                    exec_price = price * (1 + self.slippage)
+                    shares = capital * (1 - self.commission) / exec_price
+                    entry_cost_basis = capital
+                    entry_price = exec_price
+                    entry_step = i
+                    capital = 0.0
+                    trades.append({"type": "buy", "step": i})
+                    position = 1
+
+                elif target_pos == -1 and position == 0 and capital > 0:
+                    # 做空：卖出借来的币，记录卖出所得
+                    exec_price = price * (1 - self.slippage)
+                    shares = -(capital * (1 - self.commission) / exec_price)
+                    entry_cost_basis = capital
+                    entry_price = exec_price
+                    entry_step = i
+                    # capital 暂存卖出所得（扣除手续费后）
+                    capital = capital * (1 - self.commission)  # 卖出所得 = 本金 * (1-手续费)
+                    trades.append({"type": "sell_short", "step": i})
+                    position = -1
+
+            # 计算当前权益
+            if position == 1:
+                current_equity = capital + shares * price
+            elif position == -1:
+                # 空头权益 = 卖出所得 + (入场价 - 当前价) * |仓位|
+                current_equity = capital + abs(shares) * (entry_price - price)
+            else:
+                current_equity = capital
+
+            # 防护：权益异常则截断
+            if not np.isfinite(current_equity) or current_equity > 1e15 or current_equity < 0:
+                equity.append(max(0, current_equity) if np.isfinite(current_equity) else 0)
+                break
             equity.append(current_equity)
 
+        # 结算未平仓位
         if position == 1:
             exec_price = prices[-1] * (1 - self.slippage)
             gross = shares * exec_price
@@ -265,8 +619,11 @@ class StrategyEvaluator:
             pnl = capital - entry_cost_basis
             trades.append({"type": "sell_final", "step": len(signals) - 1, "pnl": float(pnl)})
             equity[-1] = capital
-            position = 0
-            shares = 0.0
+        elif position == -1:
+            exec_price = prices[-1] * (1 + self.slippage)
+            buy_cost = abs(shares) * exec_price * (1 + self.commission)
+            capital = capital + (entry_cost_basis - buy_cost)
+            equity[-1] = capital
 
         return np.array(equity), trades
 
@@ -281,8 +638,13 @@ class StrategyEvaluator:
         years = n_steps * 5 / (288 * 365)
         if years < 0.01:
             years = 0.01
-        annualized_return = (1 + total_return) ** (1 / years) - 1
-        annualized_return = max(-10.0, min(10.0, annualized_return))
+        # 防止 overflow: 限制 total_return 范围
+        total_return = max(-1.0, min(100.0, total_return))
+        try:
+            annualized_return = (1 + total_return) ** (1 / years) - 1
+            annualized_return = max(-10.0, min(10.0, annualized_return))
+        except (OverflowError, ValueError):
+            annualized_return = 0.0
 
         annualized_vol = np.std(returns) * math.sqrt(288 * 365) if len(returns) > 0 else 0
         sharpe = annualized_return / annualized_vol if annualized_vol > 0 else 0
@@ -313,17 +675,51 @@ class StrategyEvaluator:
     def evaluate(self, signals, prices, df=None):
         """评估一组信号"""
         equity, trades = self.simulate(signals, prices, df)
+
+        # 防护：权益曲线出现 NaN/Inf 则直接返回零分
+        if len(equity) == 0 or not np.all(np.isfinite(equity)):
+            return 0.0, {"total_return": 0, "annualized_return": 0, "annualized_vol": 0,
+                          "sharpe_ratio": 0, "max_drawdown": -0.99, "win_rate": 0}, []
+
         metrics = self.compute_metrics(equity, trades)
 
-        # 惩罚大回撤：如果最大回撤超过 20%，大幅降低评分
+        # 防护：指标异常则零分
+        if not np.isfinite(metrics["sharpe_ratio"]) or not np.isfinite(metrics["total_return"]):
+            return 0.0, metrics, trades
+
+        # 防护：回撤超过30%视为策略失效，直接零分
+        if metrics["max_drawdown"] < -0.30:
+            return 0.0, metrics, trades
+
+        # 防护：最终权益低于初始70%视为失效
+        if equity[-1] < self.initial_capital * 0.7:
+            return 0.0, metrics, trades
+
+        # 防护：必须盈利（或接近盈亏平衡）才有资格评分
+        if metrics["total_return"] <= -0.005:  # 允许 -0.5% 以内的亏损
+            return 0.0, metrics, trades
+
+        trade_pnls = [t for t in trades if t.get("pnl") is not None]
+        n_trades = len(trade_pnls)
+
+        # 惩罚大回撤
         dd_penalty = max(0, 1 - abs(metrics["max_drawdown"]) / 0.20) if metrics["max_drawdown"] < 0 else 1.0
 
+        # 最低交易量门槛：少于10笔交易大幅惩罚
+        min_trade_penalty = min(1.0, n_trades / 10.0) if n_trades < 10 else 1.0
+
+        # 限制各项指标范围，防止异常值
+        sharpe_clamped = max(0, min(5.0, metrics["sharpe_ratio"]))
+        return_clamped = max(0, min(2.0, metrics["total_return"]))  # 最高200%
+        win_rate_clamped = max(0, min(1.0, metrics["win_rate"]))
+
         score = (
-            max(0, metrics["sharpe_ratio"]) * 0.35 +
-            max(0, metrics["total_return"]) * 0.25 +
-            metrics["win_rate"] * 0.10 +
-            dd_penalty * (1 + metrics["max_drawdown"]) * 0.20 +
-            min(1.0, len(trades) / 20.0) * 0.10
+            sharpe_clamped * 0.25 +
+            return_clamped * 0.15 +
+            win_rate_clamped * 0.10 +
+            dd_penalty * (1 + metrics["max_drawdown"]) * 0.15 +
+            min(1.0, n_trades / 40.0) * 0.25 +   # 交易次数权重大幅提高
+            min_trade_penalty * 0.10
         )
 
         return score, metrics, trades
@@ -335,7 +731,9 @@ class StrategyEvaluator:
 
 def grid_search(df, time_budget=TIME_BUDGET):
     """
-    在时间预算内网格搜索最优布林带参数。
+    两阶段网格搜索最优策略参数。
+    Stage 1: 搜索核心布林带参数（50%时间预算）
+    Stage 2: 固定核心参数，搜索指标组合（50%时间预算）
     数据集划分：最后 10% 作为验证集（按时间顺序）。
     """
     n = len(df)
@@ -343,62 +741,66 @@ def grid_search(df, time_budget=TIME_BUDGET):
     train_df = df.iloc[:train_size].reset_index(drop=True)
     val_df = df.iloc[train_size:].reset_index(drop=True)
 
-    param_grid = {
+    evaluator = StrategyEvaluator()
+
+    # ======================================================================
+    # Stage 1: 核心参数搜索（布林带 + ATR + RSI）
+    # ======================================================================
+    stage1_grid = {
         "window": [15, 20, 25, 30],
-        "std_dev": [1.8, 2.0, 2.2, 2.5],
-        "atr_multiplier": [1.5, 2.0, 2.5, 3.0],
-        "max_hold_bars": [24, 36, 48, 60],
-        "adx_threshold": [20, 25, 30],
+        "std_dev": [1.8, 2.0, 2.5, 3.0],
+        "atr_multiplier": [2.0, 2.5, 3.0, 4.0],
+        "max_hold_bars": [12, 18, 24, 36],
+        "rsi_threshold": [30, 35, 40],
     }
 
-    evaluator = StrategyEvaluator()
     best_score = -float("inf")
     best_params = None
     best_metrics = None
 
-    print(f"开始参数搜索 (训练集 {len(train_df)} 条, 验证集 {len(val_df)} 条)")
-    print(f"时间预算: {time_budget}s")
+    stage1_budget = time_budget * 0.5
+    total_combos = 1
+    for v in stage1_grid.values():
+        total_combos *= len(v)
+
+    print(f"Stage 1: 核心参数搜索 (训练集 {len(train_df)} 条, 验证集 {len(val_df)} 条)")
+    print(f"  参数组合: {total_combos}, 时间预算: {stage1_budget:.0f}s")
     print()
 
     t_start = time.time()
-    total_combos = (
-        len(param_grid["window"]) *
-        len(param_grid["std_dev"]) *
-        len(param_grid["atr_multiplier"]) *
-        len(param_grid["max_hold_bars"]) *
-        len(param_grid["adx_threshold"])
-    )
     tried = 0
 
-    for window in param_grid["window"]:
-        for std_dev in param_grid["std_dev"]:
-            for atr_mult in param_grid["atr_multiplier"]:
-                for max_hold in param_grid["max_hold_bars"]:
-                    for adx_th in param_grid["adx_threshold"]:
-                        if time.time() - t_start > time_budget * 0.9:
-                            print("时间预算即将耗尽，提前结束搜索")
+    for window in stage1_grid["window"]:
+        for std_dev in stage1_grid["std_dev"]:
+            for atr_mult in stage1_grid["atr_multiplier"]:
+                for max_hold in stage1_grid["max_hold_bars"]:
+                    for rsi_th in stage1_grid["rsi_threshold"]:
+                        if time.time() - t_start > stage1_budget * 0.9:
+                            print("Stage 1 时间预算即将耗尽，提前结束")
                             break
 
                         strategy = BollingerStrategy(
                             window=window, std_dev=std_dev,
                             atr_multiplier=atr_mult, max_hold_bars=max_hold,
-                            adx_threshold=adx_th
+                            rsi_threshold=rsi_th
                         )
-                        signals = strategy.generate_signals(val_df)
+                        signals = strategy.generate_signals(val_df, enable_short=True)
                         prices = val_df["close"].values
 
-                        valid_signals = signals[window:]
-                        valid_prices = prices[window:]
-                        valid_df = val_df.iloc[window:].reset_index(drop=True)
+                        valid_signals = signals[window*2:]
+                        valid_prices = prices[window*2:]
+                        valid_df = val_df.iloc[window*2:].reset_index(drop=True)
 
                         if len(valid_signals) < 50:
                             continue
 
                         score, metrics, trades = evaluator.evaluate(valid_signals, valid_prices, valid_df)
+                        n_trades = len([t for t in trades if t.get("pnl") is not None])
 
                         tried += 1
-                        print(f"[{tried}/{total_combos}] w={window} std={std_dev} atr={atr_mult} hold={max_hold} adx={adx_th} | "
-                              f"评分={score:.4f} | 收益={metrics['total_return']*100:.2f}% | 夏普={metrics['sharpe_ratio']:.2f} | DD={metrics['max_drawdown']*100:.1f}% | 交易={len(trades)}")
+                        if tried % 50 == 0 or score > best_score:
+                            print(f"  [{tried}/{total_combos}] w={window} std={std_dev} atr={atr_mult} hold={max_hold} rsi={rsi_th} | "
+                                  f"评分={score:.4f} | 收益={metrics['total_return']*100:.2f}% | 夏普={metrics['sharpe_ratio']:.2f} | DD={metrics['max_drawdown']*100:.1f}% | 交易={n_trades}")
 
                         if score > best_score:
                             best_score = score
@@ -407,9 +809,131 @@ def grid_search(df, time_budget=TIME_BUDGET):
                                 "std_dev": std_dev,
                                 "atr_multiplier": atr_mult,
                                 "max_hold_bars": max_hold,
-                                "adx_threshold": adx_th,
+                                "rsi_threshold": rsi_th,
                             }
                             best_metrics = metrics
+
+    stage1_time = time.time() - t_start
+    print(f"\nStage 1 完成: {tried}/{total_combos} 组合, 耗时 {stage1_time:.1f}s")
+    if best_params:
+        print(f"  最优核心参数: w={best_params['window']} std={best_params['std_dev']} "
+              f"atr={best_params['atr_multiplier']} hold={best_params['max_hold_bars']} rsi={best_params['rsi_threshold']}")
+        print(f"  评分={best_score:.4f} 收益={best_metrics['total_return']*100:.2f}%")
+
+    # ======================================================================
+    # Stage 2: 指标组合搜索（固定核心参数）
+    # ======================================================================
+    if not best_params:
+        return best_params, best_score, best_metrics
+
+    # 预定义指标组合（精选，避免全排列爆炸）
+    indicator_combos = [
+        {},  # 基线（无额外指标）
+        # P0: ADX
+        {"use_adx": True, "adx_threshold": 20},
+        {"use_adx": True, "adx_threshold": 25},
+        {"use_adx": True, "adx_threshold": 30},
+        # P0: Volume
+        {"use_volume": True, "volume_threshold": 1.0},
+        {"use_volume": True, "volume_threshold": 1.2},
+        {"use_volume": True, "volume_threshold": 1.5},
+        # P0: ADX + Volume
+        {"use_adx": True, "adx_threshold": 20, "use_volume": True, "volume_threshold": 1.2},
+        {"use_adx": True, "adx_threshold": 25, "use_volume": True, "volume_threshold": 1.2},
+        {"use_adx": True, "adx_threshold": 25, "use_volume": True, "volume_threshold": 1.5},
+        # P1: MACD
+        {"use_macd": True, "macd_confirm_mode": "direction"},
+        {"use_macd": True, "macd_confirm_mode": "histogram"},
+        {"use_macd": True, "macd_confirm_mode": "both"},
+        # P1: MA Cross
+        {"use_ma_cross": True},
+        # P1: MACD + MA Cross
+        {"use_macd": True, "macd_confirm_mode": "direction", "use_ma_cross": True},
+        # P0+P1: ADX + MACD
+        {"use_adx": True, "adx_threshold": 25, "use_macd": True, "macd_confirm_mode": "direction"},
+        {"use_adx": True, "adx_threshold": 25, "use_macd": True, "macd_confirm_mode": "both"},
+        # P0+P1: ADX + Volume + MACD
+        {"use_adx": True, "adx_threshold": 25, "use_volume": True, "volume_threshold": 1.2, "use_macd": True, "macd_confirm_mode": "direction"},
+        # P2: MFI
+        {"use_mfi": True, "mfi_threshold": 20},
+        {"use_mfi": True, "mfi_threshold": 25},
+        {"use_mfi": True, "mfi_threshold": 30},
+        # P2: Stochastic
+        {"use_stochastic": True, "stoch_threshold": 20},
+        {"use_stochastic": True, "stoch_threshold": 30},
+        # P2: MFI + Stochastic
+        {"use_mfi": True, "mfi_threshold": 20, "use_stochastic": True, "stoch_threshold": 20},
+        # P0+P2: ADX + MFI
+        {"use_adx": True, "adx_threshold": 25, "use_mfi": True, "mfi_threshold": 25},
+        # P0+P2: ADX + Stochastic
+        {"use_adx": True, "adx_threshold": 25, "use_stochastic": True, "stoch_threshold": 20},
+        # 全量组合
+        {"use_adx": True, "adx_threshold": 25, "use_volume": True, "volume_threshold": 1.2,
+         "use_macd": True, "macd_confirm_mode": "direction"},
+        {"use_adx": True, "adx_threshold": 25, "use_volume": True, "volume_threshold": 1.2,
+         "use_macd": True, "macd_confirm_mode": "direction", "use_ma_cross": True},
+        {"use_adx": True, "adx_threshold": 25, "use_mfi": True, "mfi_threshold": 25,
+         "use_macd": True, "macd_confirm_mode": "direction"},
+    ]
+
+    stage2_budget = time_budget - stage1_time
+    print(f"\nStage 2: 指标组合搜索 ({len(indicator_combos)} 种组合)")
+    print(f"  时间预算: {stage2_budget:.0f}s")
+    print()
+
+    t2_start = time.time()
+    stage2_tried = 0
+
+    for combo in indicator_combos:
+        if time.time() - t2_start > stage2_budget * 0.9:
+            print("Stage 2 时间预算即将耗尽，提前结束")
+            break
+
+        # 合并核心参数和指标参数
+        merged = {**best_params, **combo}
+
+        strategy = BollingerStrategy(**merged)
+        signals = strategy.generate_signals(val_df, enable_short=True)
+        prices = val_df["close"].values
+
+        window = best_params["window"]
+        valid_signals = signals[window*2:]
+        valid_prices = prices[window*2:]
+        valid_df = val_df.iloc[window*2:].reset_index(drop=True)
+
+        if len(valid_signals) < 50:
+            continue
+
+        score, metrics, trades = evaluator.evaluate(valid_signals, valid_prices, valid_df)
+        n_trades = len([t for t in trades if t.get("pnl") is not None])
+
+        # 生成组合描述
+        active_indicators = [k for k, v in combo.items() if v is True and k.startswith("use_")]
+        desc = "+".join(active_indicators) if active_indicators else "baseline"
+        if "macd_confirm_mode" in combo:
+            desc += f"[{combo['macd_confirm_mode']}]"
+
+        stage2_tried += 1
+        if score > best_score:
+            best_score = score
+            best_params = merged.copy()
+            best_metrics = metrics
+            print(f"  [{stage2_tried}/{len(indicator_combos)}] {desc:40s} | "
+                  f"评分={score:.4f} | 收益={metrics['total_return']*100:.2f}% | 夏普={metrics['sharpe_ratio']:.2f} | DD={metrics['max_drawdown']*100:.1f}% | 交易={n_trades} <<< NEW BEST")
+        elif stage2_tried % 10 == 0:
+            print(f"  [{stage2_tried}/{len(indicator_combos)}] {desc:40s} | "
+                  f"评分={score:.4f} | 收益={metrics['total_return']*100:.2f}% | 交易={n_trades}")
+
+    stage2_time = time.time() - t2_start
+    print(f"\nStage 2 完成: {stage2_tried}/{len(indicator_combos)} 组合, 耗时 {stage2_time:.1f}s")
+
+    # 输出活跃指标信息
+    active = {k: v for k, v in best_params.items() if k.startswith("use_") and v is True}
+    if active:
+        indicator_str = ", ".join(f"{k}={v}" for k, v in best_params.items() if k.startswith("use_") or k in ("adx_threshold", "volume_threshold", "macd_confirm_mode", "mfi_threshold", "mfi_period", "stoch_threshold", "stoch_period"))
+        print(f"  活跃指标: {indicator_str}")
+    else:
+        print(f"  无额外指标（纯布林带策略）")
 
     print()
     return best_params, best_score, best_metrics
@@ -423,7 +947,7 @@ def main():
     t_start = time.time()
 
     print("=" * 60)
-    print("加密货币量化策略训练 (布林带均值回归)")
+    print("加密货币量化策略训练 (布林带均值回归 - 多空双向)")
     print("=" * 60)
 
     data_files = list_crypto_files()
@@ -465,7 +989,21 @@ def main():
         print(f"标准差倍数:     {best_params['std_dev']}")
         print(f"ATR止损倍数:    {best_params['atr_multiplier']}")
         print(f"最大持仓K线:   {best_params['max_hold_bars']}")
-        print(f"ADX阈值:       {best_params['adx_threshold']}")
+        print(f"RSI阈值:        {best_params.get('rsi_threshold', 30)}")
+        # 指标开关
+        indicator_keys = ["use_adx", "adx_threshold", "use_volume", "volume_threshold",
+                          "use_macd", "macd_confirm_mode", "use_ma_cross",
+                          "use_mfi", "mfi_period", "mfi_threshold",
+                          "use_stochastic", "stoch_period", "stoch_threshold"]
+        active_indicators = []
+        for k in indicator_keys:
+            v = best_params.get(k)
+            if v is not None and (k.startswith("use_") and v is True or not k.startswith("use_")):
+                active_indicators.append(f"{k}={v}")
+        if any(best_params.get(k) for k in indicator_keys if k.startswith("use_")):
+            print(f"活跃指标:       {', '.join(active_indicators)}")
+        else:
+            print(f"活跃指标:       无（纯布林带策略）")
         print(f"综合评分:       {best_score:.6f}")
         print(f"夏普比率:       {best_metrics['sharpe_ratio']:.4f}")
         print(f"总收益率:       {best_metrics['total_return']*100:.2f}%")

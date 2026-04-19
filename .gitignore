@@ -6,11 +6,18 @@ dist/
 wheels/
 *.egg-info
 
+
 # Virtual environments
 .venv
 worktrees/
 results/
 queue/
+
+# Logs, state, lock files
+logs/
+
+.env
+/data
 
 # Agent prompt files (generated per-session by launchers)
 CLAUDE.md
