@@ -447,10 +447,12 @@ class BollingerStrategy:
                         lowest_after_entry = low[i]
                         continue
 
-                # 优先级 2: 趋势跟随 + 布林带突破
+                # 优先级 2: 趋势跟随 + 布林带突破（支持 entry_zone 提前入场）
+                upper_trigger = upper.iloc[i] - self.entry_zone * rolling_std.iloc[i]
+                lower_trigger = lower.iloc[i] + self.entry_zone * rolling_std.iloc[i]
                 if adx_long_trend and adx_pass:
-                    # 上升趋势 + 突破上轨 + 量能 + MACD 确认
-                    if price >= upper.iloc[i] and vol_pass and macd_long_ok:
+                    # 上升趋势 + 接近/突破上轨 + 量能 + MACD 确认
+                    if price >= upper_trigger and vol_pass and macd_long_ok:
                         signals[i] = 2
                         position = 1
                         entry_price = price
@@ -467,8 +469,8 @@ class BollingerStrategy:
                         continue
 
                 if enable_short and adx_short_trend and adx_pass:
-                    # 下降趋势 + 跌破下轨 + 量能 + MACD 确认
-                    if price <= lower.iloc[i] and vol_pass and macd_short_ok:
+                    # 下降趋势 + 接近/跌破下轨 + 量能 + MACD 确认
+                    if price <= lower_trigger and vol_pass and macd_short_ok:
                         signals[i] = 3
                         position = -1
                         entry_price = price
@@ -484,16 +486,16 @@ class BollingerStrategy:
                         lowest_after_entry = low[i]
                         continue
 
-                # 优先级 3: 无趋势 + 布林带均值回归
+                # 优先级 3: 无趋势 + 布林带均值回归（支持 entry_zone 提前入场）
                 if not is_uptrend and not is_downtrend:
-                    if price <= lower.iloc[i]:
+                    if price <= lower_trigger:
                         signals[i] = 2
                         position = 1
                         entry_price = price
                         entry_bar = i
                         highest_after_entry = high[i]
                         continue
-                    if enable_short and price >= upper.iloc[i]:
+                    if enable_short and price >= upper_trigger:
                         signals[i] = 3
                         position = -1
                         entry_price = price
@@ -749,9 +751,10 @@ def grid_search(df, time_budget=TIME_BUDGET):
     stage1_grid = {
         "window": [15, 20, 25, 30],
         "std_dev": [1.8, 2.0, 2.5, 3.0],
-        "atr_multiplier": [2.0, 2.5, 3.0, 4.0],
+        "atr_multiplier": [2.0, 2.5, 3.0],
         "max_hold_bars": [12, 18, 24, 36],
         "rsi_threshold": [30, 35, 40],
+        "entry_zone": [0.0],
     }
 
     best_score = -float("inf")
@@ -775,49 +778,52 @@ def grid_search(df, time_budget=TIME_BUDGET):
             for atr_mult in stage1_grid["atr_multiplier"]:
                 for max_hold in stage1_grid["max_hold_bars"]:
                     for rsi_th in stage1_grid["rsi_threshold"]:
-                        if time.time() - t_start > stage1_budget * 0.9:
-                            print("Stage 1 时间预算即将耗尽，提前结束")
-                            break
+                        for ez in stage1_grid["entry_zone"]:
+                            if time.time() - t_start > stage1_budget * 0.9:
+                                print("Stage 1 时间预算即将耗尽，提前结束")
+                                break
 
-                        strategy = BollingerStrategy(
-                            window=window, std_dev=std_dev,
-                            atr_multiplier=atr_mult, max_hold_bars=max_hold,
-                            rsi_threshold=rsi_th
-                        )
-                        signals = strategy.generate_signals(val_df, enable_short=True)
-                        prices = val_df["close"].values
+                            strategy = BollingerStrategy(
+                                window=window, std_dev=std_dev,
+                                atr_multiplier=atr_mult, max_hold_bars=max_hold,
+                                rsi_threshold=rsi_th, entry_zone=ez
+                            )
+                            signals = strategy.generate_signals(val_df, enable_short=True)
+                            prices = val_df["close"].values
 
-                        valid_signals = signals[window*2:]
-                        valid_prices = prices[window*2:]
-                        valid_df = val_df.iloc[window*2:].reset_index(drop=True)
+                            valid_signals = signals[window*2:]
+                            valid_prices = prices[window*2:]
+                            valid_df = val_df.iloc[window*2:].reset_index(drop=True)
 
-                        if len(valid_signals) < 50:
-                            continue
+                            if len(valid_signals) < 50:
+                                continue
 
-                        score, metrics, trades = evaluator.evaluate(valid_signals, valid_prices, valid_df)
-                        n_trades = len([t for t in trades if t.get("pnl") is not None])
+                            score, metrics, trades = evaluator.evaluate(valid_signals, valid_prices, valid_df)
+                            n_trades = len([t for t in trades if t.get("pnl") is not None])
 
-                        tried += 1
-                        if tried % 50 == 0 or score > best_score:
-                            print(f"  [{tried}/{total_combos}] w={window} std={std_dev} atr={atr_mult} hold={max_hold} rsi={rsi_th} | "
-                                  f"评分={score:.4f} | 收益={metrics['total_return']*100:.2f}% | 夏普={metrics['sharpe_ratio']:.2f} | DD={metrics['max_drawdown']*100:.1f}% | 交易={n_trades}")
+                            tried += 1
+                            if tried % 50 == 0 or score > best_score:
+                                print(f"  [{tried}/{total_combos}] w={window} std={std_dev} atr={atr_mult} hold={max_hold} rsi={rsi_th} ez={ez:.1f} | "
+                                      f"评分={score:.4f} | 收益={metrics['total_return']*100:.2f}% | 夏普={metrics['sharpe_ratio']:.2f} | DD={metrics['max_drawdown']*100:.1f}% | 交易={n_trades}")
 
-                        if score > best_score:
-                            best_score = score
-                            best_params = {
-                                "window": window,
-                                "std_dev": std_dev,
-                                "atr_multiplier": atr_mult,
-                                "max_hold_bars": max_hold,
-                                "rsi_threshold": rsi_th,
-                            }
-                            best_metrics = metrics
+                            if score > best_score:
+                                best_score = score
+                                best_params = {
+                                    "window": window,
+                                    "std_dev": std_dev,
+                                    "atr_multiplier": atr_mult,
+                                    "max_hold_bars": max_hold,
+                                    "rsi_threshold": rsi_th,
+                                    "entry_zone": ez,
+                                }
+                                best_metrics = metrics
 
     stage1_time = time.time() - t_start
     print(f"\nStage 1 完成: {tried}/{total_combos} 组合, 耗时 {stage1_time:.1f}s")
     if best_params:
+        ez = best_params.get('entry_zone', 0.0)
         print(f"  最优核心参数: w={best_params['window']} std={best_params['std_dev']} "
-              f"atr={best_params['atr_multiplier']} hold={best_params['max_hold_bars']} rsi={best_params['rsi_threshold']}")
+              f"atr={best_params['atr_multiplier']} hold={best_params['max_hold_bars']} rsi={best_params['rsi_threshold']} ez={ez:.1f}")
         print(f"  评分={best_score:.4f} 收益={best_metrics['total_return']*100:.2f}%")
 
     # ======================================================================
@@ -959,13 +965,40 @@ def main():
     for f in data_files:
         print(f"  {os.path.basename(f)}")
 
-    print("\n加载数据...")
-    dfs = [load_crypto_data(fp) for fp in data_files]
-    df = pd.concat(dfs, ignore_index=True)
-    df = df.sort_values("timestamp").drop_duplicates().reset_index(drop=True)
-    print(f"总数据量: {len(df)} 条K线")
+    # 按币种独立训练，避免不同币种价格尺度差异导致回测失真
+    per_symbol_budget = TIME_BUDGET / len(data_files)
+    all_results = []
 
-    best_params, best_score, best_metrics = grid_search(df, TIME_BUDGET)
+    for fp in data_files:
+        symbol = os.path.basename(fp).replace("_5m.parquet", "").replace("_1m.parquet", "")
+        print(f"\n{'='*60}")
+        print(f"训练币种: {symbol}")
+        print(f"{'='*60}")
+
+        df = load_crypto_data(fp)
+        df = df.sort_values("timestamp").drop_duplicates().reset_index(drop=True)
+        print(f"数据量: {len(df)} 条K线, 价格范围: {df['close'].min():.2f} - {df['close'].max():.2f}")
+
+        best_params, best_score, best_metrics = grid_search(df, per_symbol_budget)
+        all_results.append({
+            "symbol": symbol,
+            "params": best_params,
+            "score": best_score,
+            "metrics": best_metrics,
+        })
+
+    # 选择综合表现最好的参数（优先选评分高、回撤小的）
+    valid_results = [r for r in all_results if r["params"] is not None]
+    if not valid_results:
+        print("\n未找到有效参数组合")
+        return None, None
+
+    # 按评分排序
+    valid_results.sort(key=lambda r: r["score"], reverse=True)
+    best_result = valid_results[0]
+    best_params = best_result["params"]
+    best_score = best_result["score"]
+    best_metrics = best_result["metrics"]
 
     # 保存最优参数
     checkpoint_dir = os.path.join(PROJECT_DIR, "checkpoints")
@@ -977,19 +1010,27 @@ def main():
         "params": best_params,
         "score": best_score,
         "metrics": best_metrics,
+        "all_results": [
+            {"symbol": r["symbol"], "score": r["score"],
+             "return": r["metrics"]["total_return"] if r["metrics"] else 0,
+             "sharpe": r["metrics"]["sharpe_ratio"] if r["metrics"] else 0}
+            for r in valid_results
+        ],
     }
     torch.save(checkpoint, checkpoint_path)
-    print(f"最优参数已保存: {checkpoint_path}")
+    print(f"\n最优参数已保存: {checkpoint_path}")
 
     print("\n" + "=" * 60)
     print("最优参数与回测结果")
     print("=" * 60)
+    print(f"来源币种:       {best_result['symbol']}")
     if best_params:
         print(f"布林带周期:     {best_params['window']}")
         print(f"标准差倍数:     {best_params['std_dev']}")
         print(f"ATR止损倍数:    {best_params['atr_multiplier']}")
         print(f"最大持仓K线:   {best_params['max_hold_bars']}")
         print(f"RSI阈值:        {best_params.get('rsi_threshold', 30)}")
+        print(f"入场提前量:     {best_params.get('entry_zone', 0.0)}")
         # 指标开关
         indicator_keys = ["use_adx", "adx_threshold", "use_volume", "volume_threshold",
                           "use_macd", "macd_confirm_mode", "use_ma_cross",

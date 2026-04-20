@@ -42,7 +42,7 @@ from nado_protocol.engine_client.types.execute import (
 )
 from nado_protocol.utils.bytes32 import subaccount_to_hex
 from nado_protocol.utils.expiration import get_expiration_timestamp
-from nado_protocol.utils.math import to_x18, from_x18
+from nado_protocol.utils.math import from_x18
 from nado_protocol.utils.nonce import gen_order_nonce
 from nado_protocol.utils.order import build_appendix, OrderType
 from nado_protocol.indexer_client.types import IndexerCandlesticksGranularity
@@ -321,8 +321,13 @@ class NadoTrader:
         price: 价格 (浮点数)
         """
         try:
-            amount_x18 = to_x18(size) if side == "buy" else -to_x18(size)
-            price_x18 = to_x18(price)
+            # 使用 Decimal 避免浮点精度问题，确保 amount_x18 能被链上 size_increment 整除
+            size_dec = Decimal(str(size))
+            price_dec = Decimal(str(price))
+            amount_x18 = int(size_dec * (Decimal(10) ** 18))
+            if side == "sell":
+                amount_x18 = -amount_x18
+            price_x18 = int(price_dec * (Decimal(10) ** 18))
 
             order = OrderParams(
                 sender=self.subaccount_params,
@@ -380,7 +385,7 @@ def predict_signal(strategy, df, enable_short=False):
 def round_to_tick(price, tick_size):
     """将价格对齐到 tick_size，避免浮点精度问题"""
     ticks = round(float(price) / float(tick_size))
-    return float(ticks) * float(tick_size)
+    return float(Decimal(ticks) * Decimal(str(tick_size)))
 
 
 def compute_order_price(side, best_bid, best_ask, tick_size):
@@ -428,6 +433,24 @@ def execute_trade(signal_id, trader, product_id, tick_size, size_increment, capi
     # 先取消所有现有挂单
     trader.cancel_all_orders(product_id)
 
+    # 同步实际持仓到 state（POST_ONLY 订单可能未成交）
+    actual_position = trader.get_position(product_id)
+    if abs(actual_position) < size_increment * 0.5:
+        if position != 0:
+            log_message(f"[持仓同步] 实际持仓为0，重置状态 (原state: {position})")
+            state["position"] = 0
+            state["strategy_size"] = 0.0
+            position = 0
+            strategy_size = 0.0
+    else:
+        actual_dir = 1 if actual_position > 0 else -1
+        if position != actual_dir:
+            log_message(f"[持仓同步] 修正持仓方向: state={position} -> actual={actual_dir}")
+            state["position"] = actual_dir
+            state["strategy_size"] = abs(actual_position)
+            position = actual_dir
+            strategy_size = abs(actual_position)
+
     # 解析目标仓位
     target_pos = position
     if signal_id == 2:
@@ -449,6 +472,10 @@ def execute_trade(signal_id, trader, product_id, tick_size, size_increment, capi
         if strategy_size > 0:
             actual_position = trader.get_position(product_id)
             sell_size = min(strategy_size, abs(actual_position)) if actual_position > 0 else strategy_size
+            if sell_size > 0:
+                # 对齐到 size_increment，避免浮点精度导致下单失败
+                n_units = int(Decimal(str(sell_size)) / Decimal(str(size_increment)))
+                sell_size = float(n_units * Decimal(str(size_increment)))
             if sell_size > 0:
                 notional = sell_size * current_price
                 # 平仓用 IOC 确保快速成交
@@ -478,6 +505,10 @@ def execute_trade(signal_id, trader, product_id, tick_size, size_increment, capi
         if strategy_size > 0:
             actual_position = trader.get_position(product_id)
             close_size = min(strategy_size, abs(actual_position)) if actual_position < 0 else strategy_size
+            if close_size > 0:
+                # 对齐到 size_increment，避免浮点精度导致下单失败
+                n_units = int(Decimal(str(close_size)) / Decimal(str(size_increment)))
+                close_size = float(n_units * Decimal(str(size_increment)))
             if close_size > 0:
                 notional = close_size * current_price
                 if best_bid and best_ask:
@@ -509,7 +540,9 @@ def execute_trade(signal_id, trader, product_id, tick_size, size_increment, capi
         if current_price <= 0:
             log_message("[跳过开多] 价格无效")
         else:
-            order_size = int(capital_per_trade / current_price / size_increment) * size_increment
+            raw_size = Decimal(str(capital_per_trade)) / Decimal(str(current_price))
+            n_units = int(raw_size / Decimal(str(size_increment)))
+            order_size = float(n_units * Decimal(str(size_increment)))
             if order_size > 0:
                 notional = order_size * current_price
                 log_message(f"[开多] order_size={order_size:.6f} SOL, notional={notional:.2f} USDT, min={MIN_NOTIONAL}")
@@ -583,7 +616,9 @@ def execute_trade(signal_id, trader, product_id, tick_size, size_increment, capi
         if current_price <= 0:
             log_message("[跳过开空] 价格无效")
         else:
-            order_size = int(capital_per_trade / current_price / size_increment) * size_increment
+            raw_size = Decimal(str(capital_per_trade)) / Decimal(str(current_price))
+            n_units = int(raw_size / Decimal(str(size_increment)))
+            order_size = float(n_units * Decimal(str(size_increment)))
             if order_size > 0:
                 notional = order_size * current_price
                 log_message(f"[开空] order_size={order_size:.6f} SOL, notional={notional:.2f} USDT, min={MIN_NOTIONAL}")
@@ -683,7 +718,7 @@ def check_stop_loss(state, current_price, stop_loss_pct=0.03, max_hold_bars=48):
     return False, ""
 
 
-def force_close(trader, product_id, state, current_price, best_bid, best_ask, tick_size, reason):
+def force_close(trader, product_id, state, current_price, best_bid, best_ask, tick_size, size_increment, reason):
     """强制平仓（使用 IOC 单快速成交，支持多空）"""
     pos = state.get("position", 0)
     strategy_size = state.get("strategy_size", 0.0)
@@ -694,6 +729,10 @@ def force_close(trader, product_id, state, current_price, best_bid, best_ask, ti
 
     actual_position = trader.get_position(product_id)
     close_size = min(strategy_size, abs(actual_position)) if abs(actual_position) > 0 else strategy_size
+    if close_size > 0:
+        # 对齐到 size_increment，避免浮点精度导致下单失败
+        n_units = int(Decimal(str(close_size)) / Decimal(str(size_increment)))
+        close_size = float(n_units * Decimal(str(size_increment)))
     if close_size <= 0:
         state["position"] = 0
         state["strategy_size"] = 0.0
@@ -934,7 +973,7 @@ def main():
 
                     if should_exit:
                         state = force_close(trader, product_id, state,
-                                            current_price, best_bid, best_ask, tick_size, exit_reason)
+                                            current_price, best_bid, best_ask, tick_size, size_increment, exit_reason)
                     else:
                         # 5. 正常交易
                         state = execute_trade(
