@@ -71,7 +71,10 @@ class BollingerStrategy:
                  use_ma_cross=False,
                  # P2: MFI 量价动量 + 随机指标
                  use_mfi=False, mfi_period=14, mfi_threshold=20,
-                 use_stochastic=False, stoch_period=14, stoch_threshold=20):
+                 use_stochastic=False, stoch_period=14, stoch_threshold=20,
+                 # P3: 背离信号
+                 use_rsi_divergence=False, rsi_divergence_lookback=5,
+                 use_macd_divergence=False, macd_divergence_lookback=5):
         self.window = window
         self.std_dev = std_dev
         self.atr_period = atr_period
@@ -95,6 +98,11 @@ class BollingerStrategy:
         self.use_stochastic = use_stochastic
         self.stoch_period = stoch_period
         self.stoch_threshold = stoch_threshold
+        # P3
+        self.use_rsi_divergence = use_rsi_divergence
+        self.rsi_divergence_lookback = rsi_divergence_lookback
+        self.use_macd_divergence = use_macd_divergence
+        self.macd_divergence_lookback = macd_divergence_lookback
 
     def _compute_atr(self, df, period):
         """计算 ATR"""
@@ -232,6 +240,46 @@ class BollingerStrategy:
                 stoch_k[i] = 100.0 * (close[i] - lowest) / (highest - lowest)
         return stoch_k
 
+    def _detect_rsi_divergence(self, close, rsi, i, lookback=5, direction="bullish"):
+        """
+        检测 RSI 背离。
+        direction="bullish": 底背离（价格创新低，RSI 未创新低）
+        direction="bearish": 顶背离（价格创新高，RSI 未创新高）
+        """
+        if i < lookback * 2:
+            return False
+        price_window = close[i-lookback:i+1]
+        rsi_window = rsi[i-lookback:i+1]
+        if direction == "bullish":
+            price_min_idx = np.argmin(price_window)
+            rsi_min_idx = np.argmin(rsi_window)
+            # 当前价格是最低点，但 RSI 最低点在更早前 → 底背离
+            return price_min_idx == lookback and rsi_min_idx < lookback
+        else:
+            price_max_idx = np.argmax(price_window)
+            rsi_max_idx = np.argmax(rsi_window)
+            # 当前价格是最高点，但 RSI 最高点在更早前 → 顶背离
+            return price_max_idx == lookback and rsi_max_idx < lookback
+
+    def _detect_macd_divergence(self, close, macd_hist, i, lookback=5, direction="bullish"):
+        """
+        检测 MACD 柱状图背离。
+        direction="bullish": 底背离（价格创新低，MACD柱未创新低）
+        direction="bearish": 顶背离（价格创新高，MACD柱未创新高）
+        """
+        if i < lookback * 2:
+            return False
+        price_window = close[i-lookback:i+1]
+        hist_window = macd_hist[i-lookback:i+1]
+        if direction == "bullish":
+            price_min_idx = np.argmin(price_window)
+            hist_min_idx = np.argmin(hist_window)
+            return price_min_idx == lookback and hist_min_idx < lookback
+        else:
+            price_max_idx = np.argmax(price_window)
+            hist_max_idx = np.argmax(hist_window)
+            return price_max_idx == lookback and hist_max_idx < lookback
+
     def generate_signals(self, df, enable_short=False):
         """
         生成交易信号。
@@ -241,8 +289,8 @@ class BollingerStrategy:
         1. 快慢均线判断趋势方向 + MA 交叉事件检测
         2. ADX 趋势强度过滤（过滤震荡市）
         3. 成交量确认（过滤假突破）
-        4. MACD 动量方向确认
-        5. RSI/MFI 超买超卖 + Stochastic 回调确认
+        4. MACD 动量方向确认 + MACD 背离
+        5. RSI/MFI 超买超卖 + Stochastic 回调确认 + RSI 背离
         6. 布林带上下轨入场触发
         7. ATR 追踪止损 + 时间退出
         """
@@ -277,7 +325,7 @@ class BollingerStrategy:
             vol_ratio = np.where(vol_ma > 0, vol / vol_ma, 1.0)
 
         macd_line = macd_signal_line = macd_hist = None
-        if self.use_macd:
+        if self.use_macd or self.use_macd_divergence:
             macd_line, macd_signal_line, macd_hist = self._compute_macd(close)
 
         mfi = None
@@ -502,6 +550,44 @@ class BollingerStrategy:
                         entry_bar = i
                         lowest_after_entry = low[i]
                         continue
+
+                # 优先级 4: RSI / MACD 背离入场（不依赖布林带，捕捉趋势中段反转）
+                if self.use_rsi_divergence:
+                    if self._detect_rsi_divergence(close, rsi, i, self.rsi_divergence_lookback, "bullish"):
+                        # 底背离：不做逆势做空时做多
+                        if not is_downtrend:
+                            signals[i] = 2
+                            position = 1
+                            entry_price = price
+                            entry_bar = i
+                            highest_after_entry = high[i]
+                            continue
+                    if enable_short and self._detect_rsi_divergence(close, rsi, i, self.rsi_divergence_lookback, "bearish"):
+                        if not is_uptrend:
+                            signals[i] = 3
+                            position = -1
+                            entry_price = price
+                            entry_bar = i
+                            lowest_after_entry = low[i]
+                            continue
+
+                if self.use_macd_divergence and macd_hist is not None:
+                    if self._detect_macd_divergence(close, macd_hist, i, self.macd_divergence_lookback, "bullish"):
+                        if not is_downtrend:
+                            signals[i] = 2
+                            position = 1
+                            entry_price = price
+                            entry_bar = i
+                            highest_after_entry = high[i]
+                            continue
+                    if enable_short and self._detect_macd_divergence(close, macd_hist, i, self.macd_divergence_lookback, "bearish"):
+                        if not is_uptrend:
+                            signals[i] = 3
+                            position = -1
+                            entry_price = price
+                            entry_bar = i
+                            lowest_after_entry = low[i]
+                            continue
 
                 signals[i] = 1
 
@@ -873,6 +959,16 @@ def grid_search(df, time_budget=TIME_BUDGET):
         {"use_adx": True, "adx_threshold": 25, "use_mfi": True, "mfi_threshold": 25},
         # P0+P2: ADX + Stochastic
         {"use_adx": True, "adx_threshold": 25, "use_stochastic": True, "stoch_threshold": 20},
+        # P3: RSI 背离
+        {"use_rsi_divergence": True, "rsi_divergence_lookback": 5},
+        {"use_rsi_divergence": True, "rsi_divergence_lookback": 8},
+        # P3: MACD 背离
+        {"use_macd_divergence": True, "macd_divergence_lookback": 5},
+        {"use_macd_divergence": True, "macd_divergence_lookback": 8},
+        # P3: RSI + MACD 背离
+        {"use_rsi_divergence": True, "rsi_divergence_lookback": 5, "use_macd_divergence": True, "macd_divergence_lookback": 5},
+        # P1+P3: MACD 方向 + RSI 背离
+        {"use_macd": True, "macd_confirm_mode": "direction", "use_rsi_divergence": True, "rsi_divergence_lookback": 5},
         # 全量组合
         {"use_adx": True, "adx_threshold": 25, "use_volume": True, "volume_threshold": 1.2,
          "use_macd": True, "macd_confirm_mode": "direction"},
@@ -1035,7 +1131,9 @@ def main():
         indicator_keys = ["use_adx", "adx_threshold", "use_volume", "volume_threshold",
                           "use_macd", "macd_confirm_mode", "use_ma_cross",
                           "use_mfi", "mfi_period", "mfi_threshold",
-                          "use_stochastic", "stoch_period", "stoch_threshold"]
+                          "use_stochastic", "stoch_period", "stoch_threshold",
+                          "use_rsi_divergence", "rsi_divergence_lookback",
+                          "use_macd_divergence", "macd_divergence_lookback"]
         active_indicators = []
         for k in indicator_keys:
             v = best_params.get(k)
