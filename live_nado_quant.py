@@ -464,6 +464,7 @@ def execute_trade(signal_id, trader, product_id, tick_size, size_increment, capi
 
     if target_pos == position:
         log_message(f"[交易] 无需换仓，跳过")
+        state["last_signal"] = signal_id
         return state
 
     # --- 平掉当前仓位 ---
@@ -782,6 +783,7 @@ def force_close(trader, product_id, state, current_price, best_bid, best_ask, ti
         state["trades"] = trades
         state["position"] = 0
         state["strategy_size"] = 0.0
+        state["last_signal"] = 0
         log_message(f"[强制平仓] {reason}，{pos_name}{side} {close_size:.6f} @ {order_price:.2f}")
 
     state["last_update"] = datetime.now().isoformat()
@@ -966,7 +968,7 @@ def main():
                     should_exit, exit_reason = check_stop_loss(
                         state, current_price,
                         stop_loss_pct=args.stop_loss,
-                        max_hold_bars=args.max_hold,
+                        max_hold_bars=strategy.max_hold_bars,
                     )
 
                     # 4. 获取盘口数据
