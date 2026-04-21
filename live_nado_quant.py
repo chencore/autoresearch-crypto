@@ -887,8 +887,13 @@ def main():
         use_stochastic=params.get("use_stochastic", False),
         stoch_period=params.get("stoch_period", 14),
         stoch_threshold=params.get("stoch_threshold", 20),
+        # 背离指标
+        use_rsi_divergence=params.get("use_rsi_divergence", False),
+        rsi_divergence_lookback=params.get("rsi_divergence_lookback", 5),
+        use_macd_divergence=params.get("use_macd_divergence", False),
+        macd_divergence_lookback=params.get("macd_divergence_lookback", 5),
     )
-    active_indicators = [k for k in ["use_adx", "use_volume", "use_macd", "use_ma_cross", "use_mfi", "use_stochastic"] if getattr(strategy, k)]
+    active_indicators = [k for k in ["use_adx", "use_volume", "use_macd", "use_ma_cross", "use_mfi", "use_stochastic", "use_rsi_divergence", "use_macd_divergence"] if getattr(strategy, k)]
     indicators_str = ", ".join(active_indicators) if active_indicators else "无"
     log_message(f"策略参数: 周期={strategy.window}, 标准差={strategy.std_dev}, "
                 f"ATR止损={strategy.atr_multiplier}, 最大持仓={strategy.max_hold_bars}根K线, "
