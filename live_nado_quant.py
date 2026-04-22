@@ -12,7 +12,7 @@ Usage:
 
 注意：
     - Nado 是永续合约 DEX，基于 EIP-712 签名认证（私钥即账号）
-    - 使用 POST_ONLY 限价单做 Maker 减少手续费
+    - 开仓使用 IOC 单确保快速成交（避免 POST_ONLY 未成交导致信号丢失）
     - 强制平仓使用 IOC 单确保快速成交
     - 支持止损和时间退出
 """
@@ -48,7 +48,7 @@ from nado_protocol.utils.order import build_appendix, OrderType
 from nado_protocol.indexer_client.types import IndexerCandlesticksGranularity
 from nado_protocol.indexer_client.types.query import IndexerCandlesticksParams
 
-from train_quant import BollingerStrategy
+from train_quant import TrendStrategy
 
 LOG_DIR = "logs"
 os.makedirs(LOG_DIR, exist_ok=True)
@@ -548,69 +548,28 @@ def execute_trade(signal_id, trader, product_id, tick_size, size_increment, capi
                 notional = order_size * current_price
                 log_message(f"[开多] order_size={order_size:.6f} SOL, notional={notional:.2f} USDT, min={MIN_NOTIONAL}")
 
-                if notional >= MIN_NOTIONAL and best_bid and best_ask:
-                    # 名义价值够 min_size，用 POST_ONLY 做挂单省手续费
-                    order_price = compute_order_price("buy", best_bid, best_ask, tick_size)
+                if best_bid and best_ask:
+                    ioc_price = compute_ioc_price("buy", best_bid, best_ask, tick_size)
+                else:
+                    ioc_price = round_to_tick(current_price * 1.001, tick_size)
+                if ioc_price:
                     digest = trader.place_order(
                         product_id=product_id, side="buy", size=order_size,
-                        price=order_price, order_type=OrderType.POST_ONLY, expire_seconds=300,
+                        price=ioc_price, order_type=OrderType.IOC, expire_seconds=60,
                     )
                     if digest:
                         trades.append({
-                            "time": datetime.now().isoformat(), "type": "BUY_OPEN",
+                            "time": datetime.now().isoformat(), "type": "BUY_OPEN_IOC",
                             "product_id": product_id, "digest": digest,
-                            "size": order_size, "price": order_price,
+                            "size": order_size, "price": ioc_price,
                         })
                         state["position"] = 1
                         state["strategy_size"] = order_size
                         state["entry_price"] = current_price
                         state["entry_bar"] = state.get("bar_count", 0)
-                        log_message(f"[开多POST_ONLY] 下单买入 size={order_size:.6f} price={order_price:.2f}")
+                        log_message(f"[开多IOC] 下单买入 size={order_size:.6f} price={ioc_price:.2f} notional={notional:.2f}")
                     else:
-                        # POST_ONLY 失败，改用 IOC
-                        ioc_price = compute_ioc_price("buy", best_bid, best_ask, tick_size)
-                        if ioc_price:
-                            digest = trader.place_order(
-                                product_id=product_id, side="buy", size=order_size,
-                                price=ioc_price, order_type=OrderType.IOC, expire_seconds=60,
-                            )
-                            if digest:
-                                trades.append({
-                                    "time": datetime.now().isoformat(), "type": "BUY_OPEN_IOC",
-                                    "product_id": product_id, "digest": digest,
-                                    "size": order_size, "price": ioc_price,
-                                })
-                                state["position"] = 1
-                                state["strategy_size"] = order_size
-                                state["entry_price"] = current_price
-                                state["entry_bar"] = state.get("bar_count", 0)
-                                log_message(f"[开多IOC] 下单买入 size={order_size:.6f} price={ioc_price:.2f}")
-                            else:
-                                log_message(f"[开多完全失败] POST_ONLY 和 IOC 都未成交")
-                else:
-                    # 名义价值 < min_size，直接用 IOC（IOC 不受 min_size 限制）
-                    if best_bid and best_ask:
-                        ioc_price = compute_ioc_price("buy", best_bid, best_ask, tick_size)
-                    else:
-                        ioc_price = round_to_tick(current_price * 1.001, tick_size)
-                    if ioc_price:
-                        digest = trader.place_order(
-                            product_id=product_id, side="buy", size=order_size,
-                            price=ioc_price, order_type=OrderType.IOC, expire_seconds=60,
-                        )
-                        if digest:
-                            trades.append({
-                                "time": datetime.now().isoformat(), "type": "BUY_OPEN_IOC",
-                                "product_id": product_id, "digest": digest,
-                                "size": order_size, "price": ioc_price,
-                            })
-                            state["position"] = 1
-                            state["strategy_size"] = order_size
-                            state["entry_price"] = current_price
-                            state["entry_bar"] = state.get("bar_count", 0)
-                            log_message(f"[开多IOC] 下单买入 size={order_size:.6f} price={ioc_price:.2f} notional={notional:.2f}")
-                        else:
-                            log_message(f"[开多完全失败] IOC单也未成交，放弃")
+                        log_message(f"[开多失败] IOC单未成交，放弃")
 
     elif target_pos == -1 and state.get("position", 0) == 0:
         # 开空仓
@@ -624,68 +583,28 @@ def execute_trade(signal_id, trader, product_id, tick_size, size_increment, capi
                 notional = order_size * current_price
                 log_message(f"[开空] order_size={order_size:.6f} SOL, notional={notional:.2f} USDT, min={MIN_NOTIONAL}")
 
-                if notional >= MIN_NOTIONAL and best_bid and best_ask:
-                    # 名义价值够 min_size，用 POST_ONLY 做挂单
-                    order_price = compute_order_price("sell", best_bid, best_ask, tick_size)
+                if best_bid and best_ask:
+                    ioc_price = compute_ioc_price("sell", best_bid, best_ask, tick_size)
+                else:
+                    ioc_price = round_to_tick(current_price * 0.999, tick_size)
+                if ioc_price:
                     digest = trader.place_order(
                         product_id=product_id, side="sell", size=order_size,
-                        price=order_price, order_type=OrderType.POST_ONLY, expire_seconds=300,
+                        price=ioc_price, order_type=OrderType.IOC, expire_seconds=60,
                     )
                     if digest:
                         trades.append({
-                            "time": datetime.now().isoformat(), "type": "SELL_SHORT",
+                            "time": datetime.now().isoformat(), "type": "SELL_SHORT_IOC",
                             "product_id": product_id, "digest": digest,
-                            "size": order_size, "price": order_price,
+                            "size": order_size, "price": ioc_price,
                         })
                         state["position"] = -1
                         state["strategy_size"] = order_size
                         state["entry_price"] = current_price
                         state["entry_bar"] = state.get("bar_count", 0)
-                        log_message(f"[开空POST_ONLY] 下单卖出 size={order_size:.6f} price={order_price:.2f}")
+                        log_message(f"[开空IOC] 下单卖出 size={order_size:.6f} price={ioc_price:.2f} notional={notional:.2f}")
                     else:
-                        ioc_price = compute_ioc_price("sell", best_bid, best_ask, tick_size)
-                        if ioc_price:
-                            digest = trader.place_order(
-                                product_id=product_id, side="sell", size=order_size,
-                                price=ioc_price, order_type=OrderType.IOC, expire_seconds=60,
-                            )
-                            if digest:
-                                trades.append({
-                                    "time": datetime.now().isoformat(), "type": "SELL_SHORT_IOC",
-                                    "product_id": product_id, "digest": digest,
-                                    "size": order_size, "price": ioc_price,
-                                })
-                                state["position"] = -1
-                                state["strategy_size"] = order_size
-                                state["entry_price"] = current_price
-                                state["entry_bar"] = state.get("bar_count", 0)
-                                log_message(f"[开空IOC] 下单卖出 size={order_size:.6f} price={ioc_price:.2f}")
-                            else:
-                                log_message(f"[开空完全失败] POST_ONLY 和 IOC 都未成交")
-                else:
-                    # 名义价值 < min_size，直接用 IOC
-                    if best_bid and best_ask:
-                        ioc_price = compute_ioc_price("sell", best_bid, best_ask, tick_size)
-                    else:
-                        ioc_price = round_to_tick(current_price * 0.999, tick_size)
-                    if ioc_price:
-                        digest = trader.place_order(
-                            product_id=product_id, side="sell", size=order_size,
-                            price=ioc_price, order_type=OrderType.IOC, expire_seconds=60,
-                        )
-                        if digest:
-                            trades.append({
-                                "time": datetime.now().isoformat(), "type": "SELL_SHORT_IOC",
-                                "product_id": product_id, "digest": digest,
-                                "size": order_size, "price": ioc_price,
-                            })
-                            state["position"] = -1
-                            state["strategy_size"] = order_size
-                            state["entry_price"] = current_price
-                            state["entry_bar"] = state.get("bar_count", 0)
-                            log_message(f"[开空IOC] 下单卖出 size={order_size:.6f} price={ioc_price:.2f} notional={notional:.2f}")
-                        else:
-                            log_message(f"[开空完全失败] IOC单也未成交，放弃")
+                        log_message(f"[开空失败] IOC单未成交，放弃")
 
     state["trades"] = trades
     state["last_signal"] = signal_id
@@ -868,13 +787,13 @@ def main():
 
     checkpoint = torch.load(args.checkpoint, map_location="cpu", weights_only=False)
     params = checkpoint.get("params", {})
-    strategy = BollingerStrategy(
+    strategy = TrendStrategy(
         window=params.get("window", 20),
         std_dev=params.get("std_dev", 2.0),
         atr_multiplier=params.get("atr_multiplier", 2.5),
         max_hold_bars=params.get("max_hold_bars", args.max_hold),
         adx_threshold=params.get("adx_threshold", 25),
-        entry_zone=params.get("entry_zone", 1.0),
+        entry_zone=params.get("entry_zone", 0.0),
         rsi_threshold=params.get("rsi_threshold", 30),
         # 多指标扩展参数
         use_adx=params.get("use_adx", False),

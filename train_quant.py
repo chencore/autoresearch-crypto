@@ -50,14 +50,14 @@ def load_crypto_data(filepath):
 # 策略：布林带均值回归
 # ---------------------------------------------------------------------------
 
-class BollingerStrategy:
+class TrendStrategy:
     """
-    布林带 + 均线趋势混合策略（多空双向）
+    均线交叉趋势跟随策略（多空双向）
     核心逻辑：
-    1. 快慢均线判断方向趋势
-    2. 布林带内轨找入场点（顺势回调入场）
-    3. RSI 辅助确认超卖/超买
-    4. ATR 追踪止损 + 时间退出
+    1. 快线 > 慢线 → 上升趋势 → 做多
+    2. 快线 < 慢线 → 下降趋势 → 做空
+    3. ADX/MACD/RSI 多指标过滤确认趋势强度
+    4. ATR 追踪止损 + 均线反转止损 + 时间退出
     """
 
     def __init__(self, window=20, std_dev=2.0,
@@ -282,17 +282,14 @@ class BollingerStrategy:
 
     def generate_signals(self, df, enable_short=False):
         """
-        生成交易信号。
+        生成交易信号（布林带均值回归 + 强趋势过滤）。
         信号: 0=平仓, 1=观望/持有, 2=做多(买入), 3=做空(卖出)
 
-        多指标过滤器管道：
-        1. 快慢均线判断趋势方向 + MA 交叉事件检测
-        2. ADX 趋势强度过滤（过滤震荡市）
-        3. 成交量确认（过滤假突破）
-        4. MACD 动量方向确认 + MACD 背离
-        5. RSI/MFI 超买超卖 + Stochastic 回调确认 + RSI 背离
-        6. 布林带上下轨入场触发
-        7. ATR 追踪止损 + 时间退出
+        核心逻辑：
+        1. 价格触及布林带上下轨时入场（均值回归）
+        2. 强趋势市过滤：ADX 高 + 连续 K 线同向时禁止逆势交易
+        3. RSI/MACD 背离提供额外入场机会
+        4. ATR 追踪止损 + 均线反转止损 + 时间退出
         """
         close = df["close"].values
         high = df["high"].values
@@ -300,13 +297,11 @@ class BollingerStrategy:
         n = len(close)
 
         # --- 基础指标 ---
-        # 布林带
         rolling_mean = pd.Series(close).rolling(window=self.window, min_periods=self.window).mean()
         rolling_std = pd.Series(close).rolling(window=self.window, min_periods=self.window).std()
         upper = rolling_mean + self.std_dev * rolling_std
         lower = rolling_mean - self.std_dev * rolling_std
 
-        # 快慢均线
         fast_ma = pd.Series(close).rolling(window=self.window, min_periods=self.window).mean()
         slow_ma = pd.Series(close).rolling(window=self.window * 2, min_periods=self.window * 2).mean()
 
@@ -336,14 +331,16 @@ class BollingerStrategy:
         if self.use_stochastic:
             stoch_k = self._compute_stochastic(df, self.stoch_period)
 
-        # --- MA 交叉事件预计算 ---
-        golden_cross = None
-        death_cross = None
-        if self.use_ma_cross:
-            fast_prev = fast_ma.shift(1)
-            slow_prev = slow_ma.shift(1)
-            golden_cross = (fast_ma > slow_ma) & (fast_prev <= slow_prev)
-            death_cross = (fast_ma < slow_ma) & (fast_prev >= slow_prev)
+        # --- 强趋势预计算（连续同向 K 线数） ---
+        consec_up = np.zeros(n, dtype=int)
+        consec_down = np.zeros(n, dtype=int)
+        for i in range(1, n):
+            if close[i] > close[i-1]:
+                consec_up[i] = consec_up[i-1] + 1
+                consec_down[i] = 0
+            elif close[i] < close[i-1]:
+                consec_down[i] = consec_down[i-1] + 1
+                consec_up[i] = 0
 
         # --- 信号生成主循环 ---
         signals = np.ones(n, dtype=int)
@@ -353,26 +350,18 @@ class BollingerStrategy:
         highest_after_entry = 0.0
         lowest_after_entry = float('inf')
 
-        min_profit_pct = 0.005  # 最低盈利目标 0.5%（覆盖手续费）
-
         for i in range(self.window * 2, n):
             price = close[i]
 
             is_uptrend = fast_ma.iloc[i] > slow_ma.iloc[i]
             is_downtrend = fast_ma.iloc[i] < slow_ma.iloc[i]
 
-            # --- 持仓管理（不受新指标影响） ---
+            # --- 持仓管理 ---
             if position == 1:
-                # === 多头持仓管理 ===
                 if high[i] > highest_after_entry:
                     highest_after_entry = high[i]
 
-                profit_pct = (price - entry_price) / entry_price
-                if profit_pct > min_profit_pct and price < close[i-1]:
-                    signals[i] = 0
-                    position = 0
-                    continue
-
+                # ATR 追踪止损
                 if highest_after_entry > 0:
                     atr_stop = highest_after_entry - self.atr_multiplier * atr[i]
                     if price < atr_stop:
@@ -380,11 +369,13 @@ class BollingerStrategy:
                         position = 0
                         continue
 
+                # 均线反转止损
                 if is_downtrend:
                     signals[i] = 0
                     position = 0
                     continue
 
+                # 时间退出
                 if i - entry_bar >= self.max_hold_bars:
                     signals[i] = 0
                     position = 0
@@ -394,16 +385,10 @@ class BollingerStrategy:
                 continue
 
             elif position == -1:
-                # === 空头持仓管理 ===
                 if low[i] < lowest_after_entry:
                     lowest_after_entry = low[i]
 
-                profit_pct = (entry_price - price) / entry_price
-                if profit_pct > min_profit_pct and price > close[i-1]:
-                    signals[i] = 0
-                    position = 0
-                    continue
-
+                # ATR 追踪止损
                 if lowest_after_entry < float('inf'):
                     atr_stop = lowest_after_entry + self.atr_multiplier * atr[i]
                     if price > atr_stop:
@@ -411,11 +396,13 @@ class BollingerStrategy:
                         position = 0
                         continue
 
+                # 均线反转止损
                 if is_uptrend:
                     signals[i] = 0
                     position = 0
                     continue
 
+                # 时间退出
                 if i - entry_bar >= self.max_hold_bars:
                     signals[i] = 0
                     position = 0
@@ -426,14 +413,11 @@ class BollingerStrategy:
 
             # === 空仓：寻找入场机会 ===
             if position == 0:
-                # --- 过滤器状态计算 ---
-
-                # ADX 趋势强度过滤
+                # --- 过滤器 ---
                 adx_pass = True
                 if self.use_adx and adx is not None:
                     adx_pass = adx[i] >= self.adx_threshold
 
-                # 成交量确认（仅用于突破类入场）
                 vol_pass = True
                 if self.use_volume and vol_ratio is not None:
                     vol_pass = vol_ratio[i] >= self.volume_threshold
@@ -451,7 +435,7 @@ class BollingerStrategy:
                         if macd_hist[i] > macd_hist[i-1]:
                             macd_short_ok = False
 
-                # 超买超卖判断（MFI 优先于 RSI）
+                # RSI/MFI 超买超卖判断
                 is_oversold = rsi[i] < self.rsi_threshold
                 is_overbought = rsi[i] > (100 - self.rsi_threshold)
                 if self.use_mfi and mfi is not None:
@@ -459,103 +443,53 @@ class BollingerStrategy:
                     is_overbought = mfi[i] > (100 - self.mfi_threshold)
 
                 # Stochastic 回调确认
-                stoch_oversold = True  # 默认通过
+                stoch_oversold = True
                 stoch_overbought = True
                 if self.use_stochastic and stoch_k is not None:
                     stoch_oversold = stoch_k[i] < self.stoch_threshold
                     stoch_overbought = stoch_k[i] > (100 - self.stoch_threshold)
 
-                # ADX DI 方向增强趋势判断
-                adx_long_trend = is_uptrend
-                adx_short_trend = is_downtrend
-                if self.use_adx and plus_di is not None:
-                    if plus_di[i] > minus_di[i]:
-                        adx_long_trend = True
-                        adx_short_trend = False
-                    elif minus_di[i] > plus_di[i]:
-                        adx_long_trend = False
-                        adx_short_trend = True
+                # --- 强趋势过滤 ---
+                # 当 ADX 高且连续 K 线同向时，禁止逆势交易
+                strong_uptrend = False
+                strong_downtrend = False
+                if self.use_adx and adx is not None:
+                    if adx[i] >= self.adx_threshold:
+                        if consec_up[i] >= 6:
+                            strong_uptrend = True
+                        if consec_down[i] >= 6:
+                            strong_downtrend = True
 
-                # --- 入场决策（按优先级） ---
-
-                # 优先级 1: MA 交叉事件（最强信号）
-                if self.use_ma_cross and golden_cross is not None and adx_pass:
-                    if golden_cross.iloc[i] and macd_long_ok:
-                        signals[i] = 2
-                        position = 1
-                        entry_price = price
-                        entry_bar = i
-                        highest_after_entry = high[i]
-                        continue
-                    if enable_short and death_cross.iloc[i] and macd_short_ok:
-                        signals[i] = 3
-                        position = -1
-                        entry_price = price
-                        entry_bar = i
-                        lowest_after_entry = low[i]
-                        continue
-
-                # 优先级 2: 趋势跟随 + 布林带突破（支持 entry_zone 提前入场）
                 upper_trigger = upper.iloc[i] - self.entry_zone * rolling_std.iloc[i]
                 lower_trigger = lower.iloc[i] + self.entry_zone * rolling_std.iloc[i]
-                if adx_long_trend and adx_pass:
-                    # 上升趋势 + 接近/突破上轨 + 量能 + MACD 确认
-                    if price >= upper_trigger and vol_pass and macd_long_ok:
-                        signals[i] = 2
-                        position = 1
-                        entry_price = price
-                        entry_bar = i
-                        highest_after_entry = high[i]
-                        continue
-                    # 上升趋势 + 超卖回调（RSI/MFI + Stochastic 双确认）
+
+                # 优先级 1: 布林带均值回归
+                if price <= lower_trigger and adx_pass and vol_pass and macd_long_ok:
                     if is_oversold and stoch_oversold:
-                        signals[i] = 2
-                        position = 1
-                        entry_price = price
-                        entry_bar = i
-                        highest_after_entry = high[i]
-                        continue
+                        # 强下跌趋势禁止做多（价格可能继续跌）
+                        if not strong_downtrend:
+                            signals[i] = 2
+                            position = 1
+                            entry_price = price
+                            entry_bar = i
+                            highest_after_entry = high[i]
+                            continue
 
-                if enable_short and adx_short_trend and adx_pass:
-                    # 下降趋势 + 接近/跌破下轨 + 量能 + MACD 确认
-                    if price <= lower_trigger and vol_pass and macd_short_ok:
-                        signals[i] = 3
-                        position = -1
-                        entry_price = price
-                        entry_bar = i
-                        lowest_after_entry = low[i]
-                        continue
-                    # 下降趋势 + 超买卖回调
+                if enable_short and price >= upper_trigger and adx_pass and vol_pass and macd_short_ok:
                     if is_overbought and stoch_overbought:
-                        signals[i] = 3
-                        position = -1
-                        entry_price = price
-                        entry_bar = i
-                        lowest_after_entry = low[i]
-                        continue
+                        # 强上涨趋势禁止做空（价格可能继续涨）
+                        if not strong_uptrend:
+                            signals[i] = 3
+                            position = -1
+                            entry_price = price
+                            entry_bar = i
+                            lowest_after_entry = low[i]
+                            continue
 
-                # 优先级 3: 无趋势 + 布林带均值回归（支持 entry_zone 提前入场）
-                if not is_uptrend and not is_downtrend:
-                    if price <= lower_trigger:
-                        signals[i] = 2
-                        position = 1
-                        entry_price = price
-                        entry_bar = i
-                        highest_after_entry = high[i]
-                        continue
-                    if enable_short and price >= upper_trigger:
-                        signals[i] = 3
-                        position = -1
-                        entry_price = price
-                        entry_bar = i
-                        lowest_after_entry = low[i]
-                        continue
-
-                # 优先级 4: RSI / MACD 背离入场（不依赖布林带，捕捉趋势中段反转）
+                # 优先级 2: RSI / MACD 背离入场
                 if self.use_rsi_divergence:
                     if self._detect_rsi_divergence(close, rsi, i, self.rsi_divergence_lookback, "bullish"):
-                        # 底背离：不做逆势做空时做多
-                        if not is_downtrend:
+                        if not is_downtrend and price <= lower_trigger and not strong_downtrend:
                             signals[i] = 2
                             position = 1
                             entry_price = price
@@ -563,7 +497,7 @@ class BollingerStrategy:
                             highest_after_entry = high[i]
                             continue
                     if enable_short and self._detect_rsi_divergence(close, rsi, i, self.rsi_divergence_lookback, "bearish"):
-                        if not is_uptrend:
+                        if not is_uptrend and price >= upper_trigger and not strong_uptrend:
                             signals[i] = 3
                             position = -1
                             entry_price = price
@@ -573,7 +507,7 @@ class BollingerStrategy:
 
                 if self.use_macd_divergence and macd_hist is not None:
                     if self._detect_macd_divergence(close, macd_hist, i, self.macd_divergence_lookback, "bullish"):
-                        if not is_downtrend:
+                        if not is_downtrend and price <= lower_trigger and not strong_downtrend:
                             signals[i] = 2
                             position = 1
                             entry_price = price
@@ -581,7 +515,7 @@ class BollingerStrategy:
                             highest_after_entry = high[i]
                             continue
                     if enable_short and self._detect_macd_divergence(close, macd_hist, i, self.macd_divergence_lookback, "bearish"):
-                        if not is_uptrend:
+                        if not is_uptrend and price >= upper_trigger and not strong_uptrend:
                             signals[i] = 3
                             position = -1
                             entry_price = price
@@ -836,7 +770,7 @@ def grid_search(df, time_budget=TIME_BUDGET):
     # ======================================================================
     stage1_grid = {
         "window": [15, 20, 25, 30],
-        "std_dev": [1.8, 2.0, 2.5, 3.0],
+        "std_dev": [2.0, 2.5, 3.0],
         "atr_multiplier": [2.0, 2.5, 3.0],
         "max_hold_bars": [12, 18, 24, 36],
         "rsi_threshold": [30, 35, 40],
@@ -869,7 +803,7 @@ def grid_search(df, time_budget=TIME_BUDGET):
                                 print("Stage 1 时间预算即将耗尽，提前结束")
                                 break
 
-                            strategy = BollingerStrategy(
+                            strategy = TrendStrategy(
                                 window=window, std_dev=std_dev,
                                 atr_multiplier=atr_mult, max_hold_bars=max_hold,
                                 rsi_threshold=rsi_th, entry_zone=ez
@@ -994,7 +928,7 @@ def grid_search(df, time_budget=TIME_BUDGET):
         # 合并核心参数和指标参数
         merged = {**best_params, **combo}
 
-        strategy = BollingerStrategy(**merged)
+        strategy = TrendStrategy(**merged)
         signals = strategy.generate_signals(val_df, enable_short=True)
         prices = val_df["close"].values
 
@@ -1035,7 +969,7 @@ def grid_search(df, time_budget=TIME_BUDGET):
         indicator_str = ", ".join(f"{k}={v}" for k, v in best_params.items() if k.startswith("use_") or k in ("adx_threshold", "volume_threshold", "macd_confirm_mode", "mfi_threshold", "mfi_period", "stoch_threshold", "stoch_period"))
         print(f"  活跃指标: {indicator_str}")
     else:
-        print(f"  无额外指标（纯布林带策略）")
+        print(f"  无额外指标（纯均线交叉策略）")
 
     print()
     return best_params, best_score, best_metrics
@@ -1049,7 +983,7 @@ def main():
     t_start = time.time()
 
     print("=" * 60)
-    print("加密货币量化策略训练 (布林带均值回归 - 多空双向)")
+    print("加密货币量化策略训练 (布林带均值回归 + 强趋势过滤 - 多空双向)")
     print("=" * 60)
 
     data_files = list_crypto_files()
@@ -1102,7 +1036,7 @@ def main():
     checkpoint_path = os.path.join(checkpoint_dir, "quant_model.pt")
 
     checkpoint = {
-        "strategy": "bollinger_atr",
+        "strategy": "bollinger_trend_filter",
         "params": best_params,
         "score": best_score,
         "metrics": best_metrics,
