@@ -76,7 +76,11 @@ class TrendStrategy:
                  use_rsi_divergence=False, rsi_divergence_lookback=5,
                  use_macd_divergence=False, macd_divergence_lookback=5,
                  # P4: 动态多空趋势过滤
-                 use_trend_filter=False, trend_window=50):
+                 use_trend_filter=False, trend_window=50,
+                 # P5: 成交量因子
+                 use_obv_trend=False, obv_ma_period=20,
+                 use_volume_spike=False, volume_spike_threshold=2.0,
+                 use_vwap=False, vwap_period=20):
         self.window = window
         self.std_dev = std_dev
         self.atr_period = atr_period
@@ -108,6 +112,13 @@ class TrendStrategy:
         # P4
         self.use_trend_filter = use_trend_filter
         self.trend_window = trend_window
+        # P5
+        self.use_obv_trend = use_obv_trend
+        self.obv_ma_period = obv_ma_period
+        self.use_volume_spike = use_volume_spike
+        self.volume_spike_threshold = volume_spike_threshold
+        self.use_vwap = use_vwap
+        self.vwap_period = vwap_period
 
     def _compute_atr(self, df, period):
         """计算 ATR"""
@@ -245,6 +256,34 @@ class TrendStrategy:
                 stoch_k[i] = 100.0 * (close[i] - lowest) / (highest - lowest)
         return stoch_k
 
+    def _compute_obv(self, close, volume, ma_period):
+        """计算 OBV（能量潮）及其移动平均"""
+        obv = np.zeros(len(close))
+        for i in range(1, len(close)):
+            if close[i] > close[i-1]:
+                obv[i] = obv[i-1] + volume[i]
+            elif close[i] < close[i-1]:
+                obv[i] = obv[i-1] - volume[i]
+            else:
+                obv[i] = obv[i-1]
+        obv_ma = pd.Series(obv).rolling(window=ma_period, min_periods=ma_period).mean().values
+        return obv, obv_ma
+
+    def _compute_vwap(self, df, period):
+        """计算滚动 VWAP（成交量加权平均价）"""
+        typical_price = (df["high"].values + df["low"].values + df["close"].values) / 3.0
+        vol = df["volume"].values.astype(float)
+        tp_vol = typical_price * vol
+
+        vwap = np.full(len(df), np.nan)
+        for i in range(period - 1, len(df)):
+            vol_sum = np.sum(vol[i-period+1:i+1])
+            if vol_sum > 0:
+                vwap[i] = np.sum(tp_vol[i-period+1:i+1]) / vol_sum
+            else:
+                vwap[i] = typical_price[i]
+        return vwap
+
     def _detect_rsi_divergence(self, close, rsi, i, lookback=5, direction="bullish"):
         """
         检测 RSI 背离。
@@ -335,6 +374,22 @@ class TrendStrategy:
         stoch_k = None
         if self.use_stochastic:
             stoch_k = self._compute_stochastic(df, self.stoch_period)
+
+        # --- P5: 成交量因子 ---
+        obv = obv_ma = None
+        if self.use_obv_trend:
+            vol = df["volume"].values.astype(float)
+            obv, obv_ma = self._compute_obv(close, vol, self.obv_ma_period)
+
+        vol_spike_ratio = None
+        if self.use_volume_spike:
+            vol = df["volume"].values.astype(float)
+            vol_ma = pd.Series(vol).rolling(window=20, min_periods=20).mean().values
+            vol_spike_ratio = np.where(vol_ma > 0, vol / vol_ma, 1.0)
+
+        vwap = None
+        if self.use_vwap:
+            vwap = self._compute_vwap(df, self.vwap_period)
 
         # --- 动态趋势过滤预计算 ---
         trend_direction = np.zeros(n, dtype=int)  # 0=震荡, 1=上升, -1=下降
@@ -465,6 +520,26 @@ class TrendStrategy:
                     stoch_oversold = stoch_k[i] < self.stoch_threshold
                     stoch_overbought = stoch_k[i] > (100 - self.stoch_threshold)
 
+                # --- P5: 成交量因子过滤 ---
+                # OBV 趋势：做多要求资金流入，做空要求资金流出
+                obv_long_ok = True
+                obv_short_ok = True
+                if self.use_obv_trend and obv is not None:
+                    obv_long_ok = obv[i] > obv_ma[i]
+                    obv_short_ok = obv[i] < obv_ma[i]
+
+                # 成交量激增：要求成交量放大
+                spike_pass = True
+                if self.use_volume_spike and vol_spike_ratio is not None:
+                    spike_pass = vol_spike_ratio[i] >= self.volume_spike_threshold
+
+                # VWAP：做多要求价格低于 VWAP，做空要求价格高于 VWAP
+                vwap_long_ok = True
+                vwap_short_ok = True
+                if self.use_vwap and vwap is not None and not np.isnan(vwap[i]):
+                    vwap_long_ok = price < vwap[i]
+                    vwap_short_ok = price > vwap[i]
+
                 # --- 强趋势过滤 ---
                 # 当 ADX 高且连续 K 线同向时，禁止逆势交易
                 strong_uptrend = False
@@ -491,9 +566,9 @@ class TrendStrategy:
                         allow_long = False
 
                 # 优先级 1: 布林带均值回归
-                if allow_long and price <= lower_trigger and adx_pass and vol_pass and macd_long_ok:
+                if (allow_long and price <= lower_trigger and adx_pass and vol_pass
+                        and macd_long_ok and obv_long_ok and spike_pass and vwap_long_ok):
                     if is_oversold and stoch_oversold:
-                        # 强下跌趋势禁止做多（价格可能继续跌）
                         if not strong_downtrend:
                             signals[i] = 2
                             position = 1
@@ -502,9 +577,9 @@ class TrendStrategy:
                             highest_after_entry = high[i]
                             continue
 
-                if allow_short and price >= upper_trigger and adx_pass and vol_pass and macd_short_ok:
+                if (allow_short and price >= upper_trigger and adx_pass and vol_pass
+                        and macd_short_ok and obv_short_ok and spike_pass and vwap_short_ok):
                     if is_overbought and stoch_overbought:
-                        # 强上涨趋势禁止做空（价格可能继续涨）
                         if not strong_uptrend:
                             signals[i] = 3
                             position = -1
@@ -948,6 +1023,39 @@ def grid_search(df, time_budget=TIME_BUDGET):
          "use_macd": True, "macd_confirm_mode": "direction", "use_ma_cross": True},
         {"use_adx": True, "adx_threshold": 25, "use_mfi": True, "mfi_threshold": 25,
          "use_macd": True, "macd_confirm_mode": "direction"},
+        # P5: OBV 趋势
+        {"use_obv_trend": True, "obv_ma_period": 15},
+        {"use_obv_trend": True, "obv_ma_period": 20},
+        {"use_obv_trend": True, "obv_ma_period": 30},
+        # P5: Volume Spike
+        {"use_volume_spike": True, "volume_spike_threshold": 1.5},
+        {"use_volume_spike": True, "volume_spike_threshold": 2.0},
+        {"use_volume_spike": True, "volume_spike_threshold": 2.5},
+        # P5: VWAP
+        {"use_vwap": True, "vwap_period": 15},
+        {"use_vwap": True, "vwap_period": 20},
+        {"use_vwap": True, "vwap_period": 30},
+        # P5: OBV + 趋势过滤
+        {"use_obv_trend": True, "obv_ma_period": 20, "use_trend_filter": True, "trend_window": 50},
+        {"use_obv_trend": True, "obv_ma_period": 20, "use_trend_filter": True, "trend_window": 25},
+        # P5: Volume Spike + 趋势过滤
+        {"use_volume_spike": True, "volume_spike_threshold": 1.5, "use_trend_filter": True, "trend_window": 50},
+        # P5: VWAP + 趋势过滤
+        {"use_vwap": True, "vwap_period": 20, "use_trend_filter": True, "trend_window": 50},
+        # P5: OBV + Volume Spike
+        {"use_obv_trend": True, "obv_ma_period": 20, "use_volume_spike": True, "volume_spike_threshold": 1.5},
+        # P5: OBV + VWAP
+        {"use_obv_trend": True, "obv_ma_period": 20, "use_vwap": True, "vwap_period": 20},
+        # P5: 全部成交量因子
+        {"use_obv_trend": True, "obv_ma_period": 20, "use_volume_spike": True, "volume_spike_threshold": 1.5,
+         "use_vwap": True, "vwap_period": 20},
+        # P5 + P4: 全部成交量 + 趋势过滤
+        {"use_obv_trend": True, "obv_ma_period": 20, "use_volume_spike": True, "volume_spike_threshold": 1.5,
+         "use_vwap": True, "vwap_period": 20, "use_trend_filter": True, "trend_window": 50},
+        # P5 + P0: OBV + Volume
+        {"use_obv_trend": True, "obv_ma_period": 20, "use_volume": True, "volume_threshold": 1.0},
+        # P5 + P0: VWAP + Volume
+        {"use_vwap": True, "vwap_period": 20, "use_volume": True, "volume_threshold": 1.0},
     ]
 
     stage2_budget = time_budget - stage1_time

@@ -816,8 +816,15 @@ def main():
         # 趋势过滤
         use_trend_filter=params.get("use_trend_filter", False),
         trend_window=params.get("trend_window", 50),
+        # P5: 成交量因子
+        use_obv_trend=params.get("use_obv_trend", False),
+        obv_ma_period=params.get("obv_ma_period", 20),
+        use_volume_spike=params.get("use_volume_spike", False),
+        volume_spike_threshold=params.get("volume_spike_threshold", 2.0),
+        use_vwap=params.get("use_vwap", False),
+        vwap_period=params.get("vwap_period", 20),
     )
-    active_indicators = [k for k in ["use_adx", "use_volume", "use_macd", "use_ma_cross", "use_mfi", "use_stochastic", "use_rsi_divergence", "use_macd_divergence", "use_trend_filter"] if getattr(strategy, k)]
+    active_indicators = [k for k in ["use_adx", "use_volume", "use_macd", "use_ma_cross", "use_mfi", "use_stochastic", "use_rsi_divergence", "use_macd_divergence", "use_trend_filter", "use_obv_trend", "use_volume_spike", "use_vwap"] if getattr(strategy, k)]
     indicators_str = ", ".join(active_indicators) if active_indicators else "无"
     log_message(f"策略参数: 周期={strategy.window}, 标准差={strategy.std_dev}, "
                 f"ATR止损={strategy.atr_multiplier}, 最大持仓={strategy.max_hold_bars}根K线, "
