@@ -74,7 +74,9 @@ class TrendStrategy:
                  use_stochastic=False, stoch_period=14, stoch_threshold=20,
                  # P3: 背离信号
                  use_rsi_divergence=False, rsi_divergence_lookback=5,
-                 use_macd_divergence=False, macd_divergence_lookback=5):
+                 use_macd_divergence=False, macd_divergence_lookback=5,
+                 # P4: 动态多空趋势过滤
+                 use_trend_filter=False, trend_window=50):
         self.window = window
         self.std_dev = std_dev
         self.atr_period = atr_period
@@ -103,6 +105,9 @@ class TrendStrategy:
         self.rsi_divergence_lookback = rsi_divergence_lookback
         self.use_macd_divergence = use_macd_divergence
         self.macd_divergence_lookback = macd_divergence_lookback
+        # P4
+        self.use_trend_filter = use_trend_filter
+        self.trend_window = trend_window
 
     def _compute_atr(self, df, period):
         """计算 ATR"""
@@ -331,6 +336,17 @@ class TrendStrategy:
         if self.use_stochastic:
             stoch_k = self._compute_stochastic(df, self.stoch_period)
 
+        # --- 动态趋势过滤预计算 ---
+        trend_direction = np.zeros(n, dtype=int)  # 0=震荡, 1=上升, -1=下降
+        if self.use_trend_filter:
+            trend_fast = pd.Series(close).rolling(window=self.trend_window, min_periods=self.trend_window).mean()
+            trend_slow = pd.Series(close).rolling(window=self.trend_window * 2, min_periods=self.trend_window * 2).mean()
+            for i in range(self.trend_window * 2, n):
+                if trend_fast.iloc[i] > trend_slow.iloc[i]:
+                    trend_direction[i] = 1   # 上升趋势
+                elif trend_fast.iloc[i] < trend_slow.iloc[i]:
+                    trend_direction[i] = -1  # 下降趋势
+
         # --- 强趋势预计算（连续同向 K 线数） ---
         consec_up = np.zeros(n, dtype=int)
         consec_down = np.zeros(n, dtype=int)
@@ -463,8 +479,19 @@ class TrendStrategy:
                 upper_trigger = upper.iloc[i] - self.entry_zone * rolling_std.iloc[i]
                 lower_trigger = lower.iloc[i] + self.entry_zone * rolling_std.iloc[i]
 
+                # --- 动态趋势过滤 ---
+                # 上升趋势主要做多，下跌趋势主要做空，震荡双向
+                allow_long = True
+                allow_short = enable_short
+                if self.use_trend_filter:
+                    td = trend_direction[i]
+                    if td == 1:       # 上升趋势：做多优先，禁止做空
+                        allow_short = False
+                    elif td == -1:    # 下降趋势：做空优先，禁止做多
+                        allow_long = False
+
                 # 优先级 1: 布林带均值回归
-                if price <= lower_trigger and adx_pass and vol_pass and macd_long_ok:
+                if allow_long and price <= lower_trigger and adx_pass and vol_pass and macd_long_ok:
                     if is_oversold and stoch_oversold:
                         # 强下跌趋势禁止做多（价格可能继续跌）
                         if not strong_downtrend:
@@ -475,7 +502,7 @@ class TrendStrategy:
                             highest_after_entry = high[i]
                             continue
 
-                if enable_short and price >= upper_trigger and adx_pass and vol_pass and macd_short_ok:
+                if allow_short and price >= upper_trigger and adx_pass and vol_pass and macd_short_ok:
                     if is_overbought and stoch_overbought:
                         # 强上涨趋势禁止做空（价格可能继续涨）
                         if not strong_uptrend:
@@ -488,7 +515,7 @@ class TrendStrategy:
 
                 # 优先级 2: RSI / MACD 背离入场
                 if self.use_rsi_divergence:
-                    if self._detect_rsi_divergence(close, rsi, i, self.rsi_divergence_lookback, "bullish"):
+                    if allow_long and self._detect_rsi_divergence(close, rsi, i, self.rsi_divergence_lookback, "bullish"):
                         if not is_downtrend and price <= lower_trigger and not strong_downtrend:
                             signals[i] = 2
                             position = 1
@@ -496,7 +523,7 @@ class TrendStrategy:
                             entry_bar = i
                             highest_after_entry = high[i]
                             continue
-                    if enable_short and self._detect_rsi_divergence(close, rsi, i, self.rsi_divergence_lookback, "bearish"):
+                    if allow_short and self._detect_rsi_divergence(close, rsi, i, self.rsi_divergence_lookback, "bearish"):
                         if not is_uptrend and price >= upper_trigger and not strong_uptrend:
                             signals[i] = 3
                             position = -1
@@ -506,7 +533,7 @@ class TrendStrategy:
                             continue
 
                 if self.use_macd_divergence and macd_hist is not None:
-                    if self._detect_macd_divergence(close, macd_hist, i, self.macd_divergence_lookback, "bullish"):
+                    if allow_long and self._detect_macd_divergence(close, macd_hist, i, self.macd_divergence_lookback, "bullish"):
                         if not is_downtrend and price <= lower_trigger and not strong_downtrend:
                             signals[i] = 2
                             position = 1
@@ -514,7 +541,7 @@ class TrendStrategy:
                             entry_bar = i
                             highest_after_entry = high[i]
                             continue
-                    if enable_short and self._detect_macd_divergence(close, macd_hist, i, self.macd_divergence_lookback, "bearish"):
+                    if allow_short and self._detect_macd_divergence(close, macd_hist, i, self.macd_divergence_lookback, "bearish"):
                         if not is_uptrend and price >= upper_trigger and not strong_uptrend:
                             signals[i] = 3
                             position = -1
@@ -771,7 +798,7 @@ def grid_search(df, time_budget=TIME_BUDGET):
     stage1_grid = {
         "window": [15, 20, 25, 30],
         "std_dev": [2.0, 2.5, 3.0],
-        "atr_multiplier": [2.0, 2.5, 3.0],
+        "atr_multiplier": [1.5, 2.0, 2.5, 3.0],
         "max_hold_bars": [12, 18, 24, 36],
         "rsi_threshold": [30, 35, 40],
         "entry_zone": [0.0],
@@ -855,6 +882,17 @@ def grid_search(df, time_budget=TIME_BUDGET):
     # 预定义指标组合（精选，避免全排列爆炸）
     indicator_combos = [
         {},  # 基线（无额外指标）
+        # P4: 趋势过滤
+        {"use_trend_filter": True, "trend_window": 25},
+        {"use_trend_filter": True, "trend_window": 50},
+        {"use_trend_filter": True, "trend_window": 100},
+        # P4 + P0: 趋势过滤 + Volume
+        {"use_trend_filter": True, "trend_window": 25, "use_volume": True, "volume_threshold": 0.8},
+        {"use_trend_filter": True, "trend_window": 25, "use_volume": True, "volume_threshold": 1.0},
+        {"use_trend_filter": True, "trend_window": 25, "use_volume": True, "volume_threshold": 1.2},
+        {"use_trend_filter": True, "trend_window": 50, "use_volume": True, "volume_threshold": 0.8},
+        {"use_trend_filter": True, "trend_window": 50, "use_volume": True, "volume_threshold": 1.0},
+        {"use_trend_filter": True, "trend_window": 50, "use_volume": True, "volume_threshold": 1.2},
         # P0: ADX
         {"use_adx": True, "adx_threshold": 20},
         {"use_adx": True, "adx_threshold": 25},

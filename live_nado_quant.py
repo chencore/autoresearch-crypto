@@ -813,8 +813,11 @@ def main():
         rsi_divergence_lookback=params.get("rsi_divergence_lookback", 5),
         use_macd_divergence=params.get("use_macd_divergence", False),
         macd_divergence_lookback=params.get("macd_divergence_lookback", 5),
+        # 趋势过滤
+        use_trend_filter=params.get("use_trend_filter", False),
+        trend_window=params.get("trend_window", 50),
     )
-    active_indicators = [k for k in ["use_adx", "use_volume", "use_macd", "use_ma_cross", "use_mfi", "use_stochastic", "use_rsi_divergence", "use_macd_divergence"] if getattr(strategy, k)]
+    active_indicators = [k for k in ["use_adx", "use_volume", "use_macd", "use_ma_cross", "use_mfi", "use_stochastic", "use_rsi_divergence", "use_macd_divergence", "use_trend_filter"] if getattr(strategy, k)]
     indicators_str = ", ".join(active_indicators) if active_indicators else "无"
     log_message(f"策略参数: 周期={strategy.window}, 标准差={strategy.std_dev}, "
                 f"ATR止损={strategy.atr_multiplier}, 最大持仓={strategy.max_hold_bars}根K线, "

@@ -156,7 +156,7 @@ def compute_features(df):
 # 支持的交易所配置
 EXCHANGES = {
     "binance": {
-        "kline_url": "https://api.binance.com/api/v3/klines",
+        "kline_url": "https://api.binance.us/api/v3/klines",
     },
 }
 
@@ -204,9 +204,8 @@ def download_binance(symbol, interval, start_ts, end_ts):
                     # Binance 451 错误通常是地区限制，尝试不同端点
                     print(f"    451 错误，尝试备用端点...", flush=True)
                     response = requests.get(
-                        "https://api.binance.com/api/v3/klines",
+                        "https://api.binance.us/api/v3/klines",
                         params=params,
-                        proxies=PROXY,
                         timeout=30
                     )
 
