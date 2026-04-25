@@ -809,7 +809,8 @@ class ScalpStrategy:
                  rsi_extreme_low=20, rsi_extreme_high=80,
                  use_rsi_entry=False,
                  use_trend_align=False, trend_ma_period=50,
-                 use_session_filter=False, session_start=13, session_end=21):
+                 use_session_filter=False, session_start=13, session_end=21,
+                 rsi_period=14):
         self.window = window
         self.std_dev = std_dev
         self.take_profit_pct = take_profit_pct
@@ -827,6 +828,7 @@ class ScalpStrategy:
         self.use_session_filter = use_session_filter
         self.session_start = session_start
         self.session_end = session_end
+        self.rsi_period = rsi_period
 
     def _compute_rsi(self, close, period=14):
         delta = np.diff(close)
@@ -876,7 +878,7 @@ class ScalpStrategy:
         lower = rolling_mean - self.std_dev * rolling_std
 
         # RSI（瀑布防护）
-        rsi = self._compute_rsi(close, 14)
+        rsi = self._compute_rsi(close, self.rsi_period)
 
         # 成交量比
         vol_ratio = None
@@ -1599,9 +1601,10 @@ def scalp_grid_search(df, time_budget=TIME_BUDGET):
     stage1_grid = {
         "window": [8, 10, 12, 15, 20],
         "std_dev": [1.0, 1.2, 1.5, 2.0],
-        "take_profit_pct": [0.003, 0.005, 0.008, 0.012, 0.015],
-        "stop_loss_pct": [0.002, 0.003, 0.005],
-        "max_hold_bars": [3, 6, 9, 12, 18, 24],
+        "take_profit_pct": [0.005, 0.008, 0.012, 0.015, 0.020, 0.030],
+        "stop_loss_pct": [0.003, 0.004, 0.005, 0.008],
+        "max_hold_bars": [6, 12, 18, 24, 36, 48],
+        "rsi_period": [7, 14],
     }
 
     total_combos = 1
@@ -1623,42 +1626,47 @@ def scalp_grid_search(df, time_budget=TIME_BUDGET):
             for tp in stage1_grid["take_profit_pct"]:
                 for sl in stage1_grid["stop_loss_pct"]:
                     for hold in stage1_grid["max_hold_bars"]:
-                        if time.time() - t1_start > stage1_time:
-                            break
-                        tried += 1
+                        for rsi_p in stage1_grid["rsi_period"]:
+                            if time.time() - t1_start > stage1_time:
+                                break
+                            tried += 1
 
-                        strategy = ScalpStrategy(window=w, std_dev=sd,
-                                                  take_profit_pct=tp, stop_loss_pct=sl,
-                                                  max_hold_bars=hold)
-                        try:
-                            signals = strategy.generate_signals(val_df, enable_short=True)
-                            score, metrics, trades = scalp_evaluate(signals, val_prices, evaluator)
-                        except Exception:
-                            score = 0
-                            metrics = {}
-                            trades = []
+                            strategy = ScalpStrategy(window=w, std_dev=sd,
+                                                      take_profit_pct=tp, stop_loss_pct=sl,
+                                                      max_hold_bars=hold, rsi_period=rsi_p)
+                            try:
+                                signals = strategy.generate_signals(val_df, enable_short=True)
+                                score, metrics, trades = scalp_evaluate(signals, val_prices, evaluator)
+                            except Exception:
+                                score = 0
+                                metrics = {}
+                                trades = []
 
-                        trade_pnls = [t for t in trades if t.get("pnl") is not None]
-                        n_trades = len(trade_pnls)
-                        ret = metrics.get("total_return", 0) * 100
-                        sharpe = metrics.get("sharpe_ratio", 0)
-                        dd = metrics.get("max_drawdown", 0) * 100
-                        wr = metrics.get("win_rate", 0) * 100
+                            trade_pnls = [t for t in trades if t.get("pnl") is not None]
+                            n_trades = len(trade_pnls)
+                            ret = metrics.get("total_return", 0) * 100
+                            sharpe = metrics.get("sharpe_ratio", 0)
+                            dd = metrics.get("max_drawdown", 0) * 100
+                            wr = metrics.get("win_rate", 0) * 100
 
-                        is_best = score > best_s1_score
-                        if is_best:
-                            best_s1_score = score
-                            best_s1_params = {"window": w, "std_dev": sd, "take_profit_pct": tp,
-                                              "stop_loss_pct": sl, "max_hold_bars": hold}
-                            best_s1_desc = f"w={w} std={sd} tp={tp} sl={sl} hold={hold}"
+                            is_best = score > best_s1_score
+                            if is_best:
+                                best_s1_score = score
+                                best_s1_params = {"window": w, "std_dev": sd, "take_profit_pct": tp,
+                                                  "stop_loss_pct": sl, "max_hold_bars": hold,
+                                                  "rsi_period": rsi_p}
+                                best_s1_desc = f"w={w} std={sd} tp={tp} sl={sl} hold={hold} rsi={rsi_p}"
 
-                        if tried % 50 == 0 or is_best:
-                            desc = f"w={w} std={sd} tp={tp:.3f} sl={sl:.3f} hold={hold}"
-                            best_tag = " <<< NEW BEST" if is_best else ""
-                            print(f"  [{tried}/{total_combos}] {desc:50s} | "
-                                  f"score={score:.4f} | ret={ret:+.2f}% | "
-                                  f"sharpe={sharpe:.2f} | DD={dd:+.1f}% | "
-                                  f"WR={wr:.0f}% | trades={n_trades}{best_tag}")
+                            if tried % 100 == 0 or is_best:
+                                desc = f"w={w} std={sd} tp={tp:.3f} sl={sl:.3f} hold={hold} rsi={rsi_p}"
+                                best_tag = " <<< NEW BEST" if is_best else ""
+                                print(f"  [{tried}/{total_combos}] {desc:55s} | "
+                                      f"score={score:.4f} | ret={ret:+.2f}% | "
+                                      f"sharpe={sharpe:.2f} | DD={dd:+.1f}% | "
+                                      f"WR={wr:.0f}% | trades={n_trades}{best_tag}")
+                        else:
+                            continue
+                        break
                     else:
                         continue
                     break

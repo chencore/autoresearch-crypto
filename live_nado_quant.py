@@ -808,6 +808,7 @@ def main():
             use_session_filter=params.get("use_session_filter", False),
             session_start=params.get("session_start", 13),
             session_end=params.get("session_end", 23),
+            rsi_period=params.get("rsi_period", 14),
         )
         active_indicators = [k for k in ["use_volume_filter", "use_rsi_entry",
                                           "use_trend_align", "use_session_filter"]
