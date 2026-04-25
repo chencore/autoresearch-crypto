@@ -48,7 +48,7 @@ from nado_protocol.utils.order import build_appendix, OrderType
 from nado_protocol.indexer_client.types import IndexerCandlesticksGranularity
 from nado_protocol.indexer_client.types.query import IndexerCandlesticksParams
 
-from train_quant import TrendStrategy
+from train_quant import TrendStrategy, ScalpStrategy
 
 LOG_DIR = "logs"
 os.makedirs(LOG_DIR, exist_ok=True)
@@ -787,7 +787,41 @@ def main():
 
     checkpoint = torch.load(args.checkpoint, map_location="cpu", weights_only=False)
     params = checkpoint.get("params", {})
-    strategy = TrendStrategy(
+    strategy_type = checkpoint.get("strategy", "bollinger_trend_filter")
+
+    if strategy_type == "scalp":
+        strategy = ScalpStrategy(
+            window=params.get("window", 10),
+            std_dev=params.get("std_dev", 1.2),
+            take_profit_pct=params.get("take_profit_pct", 0.005),
+            stop_loss_pct=params.get("stop_loss_pct", 0.003),
+            max_hold_bars=params.get("max_hold_bars", 6),
+            use_volume_filter=params.get("use_volume_filter", False),
+            volume_threshold=params.get("volume_threshold", 0.8),
+            rsi_extreme_low=params.get("rsi_extreme_low", 20),
+            rsi_extreme_high=params.get("rsi_extreme_high", 80),
+            use_rsi_entry=params.get("use_rsi_entry", False),
+            rsi_entry_low=params.get("rsi_entry_low", 30),
+            rsi_entry_high=params.get("rsi_entry_high", 70),
+            use_trend_align=params.get("use_trend_align", False),
+            trend_ma_period=params.get("trend_ma_period", 50),
+            use_session_filter=params.get("use_session_filter", False),
+            session_start=params.get("session_start", 13),
+            session_end=params.get("session_end", 23),
+        )
+        active_indicators = [k for k in ["use_volume_filter", "use_rsi_entry",
+                                          "use_trend_align", "use_session_filter"]
+                             if getattr(strategy, k)]
+        indicators_str = ", ".join(active_indicators) if active_indicators else "无"
+        session_str = ""
+        if strategy.use_session_filter:
+            session_str = f", session={strategy.session_start}-{strategy.session_end} UTC"
+        log_message(f"策略模式: ScalpStrategy (高频剥头皮)")
+        log_message(f"参数: w={strategy.window}, std={strategy.std_dev}, "
+                    f"TP={strategy.take_profit_pct*100:.1f}%, SL={strategy.stop_loss_pct*100:.1f}%, "
+                    f"hold={strategy.max_hold_bars}, 指标=[{indicators_str}]{session_str}")
+    else:
+        strategy = TrendStrategy(
         window=params.get("window", 20),
         std_dev=params.get("std_dev", 2.0),
         atr_multiplier=params.get("atr_multiplier", 2.5),
@@ -823,12 +857,18 @@ def main():
         volume_spike_threshold=params.get("volume_spike_threshold", 2.0),
         use_vwap=params.get("use_vwap", False),
         vwap_period=params.get("vwap_period", 20),
-    )
-    active_indicators = [k for k in ["use_adx", "use_volume", "use_macd", "use_ma_cross", "use_mfi", "use_stochastic", "use_rsi_divergence", "use_macd_divergence", "use_trend_filter", "use_obv_trend", "use_volume_spike", "use_vwap"] if getattr(strategy, k)]
-    indicators_str = ", ".join(active_indicators) if active_indicators else "无"
-    log_message(f"策略参数: 周期={strategy.window}, 标准差={strategy.std_dev}, "
-                f"ATR止损={strategy.atr_multiplier}, 最大持仓={strategy.max_hold_bars}根K线, "
-                f"RSI阈值={strategy.rsi_threshold}, 活跃指标=[{indicators_str}]")
+        use_htf_macd=params.get("use_htf_macd", False),
+        htf_macd_fast=params.get("htf_macd_fast", 12),
+        htf_macd_slow=params.get("htf_macd_slow", 26),
+        htf_macd_signal=params.get("htf_macd_signal", 9),
+        use_resonance=params.get("use_resonance", False),
+        resonance_min_score=params.get("resonance_min_score", 3),
+        )
+        active_indicators = [k for k in ["use_adx", "use_volume", "use_macd", "use_ma_cross", "use_mfi", "use_stochastic", "use_rsi_divergence", "use_macd_divergence", "use_trend_filter", "use_obv_trend", "use_volume_spike", "use_vwap", "use_htf_macd", "use_resonance"] if getattr(strategy, k)]
+        indicators_str = ", ".join(active_indicators) if active_indicators else "无"
+        log_message(f"策略参数: 周期={strategy.window}, 标准差={strategy.std_dev}, "
+                    f"ATR止损={strategy.atr_multiplier}, 最大持仓={strategy.max_hold_bars}根K线, "
+                    f"RSI阈值={strategy.rsi_threshold}, 活跃指标=[{indicators_str}]")
 
     # 初始化 Nado 客户端
     trader = NadoTrader()

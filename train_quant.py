@@ -80,7 +80,11 @@ class TrendStrategy:
                  # P5: 成交量因子
                  use_obv_trend=False, obv_ma_period=20,
                  use_volume_spike=False, volume_spike_threshold=2.0,
-                 use_vwap=False, vwap_period=20):
+                 use_vwap=False, vwap_period=20,
+                 # P6: 高级别 MACD 趋势确认（策略.md 方法9）
+                 use_htf_macd=False, htf_macd_fast=12, htf_macd_slow=26, htf_macd_signal=9,
+                 # P7: 多因子共振评分（策略.md 核心规则：3+因子同向）
+                 use_resonance=False, resonance_min_score=3):
         self.window = window
         self.std_dev = std_dev
         self.atr_period = atr_period
@@ -119,6 +123,14 @@ class TrendStrategy:
         self.volume_spike_threshold = volume_spike_threshold
         self.use_vwap = use_vwap
         self.vwap_period = vwap_period
+        # P6: 高级别 MACD 趋势确认
+        self.use_htf_macd = use_htf_macd
+        self.htf_macd_fast = htf_macd_fast
+        self.htf_macd_slow = htf_macd_slow
+        self.htf_macd_signal = htf_macd_signal
+        # P7: 多因子共振评分
+        self.use_resonance = use_resonance
+        self.resonance_min_score = resonance_min_score
 
     def _compute_atr(self, df, period):
         """计算 ATR"""
@@ -256,6 +268,50 @@ class TrendStrategy:
                 stoch_k[i] = 100.0 * (close[i] - lowest) / (highest - lowest)
         return stoch_k
 
+    def _compute_htf_macd(self, close, bars_per_day=288):
+        """
+        计算高级别（日线）MACD 趋势方向。
+        将 5m 数据聚合为日线，计算日线 MACD，再映射回 5m 级别。
+        策略.md 方法9：周线/月线 MACD 定中长期趋势方向。
+        """
+        n = len(close)
+        # 聚合为日线收盘价
+        n_days = n // bars_per_day
+        if n_days < self.htf_macd_slow + self.htf_macd_signal:
+            return np.zeros(n, dtype=int)
+
+        daily_close = np.array([
+            close[d * bars_per_day + bars_per_day - 1]
+            for d in range(n_days)
+            if d * bars_per_day + bars_per_day - 1 < n
+        ])
+
+        # EMA 计算
+        def ema(data, period):
+            result = np.zeros(len(data))
+            result[period - 1] = np.mean(data[:period])
+            k = 2.0 / (period + 1)
+            for i in range(period, len(data)):
+                result[i] = data[i] * k + result[i - 1] * (1 - k)
+            return result
+
+        fast_ema = ema(daily_close, self.htf_macd_fast)
+        slow_ema = ema(daily_close, self.htf_macd_slow)
+        macd_line = fast_ema - slow_ema
+        signal_line = ema(macd_line, self.htf_macd_signal)
+
+        # 映射回 5m 级别：每日的趋势方向应用到当天的所有 bar
+        htf_trend = np.zeros(n, dtype=int)
+        for d in range(len(macd_line)):
+            bar_start = d * bars_per_day
+            bar_end = min(bar_start + bars_per_day, n)
+            if macd_line[d] > signal_line[d]:
+                htf_trend[bar_start:bar_end] = 1   # 日线看多
+            elif macd_line[d] < signal_line[d]:
+                htf_trend[bar_start:bar_end] = -1  # 日线看空
+
+        return htf_trend
+
     def _compute_obv(self, close, volume, ma_period):
         """计算 OBV（能量潮）及其移动平均"""
         obv = np.zeros(len(close))
@@ -390,6 +446,11 @@ class TrendStrategy:
         vwap = None
         if self.use_vwap:
             vwap = self._compute_vwap(df, self.vwap_period)
+
+        # --- P6: 高级别 MACD 趋势 ---
+        htf_trend = None
+        if self.use_htf_macd:
+            htf_trend = self._compute_htf_macd(close, bars_per_day=288)
 
         # --- 动态趋势过滤预计算 ---
         trend_direction = np.zeros(n, dtype=int)  # 0=震荡, 1=上升, -1=下降
@@ -565,28 +626,127 @@ class TrendStrategy:
                     elif td == -1:    # 下降趋势：做空优先，禁止做多
                         allow_long = False
 
+                # --- P6: 高级别 MACD 趋势过滤 ---
+                # 策略.md 方法9：日线 MACD 定方向
+                if self.use_htf_macd and htf_trend is not None:
+                    if htf_trend[i] == 1:
+                        allow_short = False   # 日线看多，不做空
+                    elif htf_trend[i] == -1:
+                        allow_long = False    # 日线看空，不做多
+
+                # --- P7: 多因子共振评分 ---
+                # 策略.md 核心规则：3+ 因子同向信号置信度显著提升
+                # 只计算已启用且实际提供判断的因子（排除默认 True 的因子）
+                resonance_long_ok = True
+                resonance_short_ok = True
+                if self.use_resonance:
+                    long_factors = []
+                    short_factors = []
+
+                    # 因子1: RSI 超买超卖（始终计算）
+                    long_factors.append(is_oversold)
+                    short_factors.append(is_overbought)
+
+                    # 因子2: MACD 方向（仅已启用时计算）
+                    if self.use_macd:
+                        long_factors.append(macd_long_ok)
+                        short_factors.append(macd_short_ok)
+
+                    # 因子3: ADX 趋势强度（仅已启用时计算）
+                    if self.use_adx:
+                        long_factors.append(adx_pass)
+                        short_factors.append(adx_pass)
+
+                    # 因子4: 成交量确认（仅已启用时计算）
+                    if self.use_volume:
+                        long_factors.append(vol_pass)
+                        short_factors.append(vol_pass)
+
+                    # 因子5: OBV 资金流（仅已启用时计算）
+                    if self.use_obv_trend:
+                        long_factors.append(obv_long_ok)
+                        short_factors.append(obv_short_ok)
+
+                    # 因子6: VWAP 偏离（仅已启用时计算）
+                    if self.use_vwap:
+                        long_factors.append(vwap_long_ok)
+                        short_factors.append(vwap_short_ok)
+
+                    # 因子7: 成交量激增（仅已启用时计算）
+                    if self.use_volume_spike:
+                        long_factors.append(spike_pass)
+                        short_factors.append(spike_pass)
+
+                    # 因子8: Stochastic（仅已启用时计算）
+                    if self.use_stochastic:
+                        long_factors.append(stoch_oversold)
+                        short_factors.append(stoch_overbought)
+
+                    # 因子9: MFI（仅已启用时计算）
+                    if self.use_mfi:
+                        long_factors.append(is_oversold)  # MFI 时 is_oversold 用 MFI 值
+                        short_factors.append(is_overbought)
+
+                    long_score = sum(long_factors)
+                    short_score = sum(short_factors)
+                    n_factors = len(long_factors)
+
+                    # 共振规则：已启用因子中，>= 阈值比例才允许入场
+                    # 如果启用的因子太少（< min_score），则要求全部通过
+                    if n_factors >= self.resonance_min_score:
+                        resonance_long_ok = long_score >= self.resonance_min_score
+                        resonance_short_ok = short_score >= self.resonance_min_score
+                    else:
+                        resonance_long_ok = long_score == n_factors
+                        resonance_short_ok = short_score == n_factors
+
                 # 优先级 1: 布林带均值回归
-                if (allow_long and price <= lower_trigger and adx_pass and vol_pass
-                        and macd_long_ok and obv_long_ok and spike_pass and vwap_long_ok):
-                    if is_oversold and stoch_oversold:
-                        if not strong_downtrend:
+                if (allow_long and price <= lower_trigger and resonance_long_ok
+                        and not strong_downtrend):
+                    if not self.use_resonance:
+                        # 非 P7 模式：保留原始 AND 门
+                        if not (adx_pass and vol_pass and macd_long_ok
+                                and obv_long_ok and spike_pass and vwap_long_ok):
+                            pass  # 跳过
+                        elif not (is_oversold and stoch_oversold):
+                            pass  # 跳过
+                        else:
                             signals[i] = 2
                             position = 1
                             entry_price = price
                             entry_bar = i
                             highest_after_entry = high[i]
                             continue
+                    else:
+                        signals[i] = 2
+                        position = 1
+                        entry_price = price
+                        entry_bar = i
+                        highest_after_entry = high[i]
+                        continue
 
-                if (allow_short and price >= upper_trigger and adx_pass and vol_pass
-                        and macd_short_ok and obv_short_ok and spike_pass and vwap_short_ok):
-                    if is_overbought and stoch_overbought:
-                        if not strong_uptrend:
+                if (allow_short and price >= upper_trigger and resonance_short_ok
+                        and not strong_uptrend):
+                    if not self.use_resonance:
+                        if not (adx_pass and vol_pass and macd_short_ok
+                                and obv_short_ok and spike_pass and vwap_short_ok):
+                            pass
+                        elif not (is_overbought and stoch_overbought):
+                            pass
+                        else:
                             signals[i] = 3
                             position = -1
                             entry_price = price
                             entry_bar = i
                             lowest_after_entry = low[i]
                             continue
+                    else:
+                        signals[i] = 3
+                        position = -1
+                        entry_price = price
+                        entry_bar = i
+                        lowest_after_entry = low[i]
+                        continue
 
                 # 优先级 2: RSI / MACD 背离入场
                 if self.use_rsi_divergence:
@@ -626,6 +786,221 @@ class TrendStrategy:
                             continue
 
                 signals[i] = 1
+
+        return signals
+
+
+# ---------------------------------------------------------------------------
+# 剥头皮策略：纯均值回归，高频短线
+# ---------------------------------------------------------------------------
+
+class ScalpStrategy:
+    """
+    高频剥头皮策略。纯均值回归，不要求趋势方向对齐。
+    价格偏离局部均值时入场，回归时快速离场。
+    目标：30天 50-200 笔交易，单笔小利（0.3-0.8%）。
+    """
+
+    def __init__(self, window=10, std_dev=1.2,
+                 take_profit_pct=0.005, stop_loss_pct=0.003,
+                 max_hold_bars=6,
+                 use_volume_filter=False, volume_threshold=0.8,
+                 rsi_entry_low=30, rsi_entry_high=70,
+                 rsi_extreme_low=20, rsi_extreme_high=80,
+                 use_rsi_entry=False,
+                 use_trend_align=False, trend_ma_period=50,
+                 use_session_filter=False, session_start=13, session_end=21):
+        self.window = window
+        self.std_dev = std_dev
+        self.take_profit_pct = take_profit_pct
+        self.stop_loss_pct = stop_loss_pct
+        self.max_hold_bars = max_hold_bars
+        self.use_volume_filter = use_volume_filter
+        self.volume_threshold = volume_threshold
+        self.rsi_extreme_low = rsi_extreme_low
+        self.rsi_extreme_high = rsi_extreme_high
+        self.rsi_entry_low = rsi_entry_low
+        self.rsi_entry_high = rsi_entry_high
+        self.use_rsi_entry = use_rsi_entry
+        self.use_trend_align = use_trend_align
+        self.trend_ma_period = trend_ma_period
+        self.use_session_filter = use_session_filter
+        self.session_start = session_start
+        self.session_end = session_end
+
+    def _compute_rsi(self, close, period=14):
+        delta = np.diff(close)
+        gain = np.where(delta > 0, delta, 0)
+        loss = np.where(delta < 0, -delta, 0)
+        avg_gain = np.zeros(len(close))
+        avg_loss = np.zeros(len(close))
+        avg_gain[period] = np.mean(gain[:period])
+        avg_loss[period] = np.mean(loss[:period])
+        for i in range(period + 1, len(close)):
+            avg_gain[i] = (avg_gain[i-1] * (period - 1) + gain[i-1]) / period
+            avg_loss[i] = (avg_loss[i-1] * (period - 1) + loss[i-1]) / period
+        rs = np.where(avg_loss > 0, avg_gain / avg_loss, 100.0)
+        rsi = 100.0 - 100.0 / (1.0 + rs)
+        rsi[:period] = 50.0
+        return rsi
+
+    def _compute_vwap(self, df, period):
+        typical_price = (df["high"].values + df["low"].values + df["close"].values) / 3.0
+        vol = df["volume"].values.astype(float)
+        tp_vol = typical_price * vol
+        vwap = np.full(len(df), np.nan)
+        for i in range(period - 1, len(df)):
+            vol_sum = np.sum(vol[i-period+1:i+1])
+            if vol_sum > 0:
+                vwap[i] = np.sum(tp_vol[i-period+1:i+1]) / vol_sum
+            else:
+                vwap[i] = typical_price[i]
+        return vwap
+
+    def generate_signals(self, df, enable_short=False):
+        """
+        生成交易信号。信号: 0=平仓, 1=观望, 2=做多, 3=做空。
+
+        入场：价格触及紧布林带上下轨（纯均值回归）
+        出场：回归均值 / 固定止盈 / 固定止损 / 超时
+        """
+        close = df["close"].values.astype(float)
+        high = df["high"].values.astype(float)
+        low = df["low"].values.astype(float)
+        n = len(close)
+
+        # 布林带
+        rolling_mean = pd.Series(close).rolling(window=self.window, min_periods=self.window).mean().values
+        rolling_std = pd.Series(close).rolling(window=self.window, min_periods=self.window).std().values
+        upper = rolling_mean + self.std_dev * rolling_std
+        lower = rolling_mean - self.std_dev * rolling_std
+
+        # RSI（瀑布防护）
+        rsi = self._compute_rsi(close, 14)
+
+        # 成交量比
+        vol_ratio = None
+        if self.use_volume_filter:
+            vol = df["volume"].values.astype(float)
+            vol_ma = pd.Series(vol).rolling(window=20, min_periods=20).mean().values
+            vol_ratio = np.where(vol_ma > 0, vol / vol_ma, 1.0)
+
+        # 趋势MA（趋势对齐）
+        trend_ma = None
+        if self.use_trend_align:
+            trend_ma = pd.Series(close).rolling(window=self.trend_ma_period, min_periods=self.trend_ma_period).mean().values
+
+        # 时段过滤（UTC小时）
+        hours = None
+        if self.use_session_filter and "timestamp" in df.columns:
+            timestamps = pd.to_datetime(df["timestamp"], unit="ms")
+            hours = timestamps.dt.hour.values
+
+        # 信号生成
+        signals = np.ones(n, dtype=int)
+        position = 0
+        entry_price = 0.0
+        entry_bar = 0
+
+        for i in range(self.window, n):
+            price = close[i]
+
+            # === 持仓管理 ===
+            if position == 1:
+                bars_held = i - entry_bar
+                pnl_pct = (price - entry_price) / entry_price
+
+                # 固定止盈
+                if pnl_pct >= self.take_profit_pct:
+                    signals[i] = 0
+                    position = 0
+                    continue
+
+                # 固定止损
+                if pnl_pct <= -self.stop_loss_pct:
+                    signals[i] = 0
+                    position = 0
+                    continue
+
+                # 超时退出
+                if bars_held >= self.max_hold_bars:
+                    signals[i] = 0
+                    position = 0
+                    continue
+
+                signals[i] = 2
+                continue
+
+            elif position == -1:
+                bars_held = i - entry_bar
+                pnl_pct = (entry_price - price) / entry_price
+
+                # 固定止盈
+                if pnl_pct >= self.take_profit_pct:
+                    signals[i] = 0
+                    position = 0
+                    continue
+
+                # 固定止损
+                if pnl_pct <= -self.stop_loss_pct:
+                    signals[i] = 0
+                    position = 0
+                    continue
+
+                # 超时退出
+                if bars_held >= self.max_hold_bars:
+                    signals[i] = 0
+                    position = 0
+                    continue
+
+                signals[i] = 3
+                continue
+
+            # === 空仓：寻找入场 ===
+            if np.isnan(lower[i]) or np.isnan(upper[i]):
+                continue
+
+            # 时段过滤
+            if self.use_session_filter and hours is not None:
+                if hours[i] < self.session_start or hours[i] >= self.session_end:
+                    continue
+
+            # 趋势对齐：只在趋势方向做均值回归
+            trend_long_ok = True
+            trend_short_ok = True
+            if self.use_trend_align and trend_ma is not None and not np.isnan(trend_ma[i]):
+                if price > trend_ma[i]:
+                    trend_short_ok = False  # 上升趋势，不做空
+                elif price < trend_ma[i]:
+                    trend_long_ok = False  # 下降趋势，不做多
+                else:
+                    trend_long_ok = False
+                    trend_short_ok = False
+
+            # 成交量过滤
+            vol_pass = True
+            if self.use_volume_filter and vol_ratio is not None:
+                vol_pass = vol_ratio[i] >= self.volume_threshold
+
+            # RSI 入场条件：要求超卖/超买（策略.md 策略9）
+            rsi_long_ok = rsi[i] < self.rsi_entry_low if self.use_rsi_entry else rsi[i] > self.rsi_extreme_low
+            rsi_short_ok = rsi[i] > self.rsi_entry_high if self.use_rsi_entry else rsi[i] < self.rsi_extreme_high
+
+            # 做多：价格触及下轨 + RSI超卖 + 趋势向上 + 成交量
+            if price <= lower[i] and rsi_long_ok and trend_long_ok and vol_pass:
+                signals[i] = 2
+                position = 1
+                entry_price = price
+                entry_bar = i
+                continue
+
+            # 做空：价格触及上轨 + RSI超买 + 趋势向下 + 成交量
+            if enable_short and price >= upper[i] and rsi_short_ok and trend_short_ok and vol_pass:
+                signals[i] = 3
+                position = -1
+                entry_price = price
+                entry_bar = i
+                continue
 
         return signals
 
@@ -849,6 +1224,59 @@ class StrategyEvaluator:
         return score, metrics, trades
 
 
+def scalp_evaluate(signals, prices, evaluator, min_trades=50):
+    """高频策略专用评分函数。奖励交易量、一致性和适度收益。"""
+    equity, trades = evaluator.simulate(signals, prices)
+
+    if len(equity) == 0 or not np.all(np.isfinite(equity)):
+        return 0.0, {"total_return": 0, "annualized_return": 0, "annualized_vol": 0,
+                      "sharpe_ratio": 0, "max_drawdown": -0.99, "win_rate": 0}, []
+
+    metrics = evaluator.compute_metrics(equity, trades)
+
+    if not np.isfinite(metrics["sharpe_ratio"]) or not np.isfinite(metrics["total_return"]):
+        return 0.0, metrics, trades
+    if metrics["max_drawdown"] < -0.30:
+        return 0.0, metrics, trades
+    if equity[-1] < evaluator.initial_capital * 0.7:
+        return 0.0, metrics, trades
+
+    trade_pnls = [t for t in trades if t.get("pnl") is not None]
+    n_trades = len(trade_pnls)
+
+    if n_trades < min_trades:
+        return 0.0, metrics, trades
+
+    # 交易数得分（30%）：100笔满分
+    trade_count_score = min(1.0, n_trades / 100.0)
+
+    # 一致性得分（25%）：每笔交易PnL的均值/标准差
+    pnls = [t["pnl"] for t in trade_pnls]
+    pnl_mean = np.mean(pnls)
+    pnl_std = np.std(pnls)
+    consistency = pnl_mean / pnl_std if pnl_std > 0 else 0
+    consistency_score = max(0, min(1.0, consistency / 2.0))
+
+    # 胜率得分（20%）：40%起算，80%满分
+    win_rate_score = max(0, min(1.0, (metrics["win_rate"] - 0.40) / 0.40))
+
+    # 收益得分（15%）：5%收益满分
+    return_score = max(0, min(1.0, metrics["total_return"] / 0.05))
+
+    # 回撤得分（10%）
+    dd_score = max(0, 1 + metrics["max_drawdown"]) if metrics["max_drawdown"] < 0 else 1.0
+
+    score = (
+        trade_count_score * 0.30 +
+        consistency_score * 0.25 +
+        win_rate_score * 0.20 +
+        return_score * 0.15 +
+        dd_score * 0.10
+    )
+
+    return score, metrics, trades
+
+
 # ---------------------------------------------------------------------------
 # 参数搜索
 # ---------------------------------------------------------------------------
@@ -1056,6 +1484,34 @@ def grid_search(df, time_budget=TIME_BUDGET):
         {"use_obv_trend": True, "obv_ma_period": 20, "use_volume": True, "volume_threshold": 1.0},
         # P5 + P0: VWAP + Volume
         {"use_vwap": True, "vwap_period": 20, "use_volume": True, "volume_threshold": 1.0},
+        # P6: 高级别 MACD 趋势确认（策略.md 方法9）
+        {"use_htf_macd": True},
+        {"use_htf_macd": True, "use_trend_filter": True, "trend_window": 50},
+        {"use_htf_macd": True, "use_volume": True, "volume_threshold": 1.0},
+        {"use_htf_macd": True, "use_obv_trend": True, "obv_ma_period": 20},
+        {"use_htf_macd": True, "use_trend_filter": True, "trend_window": 50,
+         "use_volume": True, "volume_threshold": 1.0},
+        {"use_htf_macd": True, "use_trend_filter": True, "trend_window": 25},
+        # P7: 多因子共振评分（策略.md 核心规则，需搭配实际因子）
+        {"use_resonance": True, "resonance_min_score": 2, "use_macd": True, "macd_confirm_mode": "direction"},
+        {"use_resonance": True, "resonance_min_score": 2, "use_volume": True, "volume_threshold": 1.0},
+        {"use_resonance": True, "resonance_min_score": 2, "use_obv_trend": True, "obv_ma_period": 20},
+        {"use_resonance": True, "resonance_min_score": 3, "use_macd": True, "macd_confirm_mode": "direction",
+         "use_volume": True, "volume_threshold": 1.0},
+        {"use_resonance": True, "resonance_min_score": 3, "use_macd": True, "macd_confirm_mode": "direction",
+         "use_obv_trend": True, "obv_ma_period": 20},
+        {"use_resonance": True, "resonance_min_score": 3, "use_volume": True, "volume_threshold": 1.0,
+         "use_obv_trend": True, "obv_ma_period": 20},
+        {"use_resonance": True, "resonance_min_score": 2, "use_htf_macd": True},
+        {"use_resonance": True, "resonance_min_score": 2, "use_htf_macd": True,
+         "use_trend_filter": True, "trend_window": 50},
+        {"use_resonance": True, "resonance_min_score": 3, "use_macd": True, "macd_confirm_mode": "direction",
+         "use_volume": True, "volume_threshold": 1.0, "use_obv_trend": True, "obv_ma_period": 20},
+        {"use_resonance": True, "resonance_min_score": 4, "use_macd": True, "macd_confirm_mode": "direction",
+         "use_volume": True, "volume_threshold": 1.0, "use_obv_trend": True, "obv_ma_period": 20,
+         "use_adx": True, "adx_threshold": 25},
+        # P6 + P5 组合
+        {"use_htf_macd": True, "use_resonance": True, "resonance_min_score": 3},
     ]
 
     stage2_budget = time_budget - stage1_time
@@ -1122,26 +1578,238 @@ def grid_search(df, time_budget=TIME_BUDGET):
 
 
 # ---------------------------------------------------------------------------
+# 高频剥头皮参数搜索
+# ---------------------------------------------------------------------------
+
+def scalp_grid_search(df, time_budget=TIME_BUDGET):
+    """
+    高频剥头皮策略参数搜索。
+    Stage 1: 搜索核心参数（window, std_dev, TP, SL, hold）
+    Stage 2: 搜索过滤器组合
+    """
+    n = len(df)
+    train_size = int(n * 0.9)
+    train_df = df.iloc[:train_size].reset_index(drop=True)
+    val_df = df.iloc[train_size:].reset_index(drop=True)
+    val_prices = val_df["close"].values.astype(float)
+
+    evaluator = StrategyEvaluator()
+
+    # Stage 1: 核心参数
+    stage1_grid = {
+        "window": [8, 10, 12, 15, 20],
+        "std_dev": [1.0, 1.2, 1.5, 2.0],
+        "take_profit_pct": [0.003, 0.005, 0.008, 0.012, 0.015],
+        "stop_loss_pct": [0.002, 0.003, 0.005],
+        "max_hold_bars": [3, 6, 9, 12, 18, 24],
+    }
+
+    total_combos = 1
+    for v in stage1_grid.values():
+        total_combos *= len(v)
+    print(f"  参数空间: {total_combos}, 时间预算: {time_budget}s")
+    print()
+
+    best_s1_score = -1
+    best_s1_params = {}
+    best_s1_desc = ""
+
+    t1_start = time.time()
+    stage1_time = time_budget * 0.5
+    tried = 0
+
+    for w in stage1_grid["window"]:
+        for sd in stage1_grid["std_dev"]:
+            for tp in stage1_grid["take_profit_pct"]:
+                for sl in stage1_grid["stop_loss_pct"]:
+                    for hold in stage1_grid["max_hold_bars"]:
+                        if time.time() - t1_start > stage1_time:
+                            break
+                        tried += 1
+
+                        strategy = ScalpStrategy(window=w, std_dev=sd,
+                                                  take_profit_pct=tp, stop_loss_pct=sl,
+                                                  max_hold_bars=hold)
+                        try:
+                            signals = strategy.generate_signals(val_df, enable_short=True)
+                            score, metrics, trades = scalp_evaluate(signals, val_prices, evaluator)
+                        except Exception:
+                            score = 0
+                            metrics = {}
+                            trades = []
+
+                        trade_pnls = [t for t in trades if t.get("pnl") is not None]
+                        n_trades = len(trade_pnls)
+                        ret = metrics.get("total_return", 0) * 100
+                        sharpe = metrics.get("sharpe_ratio", 0)
+                        dd = metrics.get("max_drawdown", 0) * 100
+                        wr = metrics.get("win_rate", 0) * 100
+
+                        is_best = score > best_s1_score
+                        if is_best:
+                            best_s1_score = score
+                            best_s1_params = {"window": w, "std_dev": sd, "take_profit_pct": tp,
+                                              "stop_loss_pct": sl, "max_hold_bars": hold}
+                            best_s1_desc = f"w={w} std={sd} tp={tp} sl={sl} hold={hold}"
+
+                        if tried % 50 == 0 or is_best:
+                            desc = f"w={w} std={sd} tp={tp:.3f} sl={sl:.3f} hold={hold}"
+                            best_tag = " <<< NEW BEST" if is_best else ""
+                            print(f"  [{tried}/{total_combos}] {desc:50s} | "
+                                  f"score={score:.4f} | ret={ret:+.2f}% | "
+                                  f"sharpe={sharpe:.2f} | DD={dd:+.1f}% | "
+                                  f"WR={wr:.0f}% | trades={n_trades}{best_tag}")
+                    else:
+                        continue
+                    break
+                else:
+                    continue
+                break
+            else:
+                continue
+            break
+        else:
+            continue
+        break
+
+    s1_time = time.time() - t1_start
+    print(f"\nStage 1 完成: {tried}/{total_combos} 组合, 耗时 {s1_time:.1f}s")
+    print(f"  最佳参数: {best_s1_desc}")
+    print(f"  得分={best_s1_score:.4f}")
+
+    # Stage 2: 过滤器组合
+    stage2_combos = [
+        {},
+        {"use_volume_filter": True, "volume_threshold": 0.8},
+        {"use_volume_filter": True, "volume_threshold": 1.0},
+        {"use_volume_filter": True, "volume_threshold": 1.2},
+        {"rsi_extreme_low": 25, "rsi_extreme_high": 75},
+        {"rsi_extreme_low": 30, "rsi_extreme_high": 70},
+        {"use_volume_filter": True, "volume_threshold": 0.8,
+         "rsi_extreme_low": 25, "rsi_extreme_high": 75},
+        {"use_volume_filter": True, "volume_threshold": 1.0,
+         "rsi_extreme_low": 30, "rsi_extreme_high": 70},
+        # RSI 入场要求（策略2.md 策略9：RSI<30做多 / RSI>70做空）
+        {"use_rsi_entry": True, "rsi_entry_low": 30, "rsi_entry_high": 70},
+        {"use_rsi_entry": True, "rsi_entry_low": 35, "rsi_entry_high": 65},
+        {"use_rsi_entry": True, "rsi_entry_low": 40, "rsi_entry_high": 60},
+        {"use_rsi_entry": True, "rsi_entry_low": 30, "rsi_entry_high": 70,
+         "use_volume_filter": True, "volume_threshold": 0.8},
+        {"use_rsi_entry": True, "rsi_entry_low": 35, "rsi_entry_high": 65,
+         "use_volume_filter": True, "volume_threshold": 1.0},
+        # 趋势对齐（策略2.md 策略7：趋势方向上的均值回归）
+        {"use_trend_align": True, "trend_ma_period": 50},
+        {"use_trend_align": True, "trend_ma_period": 100},
+        {"use_trend_align": True, "trend_ma_period": 50,
+         "use_volume_filter": True, "volume_threshold": 0.8},
+        {"use_trend_align": True, "trend_ma_period": 100,
+         "use_volume_filter": True, "volume_threshold": 0.8},
+        # 趋势对齐 + RSI 入场
+        {"use_trend_align": True, "trend_ma_period": 50,
+         "use_rsi_entry": True, "rsi_entry_low": 35, "rsi_entry_high": 65},
+        {"use_trend_align": True, "trend_ma_period": 100,
+         "use_rsi_entry": True, "rsi_entry_low": 35, "rsi_entry_high": 65},
+        # 时段过滤（策略2.md：欧美开盘时段胜率提升15%）
+        {"use_session_filter": True, "session_start": 13, "session_end": 21},
+        {"use_session_filter": True, "session_start": 13, "session_end": 23},
+        {"use_session_filter": True, "session_start": 8, "session_end": 22},
+        {"use_session_filter": True, "session_start": 13, "session_end": 21,
+         "use_trend_align": True, "trend_ma_period": 50},
+        {"use_session_filter": True, "session_start": 13, "session_end": 21,
+         "use_trend_align": True, "trend_ma_period": 100},
+        # 趋势对齐 + RSI + 时段（三重过滤）
+        {"use_trend_align": True, "trend_ma_period": 50,
+         "use_rsi_entry": True, "rsi_entry_low": 35, "rsi_entry_high": 65,
+         "use_session_filter": True, "session_start": 13, "session_end": 21},
+        {"use_trend_align": True, "trend_ma_period": 100,
+         "use_session_filter": True, "session_start": 13, "session_end": 21},
+    ]
+
+    print(f"\nStage 2: 过滤器搜索 ({len(stage2_combos)} 种)")
+    best_s2_score = best_s1_score
+    best_s2_params = best_s1_params.copy()
+    best_s2_desc = "无过滤器"
+
+    for idx, combo in enumerate(stage2_combos):
+        params = {**best_s1_params, **combo}
+        strategy = ScalpStrategy(**params)
+        try:
+            signals = strategy.generate_signals(val_df, enable_short=True)
+            score, metrics, trades = scalp_evaluate(signals, val_prices, evaluator)
+        except Exception:
+            score = 0
+            metrics = {}
+            trades = []
+
+        trade_pnls = [t for t in trades if t.get("pnl") is not None]
+        n_trades = len(trade_pnls)
+        ret = metrics.get("total_return", 0) * 100
+        sharpe = metrics.get("sharpe_ratio", 0)
+        wr = metrics.get("win_rate", 0) * 100
+
+        is_best = score > best_s2_score
+        if is_best:
+            best_s2_score = score
+            best_s2_params = params.copy()
+            desc_parts = [k for k in combo if k.startswith("use_") or k in ("rsi_extreme_low",)]
+            best_s2_desc = str(combo) if combo else "无过滤器"
+
+        if (idx + 1) % 2 == 0 or is_best:
+            combo_str = str(combo)[:40] if combo else "无过滤器"
+            best_tag = " <<< NEW BEST" if is_best else ""
+            print(f"  [{idx+1}/{len(stage2_combos)}] {combo_str:40s} | "
+                  f"score={score:.4f} | ret={ret:+.2f}% | "
+                  f"WR={wr:.0f}% | trades={n_trades}{best_tag}")
+
+    print(f"\nStage 2 完成")
+    print(f"  活跃指标: {best_s2_desc}")
+
+    return best_s2_score, best_s2_params, metrics, trades
+
+
+# ---------------------------------------------------------------------------
 # 主程序
 # ---------------------------------------------------------------------------
 
 def main():
     t_start = time.time()
 
-    print("=" * 60)
-    print("加密货币量化策略训练 (布林带均值回归 + 强趋势过滤 - 多空双向)")
-    print("=" * 60)
+    # 解析命令行参数
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--mode", choices=["trend", "scalp"], default="trend",
+                        help="策略模式: trend=趋势均值回归, scalp=高频剥头皮")
+    parser.add_argument("--symbol", default=None,
+                        help="只训练指定币种 (如 ETHUSDT)")
+    args = parser.parse_args()
+    mode = args.mode
+
+    if mode == "scalp":
+        print("=" * 60)
+        print("高频剥头皮策略训练 (ScalpStrategy)")
+        print("=" * 60)
+    else:
+        print("=" * 60)
+        print("加密货币量化策略训练 (布林带均值回归 + 强趋势过滤 - 多空双向)")
+        print("=" * 60)
 
     data_files = list_crypto_files()
     if not data_files:
         print("错误: 未找到数据文件。请先运行 python prepare_crypto.py")
         return
 
+    # 按 --symbol 过滤
+    if args.symbol:
+        sym = args.symbol.upper()
+        data_files = [f for f in data_files if sym in os.path.basename(f).upper()]
+        if not data_files:
+            print(f"错误: 未找到 {sym} 数据文件")
+            return
+
     print(f"找到 {len(data_files)} 个数据文件")
     for f in data_files:
         print(f"  {os.path.basename(f)}")
 
-    # 按币种独立训练，避免不同币种价格尺度差异导致回测失真
     per_symbol_budget = TIME_BUDGET / len(data_files)
     all_results = []
 
@@ -1155,21 +1823,29 @@ def main():
         df = df.sort_values("timestamp").drop_duplicates().reset_index(drop=True)
         print(f"数据量: {len(df)} 条K线, 价格范围: {df['close'].min():.2f} - {df['close'].max():.2f}")
 
-        best_params, best_score, best_metrics = grid_search(df, per_symbol_budget)
-        all_results.append({
-            "symbol": symbol,
-            "params": best_params,
-            "score": best_score,
-            "metrics": best_metrics,
-        })
+        if mode == "scalp":
+            best_score, best_params, best_metrics, _ = scalp_grid_search(df, per_symbol_budget)
+            all_results.append({
+                "symbol": symbol,
+                "params": best_params,
+                "score": best_score,
+                "metrics": best_metrics,
+            })
+        else:
+            best_params, best_score, best_metrics = grid_search(df, per_symbol_budget)
+            all_results.append({
+                "symbol": symbol,
+                "params": best_params,
+                "score": best_score,
+                "metrics": best_metrics,
+            })
 
-    # 选择综合表现最好的参数（优先选评分高、回撤小的）
-    valid_results = [r for r in all_results if r["params"] is not None]
+    # 选择综合表现最好的参数
+    valid_results = [r for r in all_results if r["params"] is not None and r["score"] > 0]
     if not valid_results:
         print("\n未找到有效参数组合")
         return None, None
 
-    # 按评分排序
     valid_results.sort(key=lambda r: r["score"], reverse=True)
     best_result = valid_results[0]
     best_params = best_result["params"]
@@ -1181,8 +1857,9 @@ def main():
     os.makedirs(checkpoint_dir, exist_ok=True)
     checkpoint_path = os.path.join(checkpoint_dir, "quant_model.pt")
 
+    strategy_name = "scalp" if mode == "scalp" else "bollinger_trend_filter"
     checkpoint = {
-        "strategy": "bollinger_trend_filter",
+        "strategy": strategy_name,
         "params": best_params,
         "score": best_score,
         "metrics": best_metrics,
@@ -1200,20 +1877,36 @@ def main():
     print("最优参数与回测结果")
     print("=" * 60)
     print(f"来源币种:       {best_result['symbol']}")
-    if best_params:
+    if mode == "scalp":
+        print(f"布林带周期:     {best_params.get('window', '?')}")
+        print(f"标准差倍数:     {best_params.get('std_dev', '?')}")
+        print(f"止盈:           {best_params.get('take_profit_pct', 0)*100:.2f}%")
+        print(f"止损:           {best_params.get('stop_loss_pct', 0)*100:.2f}%")
+        print(f"最大持仓K线:   {best_params.get('max_hold_bars', '?')}")
+        active = []
+        if best_params.get("use_volume_filter"):
+            active.append(f"volume>={best_params.get('volume_threshold', 0.8)}")
+        if best_params.get("rsi_extreme_low", 20) != 20:
+            active.append(f"RSI guard [{best_params.get('rsi_extreme_low')}, {best_params.get('rsi_extreme_high')}]")
+        print(f"活跃指标:       {', '.join(active) if active else '无'}")
+    elif best_params:
         print(f"布林带周期:     {best_params['window']}")
         print(f"标准差倍数:     {best_params['std_dev']}")
         print(f"ATR止损倍数:    {best_params['atr_multiplier']}")
         print(f"最大持仓K线:   {best_params['max_hold_bars']}")
         print(f"RSI阈值:        {best_params.get('rsi_threshold', 30)}")
         print(f"入场提前量:     {best_params.get('entry_zone', 0.0)}")
-        # 指标开关
         indicator_keys = ["use_adx", "adx_threshold", "use_volume", "volume_threshold",
                           "use_macd", "macd_confirm_mode", "use_ma_cross",
                           "use_mfi", "mfi_period", "mfi_threshold",
                           "use_stochastic", "stoch_period", "stoch_threshold",
                           "use_rsi_divergence", "rsi_divergence_lookback",
-                          "use_macd_divergence", "macd_divergence_lookback"]
+                          "use_macd_divergence", "macd_divergence_lookback",
+                          "use_trend_filter", "trend_window",
+                          "use_obv_trend", "obv_ma_period",
+                          "use_volume_spike", "volume_spike_threshold",
+                          "use_vwap", "vwap_period",
+                          "use_htf_macd", "use_resonance", "resonance_min_score"]
         active_indicators = []
         for k in indicator_keys:
             v = best_params.get(k)
@@ -1223,15 +1916,13 @@ def main():
             print(f"活跃指标:       {', '.join(active_indicators)}")
         else:
             print(f"活跃指标:       无（纯布林带策略）")
-        print(f"综合评分:       {best_score:.6f}")
-        print(f"夏普比率:       {best_metrics['sharpe_ratio']:.4f}")
-        print(f"总收益率:       {best_metrics['total_return']*100:.2f}%")
-        print(f"年化收益率:     {best_metrics['annualized_return']*100:.2f}%")
-        print(f"年化波动率:     {best_metrics['annualized_vol']*100:.2f}%")
-        print(f"最大回撤:       {best_metrics['max_drawdown']*100:.2f}%")
-        print(f"胜率:           {best_metrics['win_rate']*100:.1f}%")
-    else:
-        print("未找到有效参数组合")
+    print(f"综合评分:       {best_score:.6f}")
+    print(f"夏普比率:       {best_metrics.get('sharpe_ratio', 0):.4f}")
+    print(f"总收益率:       {best_metrics.get('total_return', 0)*100:.2f}%")
+    print(f"年化收益率:     {best_metrics.get('annualized_return', 0)*100:.2f}%")
+    print(f"年化波动率:     {best_metrics.get('annualized_vol', 0)*100:.2f}%")
+    print(f"最大回撤:       {best_metrics.get('max_drawdown', 0)*100:.2f}%")
+    print(f"胜率:           {best_metrics.get('win_rate', 0)*100:.1f}%")
     print(f"总耗时:         {time.time() - t_start:.1f}s")
 
     return best_score, best_metrics
