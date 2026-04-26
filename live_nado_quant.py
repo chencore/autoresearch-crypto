@@ -440,6 +440,7 @@ def execute_trade(signal_id, trader, product_id, tick_size, size_increment, capi
             log_message(f"[持仓同步] 实际持仓为0，重置状态 (原state: {position})")
             state["position"] = 0
             state["strategy_size"] = 0.0
+            state["entry_bar"] = 0
             position = 0
             strategy_size = 0.0
     else:
@@ -523,6 +524,7 @@ def execute_trade(signal_id, trader, product_id, tick_size, size_increment, capi
                     log_message(f"[平多失败] {close_type_str}单未成交")
         state["position"] = 0
         state["strategy_size"] = 0.0
+        state["entry_bar"] = 0
 
     elif position == -1 and target_pos >= 0:
         # 平空仓（买入）
@@ -568,6 +570,7 @@ def execute_trade(signal_id, trader, product_id, tick_size, size_increment, capi
                     log_message(f"[平空失败] {close_type_str}单未成交")
         state["position"] = 0
         state["strategy_size"] = 0.0
+        state["entry_bar"] = 0
 
     # --- 开新仓 ---
     log_message(f"[交易] 检查开仓: target_pos={target_pos} state_position={state.get('position', 0)} force_ioc={force_ioc}")
@@ -805,6 +808,7 @@ def force_close(trader, product_id, state, current_price, best_bid, best_ask, ti
     if close_size <= 0:
         state["position"] = 0
         state["strategy_size"] = 0.0
+        state["entry_bar"] = 0
         return state
 
     # 确定平仓方向
@@ -857,6 +861,7 @@ def force_close(trader, product_id, state, current_price, best_bid, best_ask, ti
         state["trades"] = trades
         state["position"] = 0
         state["strategy_size"] = 0.0
+        state["entry_bar"] = 0
         state["last_signal"] = 0
         state["tp_digest"] = None
         state["tp_price"] = 0.0
@@ -1119,6 +1124,7 @@ def main():
                         log_message(f"[持仓同步] 实际持仓=0, state={stale_pos} → 重置状态")
                     state["position"] = 0
                     state["strategy_size"] = 0.0
+                    state["entry_bar"] = 0
                     state["tp_digest"] = None
                     state["tp_price"] = 0.0
                     state["tp_side"] = None
@@ -1229,6 +1235,7 @@ def main():
                                         log_message(f"[状态修正] 持仓已归零但PnL={tp_pnl:+.2f}%异常，重置状态")
                                     state["position"] = 0
                                     state["strategy_size"] = 0.0
+                                    state["entry_bar"] = 0
                                     state["tp_digest"] = None
                                     state["tp_price"] = 0.0
                                     state["tp_side"] = None
