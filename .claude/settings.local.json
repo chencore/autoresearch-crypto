@@ -17,7 +17,20 @@
       "Bash(taskkill /F:*)",
       "Bash(taskkill //F //PID 42200:*)",
       "Bash(taskkill:*)",
-      "Bash(taskkill //F //PID 92848:*)"
+      "Bash(taskkill //F //PID 92848:*)",
+      "Bash(apt update *)",
+      "Bash(apt install *)",
+      "Bash(pip install *)",
+      "Bash(python3 live_nado_quant.py --ticker SOL --capital 80 --leverage 3)",
+      "Bash(pip search *)",
+      "Bash(chmod +x *)",
+      "Bash(git *)",
+      "Bash(python3 *)",
+      "Bash(sed -n '480,490p' logs/live_nado_log_20260421_142820.txt)",
+      "Bash(sed -n '1038,1048p' logs/live_nado_log_20260421_234345.txt)",
+      "Bash(sed -n '1257,1268p' logs/live_nado_log_20260421_234345.txt)",
+      "Read(//usr/local/bin/**)",
+      "Read(//root/.local/bin/**)"
     ]
   }
 }
