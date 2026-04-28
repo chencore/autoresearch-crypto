@@ -1,0 +1,226 @@
+{
+  "ticker": "ETH",
+  "product_id": 4,
+  "interval": "5m",
+  "initial_capital": 80.0,
+  "position": -1,
+  "strategy_size": 0.209,
+  "trades": [
+    {
+      "time": "2026-04-27T11:48:56.432197",
+      "type": "BUY_OPEN_MAKER",
+      "product_id": 4,
+      "digest": "0x60619a8856b05128a751af329472e00b4c354c9882c276c754b2ef95af0f2fa0",
+      "size": 0.207,
+      "price": 2318.8
+    },
+    {
+      "time": "2026-04-27T11:50:15.557096",
+      "type": "BUY_OPEN_IOC_FALLBACK",
+      "product_id": 4,
+      "digest": "0xf3a79d707481c53928700a478bc46b9604cd06259a9ba317eb6f6a34acf545e3",
+      "size": 0.206,
+      "price": 2319.2
+    },
+    {
+      "time": "2026-04-27T15:50:15.804697",
+      "type": "FORCE_CLOSE_Maker",
+      "product_id": 4,
+      "digest": "0x15b7eed8ef431c5b04686e7068e5f5e560c28df7c9dac7186101502cf416c162",
+      "size": 0.206,
+      "price": 2274.5,
+      "reason": "多头时间退出: 持仓 48 根K线 >= 48"
+    },
+    {
+      "time": "2026-04-27T15:55:15.436008",
+      "type": "BUY_OPEN_MAKER",
+      "product_id": 4,
+      "digest": "0xd5bd123a566b997e7baafddfd7113db4e0b7a9e9f3f1f4a2f4c6018fa456ad3f",
+      "size": 0.21,
+      "price": 2276.3
+    },
+    {
+      "time": "2026-04-27T19:25:15.540990",
+      "type": "CLOSE_LONG_Taker(SL)",
+      "product_id": 4,
+      "digest": "0x03a54e6b5598eb61a02ef91383e006d36979d7ac7ef2663fc7ec9134ccb745fe",
+      "size": 0.21,
+      "price": 2284.3
+    },
+    {
+      "time": "2026-04-27T19:35:15.418842",
+      "type": "BUY_OPEN_MAKER",
+      "product_id": 4,
+      "digest": "0x5aad3742334d7c40cc46649aea44e1aa355dcfeb4f2d9a4efeae7fa058694454",
+      "size": 0.21,
+      "price": 2281.0
+    },
+    {
+      "time": "2026-04-27T19:40:15.436778",
+      "type": "BUY_OPEN_IOC_FALLBACK",
+      "product_id": 4,
+      "digest": "0x2e1adf4cc5f87016560c73988a2b4e86b00003a90edc71b0f065dc5fc97afd78",
+      "size": 0.21,
+      "price": 2284.1
+    },
+    {
+      "time": "2026-04-27T23:40:15.481386",
+      "type": "FORCE_CLOSE_Maker",
+      "product_id": 4,
+      "digest": "0x24e3e04eb77ee347bc6abd0066abc6ab9f99ad1d4bf3f7ab677dd403c3ca84d0",
+      "size": 0.21,
+      "price": 2295.7,
+      "reason": "多头时间退出: 持仓 48 根K线 >= 48"
+    },
+    {
+      "time": "2026-04-27T23:50:15.426755",
+      "type": "FORCE_CLOSE_Maker",
+      "product_id": 4,
+      "digest": "0x80cd67b64b97c5329a24cf9fe4561c32ba784901ff69fd136b65f7cd07657e1f",
+      "size": 0.21,
+      "price": 2299.2,
+      "reason": "多头时间退出: 持仓 146 根K线 >= 48"
+    },
+    {
+      "time": "2026-04-28T00:50:15.464335",
+      "type": "SELL_SHORT_MAKER",
+      "product_id": 4,
+      "digest": "0xb9521dba5f7598a7dbe26c3373d58959b206fc1e0036b7c170413ffe64831c46",
+      "size": 0.207,
+      "price": 2308.3
+    },
+    {
+      "time": "2026-04-28T04:45:15.402947",
+      "type": "FORCE_CLOSE_Maker",
+      "product_id": 4,
+      "digest": "0x758fe0506875cab43df40c50c5eb39155947b03fe5927dc6e0ebb5c4f684a713",
+      "size": 0.207,
+      "price": 2288.6,
+      "reason": "空头时间退出: 持仓 48 根K线 >= 48"
+    },
+    {
+      "time": "2026-04-28T05:00:15.424673",
+      "type": "SELL_SHORT_MAKER",
+      "product_id": 4,
+      "digest": "0x5ac7f0f30bc86ecea62115d7cdac5cbeee5d213665eac91f8cedf46544704b51",
+      "size": 0.209,
+      "price": 2289.8
+    },
+    {
+      "time": "2026-04-28T08:55:15.430685",
+      "type": "FORCE_CLOSE_Maker",
+      "product_id": 4,
+      "digest": "0x60e89c02a2efd74f647878c8474ff00a5395034d1cbeb1146aac507738a662f2",
+      "size": 0.209,
+      "price": 2285.3,
+      "reason": "空头时间退出: 持仓 48 根K线 >= 48"
+    },
+    {
+      "time": "2026-04-28T09:05:15.474659",
+      "type": "FORCE_CLOSE_Maker",
+      "product_id": 4,
+      "digest": "0xc15187d18673785422e2fc0b4246178f1458c62b4f2db7e017f0161c1244b0a7",
+      "size": 0.209,
+      "price": 2285.1,
+      "reason": "空头时间退出: 持仓 257 根K线 >= 48"
+    },
+    {
+      "time": "2026-04-28T09:50:15.476525",
+      "type": "BUY_OPEN_MAKER",
+      "product_id": 4,
+      "digest": "0xeaacafd190dc352e00266c1ca148dc8d400fa31516cc16f8e025156d3758f994",
+      "size": 0.21,
+      "price": 2278.0
+    },
+    {
+      "time": "2026-04-28T13:45:15.598243",
+      "type": "FORCE_CLOSE_Maker",
+      "product_id": 4,
+      "digest": "0xe312b0b3d7553f194074362a01266930248fa58a304acc215bbf01c2210e2007",
+      "size": 0.21,
+      "price": 2276.8,
+      "reason": "多头时间退出: 持仓 48 根K线 >= 48"
+    },
+    {
+      "time": "2026-04-28T13:50:15.485334",
+      "type": "BUY_OPEN_MAKER",
+      "product_id": 4,
+      "digest": "0xdfe17000647261aaaa550953951be004d9d118a2bf3b3a563422b91f9d818c74",
+      "size": 0.21,
+      "price": 2279.5
+    },
+    {
+      "time": "2026-04-28T17:10:15.756952",
+      "type": "CLOSE_LONG_Taker(SL)",
+      "product_id": 4,
+      "digest": "0x584e77277ee23c877583b3b7f1686306048acf3f1685c54ab04fc41f0fb97fff",
+      "size": 0.21,
+      "price": 2282.7
+    },
+    {
+      "time": "2026-04-28T17:35:23.042875",
+      "type": "SELL_SHORT_MAKER",
+      "product_id": 4,
+      "digest": "0x05cee10c07d3fa527196d84b5b09018bfacb725ee94e42913bf1369050beeecd",
+      "size": 0.209,
+      "price": 2291.0
+    },
+    {
+      "time": "2026-04-28T21:30:15.442241",
+      "type": "FORCE_CLOSE_Maker",
+      "product_id": 4,
+      "digest": "0xf527a96fa3cd84f04193b7fe88e8899a17bd6368a533bd8e0f16dd7634341678",
+      "size": 0.209,
+      "price": 2287.6,
+      "reason": "空头时间退出: 持仓 48 根K线 >= 48"
+    },
+    {
+      "time": "2026-04-28T21:40:15.494341",
+      "type": "FORCE_CLOSE_Maker",
+      "product_id": 4,
+      "digest": "0x2ededa0d99015bba439cd10a5c4a565b359bd317843b8dd523205232a011cc04",
+      "size": 0.209,
+      "price": 2289.7,
+      "reason": "空头时间退出: 持仓 408 根K线 >= 48"
+    },
+    {
+      "time": "2026-04-28T21:50:15.504661",
+      "type": "FORCE_CLOSE_Maker",
+      "product_id": 4,
+      "digest": "0xa857506bd7b26d2b5ddbf0f49524f117dbb7599ad39c3510b5816f2f7b4c9616",
+      "size": 0.209,
+      "price": 2288.0,
+      "reason": "空头时间退出: 持仓 410 根K线 >= 48"
+    },
+    {
+      "time": "2026-04-28T22:00:15.398270",
+      "type": "FORCE_CLOSE_Maker",
+      "product_id": 4,
+      "digest": "0xfd1efe87892cbe25f34c901dab73fc9ade0506d8c2b4e502dec178e915060a86",
+      "size": 0.209,
+      "price": 2291.0,
+      "reason": "空头时间退出: 持仓 412 根K线 >= 48"
+    },
+    {
+      "time": "2026-04-28T22:05:15.465901",
+      "type": "SELL_SHORT_MAKER",
+      "product_id": 4,
+      "digest": "0x4b270e18bbce01f03f0f3faae9128647b3e0b3c0b2fc3647ab31ae83370977db",
+      "size": 0.209,
+      "price": 2292.9
+    }
+  ],
+  "last_signal": 3,
+  "last_price": 2286.1,
+  "bar_count": 424,
+  "entry_price": 2283.5,
+  "entry_bar": 412,
+  "tp_digest": "0xe5196cc6a2aea5a2583df4b18c6308f2f7016b080288f62658401944d49be1f3",
+  "tp_price": 2237.8,
+  "tp_side": "buy",
+  "pending_open": false,
+  "pending_open_signal": 3,
+  "pending_open_price": 2292.8,
+  "pending_open_size": 0.209,
+  "last_update": "2026-04-28T22:05:15.466005"
+}

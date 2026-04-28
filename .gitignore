@@ -14,7 +14,8 @@ results/
 queue/
 
 # Logs, state, lock files
-logs/
+logs/*.lock
+logs/*.pid
 
 .env
 /data
