@@ -17,7 +17,11 @@
       "Bash(taskkill /F:*)",
       "Bash(taskkill //F //PID 42200:*)",
       "Bash(taskkill:*)",
-      "Bash(taskkill //F //PID 92848:*)"
+      "Bash(taskkill //F //PID 92848:*)",
+      "Bash(git pull *)",
+      "Bash(git checkout *)",
+      "Bash(git add *)",
+      "Bash(git commit *)"
     ]
   }
 }
