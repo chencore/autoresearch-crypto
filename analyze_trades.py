@@ -59,7 +59,7 @@ def analyze_trades():
     print()
 
     # 运行策略
-    strategy = BollingerStrategy(**params)
+    strategy = TrendStrategy(**params)
     signals = strategy.generate_signals(df, enable_short=True)
     prices = df["close"].values
 
