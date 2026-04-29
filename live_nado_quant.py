@@ -478,14 +478,25 @@ def execute_trade(signal_id, trader, product_id, tick_size, size_increment, capi
             strategy_size = abs(actual_position)
             # 当 state 为 0 但实际有持仓时（如 Maker 单成交未检测到），
             # 不应恢复旧的 confirmed_entry_bar，否则时间退出计数器会继续累加。
-            # 此时应将 entry_bar 设为当前值，表示"刚发现"这个持仓。
-            if state.get("position", 0) != 0 and state.get("entry_bar", 0) == 0:
+            # 方向反转时也不应恢复旧值（如从多头修正为空头）。
+            # 只有同方向修正时才恢复 confirmed_entry_bar。
+            old_pos = 1 if position == 1 else (-1 if position == -1 else 0)
+            if old_pos == 0:
+                # 发现新持仓：重置 entry_bar/entry_price 为当前值
                 state["entry_bar"] = max(0, state.get("bar_count", 0) - 1)
                 state["entry_price"] = current_price
                 state["confirmed_entry_bar"] = state["entry_bar"]
                 state["confirmed_entry_price"] = state["entry_price"]
                 log_message(f"[持仓同步] 发现新持仓，重置 entry_bar={state['entry_bar']}, entry_price={state['entry_price']:.2f}")
+            elif old_pos != actual_dir:
+                # 方向反转保护：使用当前值，避免旧数据污染
+                state["entry_bar"] = max(0, state.get("bar_count", 0) - 1)
+                state["entry_price"] = current_price
+                state["confirmed_entry_bar"] = state["entry_bar"]
+                state["confirmed_entry_price"] = state["entry_price"]
+                log_message(f"[持仓同步] 方向反转保护，重置 entry_bar={state['entry_bar']}, entry_price={state['entry_price']:.2f}")
             elif state.get("confirmed_entry_bar", 0) > 0:
+                # 同方向修正，恢复已确认值
                 state["entry_bar"] = state["confirmed_entry_bar"]
                 state["entry_price"] = state["confirmed_entry_price"]
 
@@ -947,6 +958,7 @@ def force_close(trader, product_id, state, current_price, best_bid, best_ask, ti
             state["pending_close"] = True
             state["pending_close_bar"] = state.get("bar_count", 0)
             state["pending_close_attempts"] = 0
+            state["last_signal"] = 0
             log_message(f"[强制平仓-{fee_label}] {reason}，{pos_name}{side} {close_size:.6f} @ {order_price:.2f}，等待链上确认...")
         else:
             # IOC 订单假设立即成交，直接清零 state
