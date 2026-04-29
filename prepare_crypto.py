@@ -249,17 +249,25 @@ def days_between(ts1, ts2):
     return (ts2 - ts1) / (24 * 3600 * 1000)
 
 
-def prepare_crypto_data_streaming(symbol, interval, start_days):
+def prepare_crypto_data_streaming(symbol, interval, start_days, force=False):
     """
-    使用 Binance API 下载数据
+    使用 Binance API 下载数据。
+    文件按 {symbol}_{interval}_{days}d.parquet 格式保存，避免重复下载。
     """
     os.makedirs(DATA_DIR, exist_ok=True)
-    filepath_parquet = os.path.join(DATA_DIR, f"{symbol}_{interval}.parquet")
+    filepath_parquet = os.path.join(DATA_DIR, f"{symbol}_{interval}_{start_days}d.parquet")
 
-    # 检查是否已存在
-    if os.path.exists(filepath_parquet):
-        print(f"  {symbol}: 数据已存在，跳过", flush=True)
+    # 兼容旧格式（无天数标识）
+    old_filepath = os.path.join(DATA_DIR, f"{symbol}_{interval}.parquet")
+
+    # 检查是否已存在相同天数的数据文件
+    if os.path.exists(filepath_parquet) and not force:
+        print(f"  {symbol}: {start_days}天数据已存在 ({filepath_parquet})，跳过", flush=True)
         return True
+
+    # 如果旧格式文件存在但新格式不存在，提示用户
+    if os.path.exists(old_filepath) and not os.path.exists(filepath_parquet):
+        print(f"  {symbol}: 发现旧格式数据文件，将重新下载 {start_days} 天数据到新格式", flush=True)
 
     end_time = int(time.time() * 1000)
     start_time = int((time.time() - start_days * 24 * 3600) * 1000)
@@ -303,14 +311,14 @@ def prepare_crypto_data_streaming(symbol, interval, start_days):
     print(f"  计算技术指标...", flush=True)
     df = compute_features(df)
 
-    # 保存
+    # 保存（新格式，带天数标识）
     table = pa.Table.from_pandas(df)
     pq.write_table(table, filepath_parquet)
     print(f"  保存至 {filepath_parquet}", flush=True)
     return True
 
 
-def prepare_crypto_data(symbols=None, interval=None, start_days=None):
+def prepare_crypto_data(symbols=None, interval=None, start_days=None, force=False):
     """下载并处理加密货币数据"""
     if symbols is None:
         symbols = DEFAULT_SYMBOLS
@@ -327,7 +335,7 @@ def prepare_crypto_data(symbols=None, interval=None, start_days=None):
     print()
 
     for symbol in symbols:
-        prepare_crypto_data_streaming(symbol, interval, start_days)
+        prepare_crypto_data_streaming(symbol, interval, start_days, force=force)
 
     print()
     print("数据准备完成!")
@@ -338,61 +346,8 @@ if __name__ == "__main__":
     parser.add_argument("--symbol", type=str, default=None, help="交易对，如 BTCUSDT")
     parser.add_argument("--interval", type=str, default="5m", help="K线周期: 1m, 5m, 15m, 1h, 4h, 1d")
     parser.add_argument("--limit", type=int, default=60, help="下载多少天的数据")
-    parser.add_argument("--synthetic", action="store_true", help="生成合成数据（当API不可用时）")
+    parser.add_argument("--force", action="store_true", help="强制重新下载，即使文件已存在")
     args = parser.parse_args()
 
     symbols = [args.symbol] if args.symbol else DEFAULT_SYMBOLS
-
-    if args.synthetic:
-        # 生成合成数据用于测试
-        import numpy as np
-        import pandas as pd
-
-        os.makedirs(DATA_DIR, exist_ok=True)
-        for symbol in symbols:
-            filepath = os.path.join(DATA_DIR, f"{symbol}_{args.interval}.parquet")
-            if os.path.exists(filepath):
-                print(f"  {symbol}: 数据已存在，跳过")
-                continue
-
-            print(f"  {symbol}: 生成合成数据...")
-
-            # 生成模拟K线数据
-            n = 10000  # 约35天数据
-            base_price = 50000 if "BTC" in symbol else 3000
-            timestamps = [int(time.time() * 1000) - (n - i) * 5 * 60 * 1000 for i in range(n)]
-
-            data = []
-            price = base_price
-            for i, ts in enumerate(timestamps):
-                # 随机游走
-                change = np.random.randn() * 0.002
-                price = price * (1 + change)
-                high = price * (1 + abs(np.random.randn()) * 0.001)
-                low = price * (1 - abs(np.random.randn()) * 0.001)
-                volume = np.random.lognormal(10, 1)
-
-                data.append({
-                    "timestamp": ts,
-                    "open": price * (1 - abs(np.random.randn()) * 0.0005),
-                    "high": high,
-                    "low": low,
-                    "close": price,
-                    "volume": volume,
-                    "quote_volume": volume * price,
-                    "num_trades": int(np.random.lognormal(5, 1)),
-                    "taker_buy_volume": volume * 0.5,
-                    "taker_buy_quote_volume": volume * price * 0.5,
-                })
-
-            df = pd.DataFrame(data)
-            df = compute_features(df)
-            df["datetime"] = pd.to_datetime(df["timestamp"], unit="ms")
-
-            table = pa.Table.from_pandas(df)
-            pq.write_table(table, filepath)
-            print(f"    保存至 {filepath}")
-
-        print("\n合成数据生成完成!")
-    else:
-        prepare_crypto_data(symbols=symbols, interval=args.interval, start_days=args.limit)
+    prepare_crypto_data(symbols=symbols, interval=args.interval, start_days=args.limit, force=args.force)

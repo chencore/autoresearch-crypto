@@ -1,0 +1,15 @@
+{
+  "rsi_period": 14,
+  "rsi_low": 30,
+  "rsi_high": 65,
+  "ma_period": 10,
+  "atr_period": 14,
+  "atr_multiplier": 2.5,
+  "max_hold_bars": 24,
+  "enable_short": true,
+  "tp_atr_multiplier": 0,
+  "volume_threshold": 0,
+  "htf_ma_period": 100,
+  "use_ema_cross_exit": true,
+  "rsi_vol_adjust": true
+}

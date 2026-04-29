@@ -46,7 +46,7 @@ from okx.Trade import TradeAPI
 from okx.MarketData import MarketAPI
 from okx.PublicData import PublicAPI
 
-from train_quant import TrendStrategy, ScalpStrategy
+from train_quant import TrendStrategy, ScalpStrategy, HybridMeanRevMomentumStrategy
 
 LOG_DIR = "logs"
 os.makedirs(LOG_DIR, exist_ok=True)
@@ -252,7 +252,7 @@ def fetch_candles(market_api, inst_id, bar="5m", limit=300):
 @retry_on_exception(max_retries=3, delay=1.0)
 def get_orderbook(market_api, inst_id, depth=5):
     """获取订单簿，返回 (best_bid, best_ask) 浮点数"""
-    resp = market_api.get_books(instId=inst_id, sz=str(depth))
+    resp = market_api.get_orderbook(instId=inst_id, sz=str(depth))
     if resp.get("code") == "0" and resp.get("data"):
         data = resp["data"][0]
         bids = data.get("bids", [])
@@ -965,6 +965,20 @@ def main():
         log_message(f"参数: w={strategy.window}, std={strategy.std_dev}, "
                     f"TP={strategy.take_profit_pct*100:.1f}%, SL={strategy.stop_loss_pct*100:.1f}%, "
                     f"hold={strategy.max_hold_bars}, 指标=[{indicators_str}]{session_str}")
+    elif strategy_type == "hybrid_mm":
+        strategy = HybridMeanRevMomentumStrategy(
+            rsi_period=params.get("rsi_period", 14),
+            rsi_low=params.get("rsi_low", 25),
+            rsi_high=params.get("rsi_high", 75),
+            ma_period=params.get("ma_period", 20),
+            atr_period=params.get("atr_period", 14),
+            atr_multiplier=params.get("atr_multiplier", 2.0),
+            max_hold_bars=params.get("max_hold_bars", args.max_hold),
+            enable_short=params.get("enable_short", True),
+        )
+        log_message(f"策略模式: HybridMeanRevMomentumStrategy (混合均值回归+动量)")
+        log_message(f"参数: RSI=({strategy.rsi_low},{strategy.rsi_high}), MA={strategy.ma_period}, "
+                    f"ATR={strategy.atr_multiplier}, hold={strategy.max_hold_bars}, short={strategy.enable_short}")
     else:
         strategy = TrendStrategy(
             window=params.get("window", 20),

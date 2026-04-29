@@ -439,6 +439,12 @@ def execute_trade(signal_id, trader, product_id, tick_size, size_increment, capi
     - 若 < min_size，直接用 IOC 吃单（Nado 只对挂单检查 min_size，IOC 不受此限制）
     - 所有价格严格对齐到 tick_size，避免浮点精度错误
     """
+    # pending_close 期间完全跳过交易执行，防止重复平仓或状态混乱
+    if state.get("pending_close"):
+        log_message("[交易] pending_close 进行中，跳过交易执行")
+        state["last_signal"] = signal_id
+        return state
+
     position = state.get("position", 0)
     strategy_size = state.get("strategy_size", 0.0)
     trades = state.get("trades", [])
@@ -470,10 +476,17 @@ def execute_trade(signal_id, trader, product_id, tick_size, size_increment, capi
             state["strategy_size"] = abs(actual_position)
             position = actual_dir
             strategy_size = abs(actual_position)
-            # 恢复已确认的 entry_bar/entry_price（如果之前被错误清零）
-            if state.get("confirmed_entry_bar", 0) > 0:
+            # 当 state 为 0 但实际有持仓时（如 Maker 单成交未检测到），
+            # 不应恢复旧的 confirmed_entry_bar，否则时间退出计数器会继续累加。
+            # 此时应将 entry_bar 设为当前值，表示"刚发现"这个持仓。
+            if state.get("position", 0) != 0 and state.get("entry_bar", 0) == 0:
+                state["entry_bar"] = max(0, state.get("bar_count", 0) - 1)
+                state["entry_price"] = current_price
+                state["confirmed_entry_bar"] = state["entry_bar"]
+                state["confirmed_entry_price"] = state["entry_price"]
+                log_message(f"[持仓同步] 发现新持仓，重置 entry_bar={state['entry_bar']}, entry_price={state['entry_price']:.2f}")
+            elif state.get("confirmed_entry_bar", 0) > 0:
                 state["entry_bar"] = state["confirmed_entry_bar"]
-            if state.get("confirmed_entry_price", 0) > 0:
                 state["entry_price"] = state["confirmed_entry_price"]
 
     # 解析目标仓位
@@ -545,11 +558,22 @@ def execute_trade(signal_id, trader, product_id, tick_size, size_increment, capi
                         "reason": f"pnl={pnl_pct*100:+.2f}%",
                     })
                     log_message(f"[平多{close_type_str}] pnl={pnl_pct*100:+.2f}% 下单卖出 size={sell_size:.6f} price={order_price:.2f}")
+                    if close_as_maker:
+                        # POST_ONLY 平仓单不保证立即成交，设置 pending_close 等待链上确认
+                        state["pending_close"] = True
+                        state["pending_close_bar"] = state.get("bar_count", 0)
+                        state["pending_close_attempts"] = 0
+                        log_message("[平多Maker] 平仓单已挂出，设置 pending_close 等待链上确认")
+                    else:
+                        # IOC 平仓假设立即成交，直接清零
+                        state["position"] = 0
+                        state["strategy_size"] = 0.0
+                        state["entry_bar"] = 0
+                        state["entry_price"] = 0.0
+                        state["confirmed_entry_bar"] = 0
+                        state["confirmed_entry_price"] = 0.0
                 else:
                     log_message(f"[平多失败] {close_type_str}单未成交")
-        # 平仓后保留 entry_bar/entry_price 用于 pending_close 恢复，实际清零在确认持仓归零后执行
-        state["position"] = 0
-        state["strategy_size"] = 0.0
 
     elif position == -1 and target_pos >= 0:
         # 平空仓（买入）
@@ -592,11 +616,22 @@ def execute_trade(signal_id, trader, product_id, tick_size, size_increment, capi
                         "reason": f"pnl={pnl_pct*100:+.2f}%",
                     })
                     log_message(f"[平空{close_type_str}] pnl={pnl_pct*100:+.2f}% 下单买入 size={close_size:.6f} price={order_price:.2f}")
+                    if close_as_maker:
+                        # POST_ONLY 平仓单不保证立即成交，设置 pending_close 等待链上确认
+                        state["pending_close"] = True
+                        state["pending_close_bar"] = state.get("bar_count", 0)
+                        state["pending_close_attempts"] = 0
+                        log_message("[平空Maker] 平仓单已挂出，设置 pending_close 等待链上确认")
+                    else:
+                        # IOC 平仓假设立即成交，直接清零
+                        state["position"] = 0
+                        state["strategy_size"] = 0.0
+                        state["entry_bar"] = 0
+                        state["entry_price"] = 0.0
+                        state["confirmed_entry_bar"] = 0
+                        state["confirmed_entry_price"] = 0.0
                 else:
                     log_message(f"[平空失败] {close_type_str}单未成交")
-        # 平仓后保留 entry_bar/entry_price 用于 pending_close 恢复
-        state["position"] = 0
-        state["strategy_size"] = 0.0
 
     # --- 开新仓 ---
     log_message(f"[交易] 检查开仓: target_pos={target_pos} state_position={state.get('position', 0)} force_ioc={force_ioc}")
@@ -789,10 +824,14 @@ def cancel_tp_order(trader, product_id, state):
     return state
 
 
-def check_stop_loss(state, current_price, stop_loss_pct=0.03, max_hold_bars=48):
+def check_stop_loss(state, current_price, kline_low=None, kline_high=None, stop_loss_pct=0.03, max_hold_bars=48):
     """检查止损和时间退出条件（支持多空双向）"""
     pos = state.get("position", 0)
     if pos == 0:
+        return False, ""
+
+    # pending_close 期间跳过止损检查，避免重复触发
+    if state.get("pending_close"):
         return False, ""
 
     entry_price = state.get("entry_price", 0)
@@ -801,13 +840,21 @@ def check_stop_loss(state, current_price, stop_loss_pct=0.03, max_hold_bars=48):
     current_bar = state.get("bar_count", 0)
 
     if pos == 1:
-        # 多头止损：价格下跌超过阈值
-        if entry_price > 0 and (entry_price - current_price) / entry_price >= stop_loss_pct:
-            return True, f"多头止损: 跌幅 {(entry_price - current_price) / entry_price * 100:.2f}% >= {stop_loss_pct * 100:.0f}%"
+        # 多头止损：优先使用 K线 low 捕捉K线内穿仓，再用 close 价兜底
+        if entry_price > 0:
+            stop_price = entry_price * (1 - stop_loss_pct)
+            if kline_low is not None and kline_low <= stop_price:
+                return True, f"多头止损: K线low={kline_low:.2f} <= 止损价={stop_price:.2f}"
+            if (entry_price - current_price) / entry_price >= stop_loss_pct:
+                return True, f"多头止损: 跌幅 {(entry_price - current_price) / entry_price * 100:.2f}% >= {stop_loss_pct * 100:.0f}%"
     elif pos == -1:
-        # 空头止损：价格上涨超过阈值
-        if entry_price > 0 and (current_price - entry_price) / entry_price >= stop_loss_pct:
-            return True, f"空头止损: 涨幅 {(current_price - entry_price) / entry_price * 100:.2f}% >= {stop_loss_pct * 100:.0f}%"
+        # 空头止损：优先使用 K线 high 捕捉K线内穿仓，再用 close 价兜底
+        if entry_price > 0:
+            stop_price = entry_price * (1 + stop_loss_pct)
+            if kline_high is not None and kline_high >= stop_price:
+                return True, f"空头止损: K线high={kline_high:.2f} >= 止损价={stop_price:.2f}"
+            if (current_price - entry_price) / entry_price >= stop_loss_pct:
+                return True, f"空头止损: 涨幅 {(current_price - entry_price) / entry_price * 100:.2f}% >= {stop_loss_pct * 100:.0f}%"
 
     # 异常保护：若 entry_bar 丢失或计算异常，跳过时间退出判断
     bars_held = current_bar - entry_bar
@@ -896,6 +943,7 @@ def force_close(trader, product_id, state, current_price, best_bid, best_ask, ti
         state["trades"] = trades
         if use_maker:
             # POST_ONLY 订单被接受不代表已成交，设置 pending_close 等待链上确认
+            # 保留 position/entry_bar/entry_price，避免 execute_trade 中"修正持仓方向"时恢复旧值导致重复平仓
             state["pending_close"] = True
             state["pending_close_bar"] = state.get("bar_count", 0)
             state["pending_close_attempts"] = 0
@@ -1251,7 +1299,7 @@ def main():
                     # pending_close 期间跳过止损检查和交易执行，避免重复触发
                     skip_trading = state.get("pending_close", False)
 
-                    # 3. 检查止损/时间退出
+                    # 3. 检查止损/时间退出（使用K线low/high捕捉K线内穿仓）
                     should_exit = False
                     exit_reason = ""
                     if not skip_trading:
@@ -1259,8 +1307,11 @@ def main():
                         strategy_stop_loss = getattr(strategy, 'stop_loss_pct', None)
                         stop_loss_pct = args.stop_loss if args.stop_loss is not None else (strategy_stop_loss if strategy_stop_loss is not None else 0.03)
                         max_hold_bars = args.max_hold if args.max_hold is not None else strategy.max_hold_bars
+                        latest_low = df.iloc[-1]["low"]
+                        latest_high = df.iloc[-1]["high"]
                         should_exit, exit_reason = check_stop_loss(
                             state, current_price,
+                            kline_low=latest_low, kline_high=latest_high,
                             stop_loss_pct=stop_loss_pct,
                             max_hold_bars=max_hold_bars,
                         )

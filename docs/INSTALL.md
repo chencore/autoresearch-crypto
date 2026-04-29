@@ -113,7 +113,7 @@ uv run python prepare_crypto.py --help
 | `--symbol` | BTCUSDT,ETHUSDT | 交易对 |
 | `--interval` | 5m | K线周期: 1m, 5m, 15m, 1h, 4h, 1d |
 | `--limit` | 60 | 下载天数 |
-| `--synthetic` | - | 生成合成数据（当 API 不可用时）|
+| `--force` | - | 强制重新下载，即使文件已存在 |
 
 ### 训练策略
 
@@ -228,13 +228,6 @@ autoresearch/
 | 胜率 | 盈利交易占比 | 越高越好 |
 
 ## 常见问题
-
-### Q: 代理无法访问怎么办？
-
-A: 使用 `--synthetic` 生成合成数据测试：
-```bash
-uv run python prepare_crypto.py --symbol BTCUSDT --synthetic
-```
 
 ### Q: GPU 内存不足怎么办？
 
