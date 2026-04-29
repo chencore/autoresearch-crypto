@@ -480,7 +480,7 @@ def execute_trade(signal_id, trader, product_id, tick_size, size_increment, capi
             # 不应恢复旧的 confirmed_entry_bar，否则时间退出计数器会继续累加。
             # 方向反转时也不应恢复旧值（如从多头修正为空头）。
             # 只有同方向修正时才恢复 confirmed_entry_bar。
-            old_pos = 1 if position == 1 else (-1 if position == -1 else 0)
+            old_pos = 1 if state.get("position", 0) == 1 else (-1 if state.get("position", 0) == -1 else 0)
             if old_pos == 0:
                 # 发现新持仓：重置 entry_bar/entry_price 为当前值
                 state["entry_bar"] = max(0, state.get("bar_count", 0) - 1)
@@ -1291,6 +1291,8 @@ def main():
                     state["confirmed_entry_price"] = state["entry_price"]
                     state["confirmed_entry_bar"] = state["entry_bar"]
                     state["pending_open"] = False
+                    log_message("[持仓同步] pending_open 已成交，挂 TP 单")
+                    state = manage_tp_order(trader, product_id, tick_size, size_increment, strategy, state)
 
                 # 1. 获取 K 线数据
                 df = trader.fetch_candles(product_id, granularity=granularity, limit=500)
