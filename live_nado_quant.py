@@ -1057,7 +1057,7 @@ def main():
     enable_short = not args.long_only
     mode_str = "多空双向" if enable_short else "只做多"
     log_message(f"启动 Nado Mainnet 实盘交易 ({mode_str})")
-    log_message(f"混合费率: 开仓=Maker, 止盈=Maker, 止损=Taker, 超时=Maker")
+    log_message(f"混合费率: 开仓=Maker, 止盈=Maker, 止损=Taker, 超时=Taker")
     if not os.path.exists(args.checkpoint):
         log_message(f"错误: 未找到 {args.checkpoint}，请先运行 train_quant.py 训练策略")
         sys.exit(1)
@@ -1147,6 +1147,7 @@ def main():
         active_indicators = [k for k in ["use_adx", "use_volume", "use_macd", "use_ma_cross", "use_mfi", "use_stochastic", "use_rsi_divergence", "use_macd_divergence", "use_trend_filter", "use_obv_trend", "use_volume_spike", "use_vwap", "use_htf_macd", "use_resonance"] if getattr(strategy, k)]
         indicators_str = ", ".join(active_indicators) if active_indicators else "无"
         log_message(f"策略参数: 周期={strategy.window}, 标准差={strategy.std_dev}, "
+                    f"TP={strategy.take_profit_pct*100:.1f}%, SL={strategy.stop_loss_pct*100:.1f}%, "
                     f"ATR止损={strategy.atr_multiplier}, 最大持仓={strategy.max_hold_bars}根K线, "
                     f"RSI阈值={strategy.rsi_threshold}, 活跃指标=[{indicators_str}]")
 
