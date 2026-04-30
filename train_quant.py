@@ -95,6 +95,7 @@ class TrendStrategy:
                  atr_period=14, atr_multiplier=2.5,
                  max_hold_bars=48, adx_threshold=25,
                  entry_zone=1.0, rsi_threshold=30,
+                 take_profit_pct=0.05, stop_loss_pct=0.03,
                  # P0: ADX 趋势过滤 + 量价确认
                  use_adx=False, use_volume=False, volume_threshold=1.2,
                  # P1: MACD 动量确认 + MA 交叉事件
@@ -124,6 +125,8 @@ class TrendStrategy:
         self.adx_threshold = adx_threshold
         self.entry_zone = entry_zone
         self.rsi_threshold = rsi_threshold
+        self.take_profit_pct = take_profit_pct
+        self.stop_loss_pct = stop_loss_pct
         # P0
         self.use_adx = use_adx
         self.use_volume = use_volume

@@ -452,9 +452,6 @@ def execute_trade(signal_id, trader, product_id, tick_size, size_increment, capi
 
     log_message(f"[交易] signal={signal_id} position={position} target计算中...")
 
-    # 先取消所有现有挂单
-    trader.cancel_all_orders(product_id)
-
     # 同步实际持仓到 state（POST_ONLY 订单可能未成交）
     actual_position = trader.get_position(product_id)
     if abs(actual_position) < size_increment * 0.5:
@@ -515,6 +512,9 @@ def execute_trade(signal_id, trader, product_id, tick_size, size_increment, capi
         log_message(f"[交易] 无需换仓，跳过")
         state["last_signal"] = signal_id
         return state
+
+    # 需要换仓，先取消所有现有挂单
+    trader.cancel_all_orders(product_id)
 
     # --- 平掉当前仓位 ---
     # 判断盈亏以决定订单类型: 盈利→Maker(POST_ONLY), 亏损→Taker(IOC)
@@ -1107,6 +1107,8 @@ def main():
         adx_threshold=params.get("adx_threshold", 25),
         entry_zone=params.get("entry_zone", 0.0),
         rsi_threshold=params.get("rsi_threshold", 30),
+        take_profit_pct=params.get("take_profit_pct", 0.05),
+        stop_loss_pct=params.get("stop_loss_pct", args.stop_loss if args.stop_loss is not None else 0.03),
         # 多指标扩展参数
         use_adx=params.get("use_adx", False),
         use_volume=params.get("use_volume", False),
@@ -1340,12 +1342,11 @@ def main():
                     if skip_trading:
                         log_message("[pending_close] 等待平仓链上确认，跳过交易执行")
                     elif should_exit:
-                        # 超时 → Maker, 止损 → Taker
-                        is_timeout = "时间退出" in exit_reason
+                        # 强制退出均用 IOC (Taker)，确保立即成交
                         state["pending_open"] = False
                         state = force_close(trader, product_id, state,
                                             current_price, best_bid, best_ask, tick_size, size_increment,
-                                            exit_reason, use_maker=is_timeout)
+                                            exit_reason, use_maker=False)
                     else:
                         # === 检查 pending_open 状态 ===
                         pending = state.get("pending_open", False)
