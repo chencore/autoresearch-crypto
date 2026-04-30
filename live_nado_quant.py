@@ -48,7 +48,7 @@ from nado_protocol.utils.order import build_appendix, OrderType
 from nado_protocol.indexer_client.types import IndexerCandlesticksGranularity
 from nado_protocol.indexer_client.types.query import IndexerCandlesticksParams
 
-from train_quant import TrendStrategy, ScalpStrategy
+from train_quant import TrendStrategy, ScalpStrategy, HybridMeanRevMomentumStrategy
 
 LOG_DIR = "logs"
 os.makedirs(LOG_DIR, exist_ok=True)
@@ -787,12 +787,15 @@ def manage_tp_order(trader, product_id, tick_size, size_increment, strategy, sta
             state["tp_side"] = None
         return state
 
-    # 计算止盈价格
+    # 计算止盈价格（兼容不同策略类型）
+    tp_pct = getattr(strategy, 'take_profit_pct', 0)
+    if tp_pct <= 0:
+        return state  # 策略无 TP 设置，跳过
     if pos == 1:
-        tp_price = round_to_tick(entry_price * (1 + strategy.take_profit_pct), tick_size)
+        tp_price = round_to_tick(entry_price * (1 + tp_pct), tick_size)
         tp_side = "sell"
     else:
-        tp_price = round_to_tick(entry_price * (1 - strategy.take_profit_pct), tick_size)
+        tp_price = round_to_tick(entry_price * (1 - tp_pct), tick_size)
         tp_side = "buy"
 
     # 已有正确的 TP 单则跳过
@@ -819,7 +822,7 @@ def manage_tp_order(trader, product_id, tick_size, size_increment, strategy, sta
         state["tp_digest"] = digest
         state["tp_price"] = tp_price
         state["tp_side"] = tp_side
-        log_message(f"[TP挂单] {tp_side.upper()} size={order_size:.6f} @ {tp_price:.2f} (入场={entry_price:.2f}, TP={strategy.take_profit_pct*100:.1f}%)")
+        log_message(f"[TP挂单] {tp_side.upper()} size={order_size:.6f} @ {tp_price:.2f} (入场={entry_price:.2f}, TP={tp_pct*100:.1f}%)")
 
     return state
 
@@ -1098,6 +1101,23 @@ def main():
         log_message(f"参数: w={strategy.window}, std={strategy.std_dev}, "
                     f"TP={strategy.take_profit_pct*100:.1f}%, SL={strategy.stop_loss_pct*100:.1f}%, "
                     f"hold={strategy.max_hold_bars}, 指标=[{indicators_str}]{session_str}")
+    elif strategy_type == "hybrid_mm":
+        strategy = HybridMeanRevMomentumStrategy(
+            rsi_period=params.get("rsi_period", 7),
+            rsi_low=params.get("rsi_low", 28),
+            rsi_high=params.get("rsi_high", 72),
+            ma_period=params.get("ma_period", 25),
+            atr_period=params.get("atr_period", 12),
+            atr_multiplier=params.get("atr_multiplier", 3.5),
+            max_hold_bars=params.get("max_hold_bars", 48),
+            enable_short=enable_short,
+            take_profit_pct=params.get("take_profit_pct", 0.03),
+            stop_loss_pct=params.get("stop_loss_pct", args.stop_loss if args.stop_loss is not None else 0.02),
+        )
+        log_message(f"策略模式: HybridMM (RSI均值回归+EMA动量)")
+        log_message(f"参数: RSI[{strategy.rsi_low}/{strategy.rsi_high}] period={strategy.rsi_period}, "
+                    f"MA={strategy.ma_period}, ATR[{strategy.atr_period}]x{strategy.atr_multiplier}, "
+                    f"hold={strategy.max_hold_bars}, TP={strategy.take_profit_pct*100:.1f}%, SL={strategy.stop_loss_pct*100:.1f}%")
     else:
         strategy = TrendStrategy(
         window=params.get("window", 20),

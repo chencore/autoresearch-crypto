@@ -1693,7 +1693,8 @@ class HybridMeanRevMomentumStrategy:
 
     def __init__(self, rsi_period=14, rsi_low=25, rsi_high=75,
                  ma_period=20, atr_period=14, atr_multiplier=2.0,
-                 max_hold_bars=24, enable_short=True):
+                 max_hold_bars=24, enable_short=True,
+                 take_profit_pct=0.03, stop_loss_pct=0.02):
         self.rsi_period = rsi_period
         self.rsi_low = rsi_low
         self.rsi_high = rsi_high
@@ -1702,6 +1703,8 @@ class HybridMeanRevMomentumStrategy:
         self.atr_multiplier = atr_multiplier
         self.max_hold_bars = max_hold_bars
         self.enable_short = enable_short
+        self.take_profit_pct = take_profit_pct
+        self.stop_loss_pct = stop_loss_pct
         # 兼容实盘脚本所需的属性
         self.window = max(rsi_period, ma_period, atr_period)
         self.std_dev = 2.0

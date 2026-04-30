@@ -1,0 +1,66 @@
+{
+  "champion": "HybridMM",
+  "params": {
+    "rsi_period": 7,
+    "rsi_low": 30,
+    "rsi_high": 75,
+    "ma_period": 30,
+    "atr_period": 14,
+    "atr_multiplier": 2.5,
+    "max_hold_bars": 36
+  },
+  "score": 0.6643696733943465,
+  "wf_score": 0.18368254742118287,
+  "metrics": {
+    "total_return": -0.09930218613133912,
+    "annualized_return": -0.0415753824723184,
+    "annualized_vol": 0.10182141353143628,
+    "sharpe_ratio": -0.4083166892932835,
+    "max_drawdown": -0.1342440955210128,
+    "win_rate": 0.42696629213483145
+  },
+  "ranking": [
+    {
+      "rank": 1,
+      "name": "HybridMM",
+      "score": 0.6643696733943465,
+      "wf_score": 0.18368254742118287
+    },
+    {
+      "rank": 2,
+      "name": "PureAction",
+      "score": 0.6296542678126568,
+      "wf_score": 0.0877493417435032
+    },
+    {
+      "rank": 3,
+      "name": "Hybrid",
+      "score": 0.16683394158563247,
+      "wf_score": 0.0839857115734392
+    },
+    {
+      "rank": 4,
+      "name": "TrendStrategy",
+      "score": 0.5398622721709814,
+      "wf_score": 0.0
+    },
+    {
+      "rank": 5,
+      "name": "TrendFollow",
+      "score": 0.1547824696097249,
+      "wf_score": 0.0
+    },
+    {
+      "rank": 6,
+      "name": "Adaptive",
+      "score": 0.6282357649807004,
+      "wf_score": 0.0
+    },
+    {
+      "rank": 7,
+      "name": "Scalp",
+      "score": 0.2330536912751678,
+      "wf_score": 0.0
+    }
+  ]
+}
