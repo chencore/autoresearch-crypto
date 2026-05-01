@@ -17,7 +17,7 @@ import pandas as pd
 import torch
 
 from prepare_crypto import download_binance, compute_features
-from train_quant import BollingerStrategy
+from train_quant import TrendStrategy as BollingerStrategy
 
 
 def load_checkpoint(checkpoint_path="checkpoints/quant_model.pt"):

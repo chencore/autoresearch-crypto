@@ -696,7 +696,7 @@ def execute_trade(signal_id, trader, product_id, tick_size, size_increment, capi
                                            "size": order_size, "price": maker_price})
                             state["pending_open"] = True
                             state["pending_open_signal"] = 2
-                            state["pending_open_price"] = current_price
+                            state["pending_open_price"] = maker_price
                             state["pending_open_size"] = order_size
                             log_message(f"[开多Maker] 挂单买入 size={order_size:.6f} price={maker_price:.2f} notional={notional:.2f}")
                         else:
@@ -752,7 +752,7 @@ def execute_trade(signal_id, trader, product_id, tick_size, size_increment, capi
                                            "size": order_size, "price": maker_price})
                             state["pending_open"] = True
                             state["pending_open_signal"] = 3
-                            state["pending_open_price"] = current_price
+                            state["pending_open_price"] = maker_price
                             state["pending_open_size"] = order_size
                             log_message(f"[开空Maker] 挂单卖出 size={order_size:.6f} price={maker_price:.2f} notional={notional:.2f}")
                         else:

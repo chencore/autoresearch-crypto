@@ -20,7 +20,7 @@ import pandas as pd
 import torch
 
 from inference_quant import fetch_latest_data
-from train_quant import BollingerStrategy
+from train_quant import TrendStrategy as BollingerStrategy
 
 LOG_DIR = "logs"
 os.makedirs(LOG_DIR, exist_ok=True)

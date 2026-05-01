@@ -9,7 +9,7 @@ import pandas as pd
 import pyarrow.parquet as pq
 import torch
 
-from train_quant import BollingerStrategy, StrategyEvaluator
+from train_quant import TrendStrategy, StrategyEvaluator
 
 
 def load_crypto_data(filepath):
@@ -18,7 +18,7 @@ def load_crypto_data(filepath):
 
 def backtest_single(df, params, enable_short=True):
     """对单一币种回测"""
-    strategy = BollingerStrategy(**params)
+    strategy = TrendStrategy(**params)
     signals = strategy.generate_signals(df, enable_short=enable_short)
     prices = df["close"].values
 

@@ -16,7 +16,7 @@ import numpy as np
 import pandas as pd
 import torch
 
-from train_quant import StrategyEvaluator, BollingerStrategy
+from train_quant import StrategyEvaluator, TrendStrategy as BollingerStrategy
 from inference_quant import fetch_latest_data
 from prepare_crypto import compute_features
 

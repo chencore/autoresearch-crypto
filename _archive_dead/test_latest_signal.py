@@ -7,7 +7,7 @@ import sys
 import numpy as np
 import pandas as pd
 
-from train_quant import BollingerStrategy
+from train_quant import TrendStrategy as BollingerStrategy
 
 DATA_PATH = "data/crypto/SOLUSDT_5m.parquet"
 

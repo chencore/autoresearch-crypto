@@ -9,7 +9,8 @@ import numpy as np
 import pandas as pd
 import torch
 
-from train_quant import BollingerStrategy, StrategyEvaluator, load_crypto_data, DATA_DIR
+from train_quant import TrendStrategy, StrategyEvaluator, load_crypto_data, DATA_DIR
+BollingerStrategy = TrendStrategy  # backward compat
 
 PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
 
