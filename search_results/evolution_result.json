@@ -1,0 +1,87 @@
+{
+  "timestamp": "2026-05-01T08:59:45.017807",
+  "agents": [
+    {
+      "name": "Alpha",
+      "style": "趋势跟踪",
+      "weight": 0.01814709612320042,
+      "total_return": -0.3818832100702283,
+      "sharpe_ratio": -2.6586400771304333,
+      "max_drawdown": -0.38347001285904286,
+      "n_trades": 729,
+      "params": {
+        "window": 9,
+        "std_dev": 1.6491981362992016,
+        "atr_multiplier": 3.5,
+        "max_hold_bars": 41,
+        "rsi_threshold": 38,
+        "entry_zone": 0.3294179417474139,
+        "use_adx": true,
+        "adx_threshold": 19
+      }
+    },
+    {
+      "name": "Beta",
+      "style": "均值回归",
+      "weight": 0.7260574982116341,
+      "total_return": -0.7697531746248257,
+      "sharpe_ratio": -2.92938711818714,
+      "max_drawdown": -0.7750081789768167,
+      "n_trades": 1759,
+      "params": {
+        "window": 13,
+        "std_dev": 1.698538388714997,
+        "atr_period": 12,
+        "atr_multiplier": 1.1224176486158166,
+        "max_hold_bars": 23,
+        "entry_zone": 0.0,
+        "enable_short": true
+      }
+    },
+    {
+      "name": "Gamma",
+      "style": "网格交易",
+      "weight": 0.2509363669755359,
+      "total_return": 0.0,
+      "sharpe_ratio": 0,
+      "max_drawdown": 0.0,
+      "n_trades": 0,
+      "params": {
+        "grid_spacing_pct": 0.008,
+        "grid_levels": 5,
+        "base_size": 0.1,
+        "atr_period": 14,
+        "atr_spacing_mult": 0.5,
+        "max_position": 1.0,
+        "trend_ma_period": 100
+      }
+    },
+    {
+      "name": "Delta",
+      "style": "事件驱动",
+      "weight": 0.004859038689629474,
+      "total_return": -0.031988487235591,
+      "sharpe_ratio": -1.0687107314127955,
+      "max_drawdown": -0.04043644853833763,
+      "n_trades": 31,
+      "params": {
+        "rsi_period": 9,
+        "rsi_low": 33,
+        "rsi_high": 70,
+        "ma_period": 18,
+        "atr_period": 14,
+        "atr_multiplier": 5.0,
+        "max_hold_bars": 11,
+        "enable_short": true
+      }
+    }
+  ],
+  "ensemble": {
+    "total_return": -0.4003376739846406,
+    "sharpe_ratio": -0.7547264516459925,
+    "max_drawdown": -0.43172671725179496,
+    "win_rate": 0.6122778675282714,
+    "n_trades": 619
+  },
+  "market_return": 0.11812486727543003
+}

@@ -18,6 +18,7 @@ __all__ = [
     "TrendFollowStrategy",
     "HybridMeanRevMomentumStrategy",
     "AdaptiveHybridStrategy",
+    "GridStrategy",
 ]
 
 # Lazy imports to avoid circular dependencies — modules import from base/sub-modules
@@ -30,6 +31,7 @@ def __getattr__(name: str):
         "TrendFollowStrategy": "dex.strategies.trend_follow",
         "HybridMeanRevMomentumStrategy": "dex.strategies.hybrid_mm",
         "AdaptiveHybridStrategy": "dex.strategies.adaptive",
+        "GridStrategy": "dex.strategies.grid",
     }
     if name in _imports:
         import importlib

@@ -1,0 +1,36 @@
+{
+  "timestamp": "2026-05-01T09:07:26.082251",
+  "agent": "Beta",
+  "hypothesis": "网格间距应根据近期 ATR 而非固定百分比",
+  "tried": "atr_spacing_mult=0.8, grid_spacing_pct=0.003",
+  "params_before": {
+    "window": 20,
+    "std_dev": 2.0,
+    "atr_period": 14,
+    "atr_multiplier": 2.5,
+    "max_hold_bars": 24,
+    "entry_zone": 0.0,
+    "enable_short": true
+  },
+  "params_after": {
+    "window": 20,
+    "std_dev": 2.0,
+    "atr_period": 14,
+    "atr_multiplier": 2.5,
+    "max_hold_bars": 24,
+    "entry_zone": 0.0,
+    "enable_short": true,
+    "atr_spacing_mult": 0.8,
+    "grid_spacing_pct": 0.003
+  },
+  "score_before": 0.3482420793008977,
+  "score_after": 0.27833987468240007,
+  "sharpe_before": -1.623615389151574,
+  "sharpe_after": -2.1585600156609974,
+  "ret_before": -0.029428494317127463,
+  "ret_after": -0.3403186522857041,
+  "dd_before": -0.030489515710119743,
+  "dd_after": -0.3548578604638111,
+  "result_summary": "score: 0.348 → 0.278 (-0.070), sharpe: -1.62 → -2.16 (-0.53), ret: -2.94% → -34.03%, DD: -3.0% → -35.5%",
+  "reflection": "明显恶化 (score -0.070)。这个调整方向是错误的。 注意回撤扩大了 32.4%。可能是参数调整增加了尾部风险暴露。 下一步：回退该参数，尝试调整其他相关参数。考虑市场状态是否发生了变化。"
+}

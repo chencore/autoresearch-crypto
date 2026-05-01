@@ -1,0 +1,36 @@
+{
+  "timestamp": "2026-05-01T09:07:25.385481",
+  "agent": "Alpha",
+  "hypothesis": "在低波动环境下收紧入场阈值可以减少假信号",
+  "tried": "std_dev=2.4, entry_zone=0.3",
+  "params_before": {
+    "window": 15,
+    "std_dev": 2.5,
+    "atr_multiplier": 2.0,
+    "max_hold_bars": 36,
+    "rsi_threshold": 35,
+    "entry_zone": 0.3,
+    "use_adx": true,
+    "adx_threshold": 20
+  },
+  "params_after": {
+    "window": 15,
+    "std_dev": 2.4,
+    "atr_multiplier": 2.0,
+    "max_hold_bars": 36,
+    "rsi_threshold": 35,
+    "entry_zone": 0.3,
+    "use_adx": true,
+    "adx_threshold": 20
+  },
+  "score_before": 0.432519354583901,
+  "score_after": 0.3794294421309225,
+  "sharpe_before": -0.7555851140566003,
+  "sharpe_after": -1.225861918274483,
+  "ret_before": -0.015546944136268448,
+  "ret_after": -0.027448773176675823,
+  "dd_before": -0.02100417987851625,
+  "dd_after": -0.03275226572557082,
+  "result_summary": "score: 0.433 → 0.379 (-0.053), sharpe: -0.76 → -1.23 (-0.47), ret: -1.55% → -2.74%, DD: -2.1% → -3.3%",
+  "reflection": "明显恶化 (score -0.053)。这个调整方向是错误的。 下一步：回退该参数，尝试调整其他相关参数。考虑市场状态是否发生了变化。"
+}

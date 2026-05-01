@@ -1,0 +1,70 @@
+{
+  "timestamp": "2026-05-01T09:07:26.436787",
+  "agents": [
+    {
+      "name": "Alpha",
+      "style": "趋势跟踪",
+      "params": {
+        "window": 15,
+        "std_dev": 2.5,
+        "atr_multiplier": 2.0,
+        "max_hold_bars": 36,
+        "rsi_threshold": 35,
+        "entry_zone": 0.3,
+        "use_adx": true,
+        "adx_threshold": 20
+      },
+      "score": 0.432519354583901
+    },
+    {
+      "name": "Beta",
+      "style": "均值回归",
+      "params": {
+        "window": 20,
+        "std_dev": 2.0,
+        "atr_period": 14,
+        "atr_multiplier": 2.5,
+        "max_hold_bars": 24,
+        "entry_zone": 0.0,
+        "enable_short": true
+      },
+      "score": 0.3482420793008977
+    },
+    {
+      "name": "Gamma",
+      "style": "网格交易",
+      "params": {
+        "grid_spacing_pct": 0.008,
+        "grid_levels": 5,
+        "base_size": 0.1,
+        "atr_period": 14,
+        "atr_spacing_mult": 0.5,
+        "max_position": 1.0,
+        "trend_ma_period": 100
+      },
+      "score": 0.3462212306742452
+    },
+    {
+      "name": "Delta",
+      "style": "事件驱动",
+      "params": {
+        "rsi_period": 5,
+        "rsi_low": 28,
+        "rsi_high": 72,
+        "ma_period": 25,
+        "atr_period": 12,
+        "atr_multiplier": 3.5,
+        "max_hold_bars": 24,
+        "enable_short": true
+      },
+      "score": 0.41699867527929746
+    }
+  ],
+  "n_experiments": 15,
+  "n_meta": 3,
+  "blind_spots": [
+    "当前参数搜索空间可能太窄，建议探索策略类型本身的变化",
+    "风险控制在各 Agent 间不统一：需要全局风险预算分配",
+    "风险控制在各 Agent 间不统一：需要全局风险预算分配"
+  ]
+}
