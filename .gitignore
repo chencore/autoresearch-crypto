@@ -18,7 +18,6 @@ logs/*.lock
 logs/*.pid
 
 .env
-/data
 
 # Agent prompt files (generated per-session by launchers)
 CLAUDE.md
