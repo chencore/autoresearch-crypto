@@ -11,7 +11,7 @@ case "${1:-start}" in
       echo "Already running (PID: $(cat "$PID_FILE"))"
       exit 1
     fi
-    nohup python3 live_nado_quant.py --ticker ETH --capital 80 --leverage 6 > "$LOG_FILE" 2>&1 &
+    nohup uv run python live_nado_quant.py --ticker ETH --checkpoint checkpoints/quant_model.pt --capital 80 --leverage 6 > "$LOG_FILE" 2>&1 &
     echo $! > "$PID_FILE"
     echo "Started live_nado_quant.py (PID: $!)"
     echo "Log: $LOG_FILE"
