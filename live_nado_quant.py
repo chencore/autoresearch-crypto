@@ -49,6 +49,7 @@ from nado_protocol.indexer_client.types import IndexerCandlesticksGranularity
 from nado_protocol.indexer_client.types.query import IndexerCandlesticksParams
 
 from train_quant import TrendStrategy, ScalpStrategy, HybridMeanRevMomentumStrategy
+from dex.market_regime import MarketRegimeDetector
 
 LOG_DIR = "logs"
 os.makedirs(LOG_DIR, exist_ok=True)
@@ -1050,6 +1051,7 @@ def main():
     parser.add_argument("--max-hold", type=int, default=None, help="最大持仓K线数（默认使用策略参数）")
     parser.add_argument("--short", action="store_true", default=True, help="启用做空（默认开启）")
     parser.add_argument("--long-only", action="store_true", help="只做多，不做空")
+    parser.add_argument("--no-regime-filter", action="store_true", help="禁用市场状态方向过滤")
     args = parser.parse_args()
 
     interval_seconds = INTERVAL_SECONDS_MAP.get(args.interval, 300)
@@ -1058,6 +1060,10 @@ def main():
     # 加载策略参数
     log_message("=" * 50)
     enable_short = not args.long_only
+    use_regime_filter = not args.no_regime_filter
+    regime_detector = MarketRegimeDetector() if use_regime_filter else None
+    regime_report = None
+    regime_check_interval = 12  # 每12轮(1小时)刷新一次市场状态
     mode_str = "多空双向" if enable_short else "只做多"
     log_message(f"启动 Nado Mainnet 实盘交易 ({mode_str})")
     log_message(f"混合费率: 开仓=Maker, 止盈=Maker, 止损=Taker, 超时=Taker")
@@ -1324,6 +1330,38 @@ def main():
                 else:
                     # 2. 生成信号
                     signal_id, bb_info = predict_signal(strategy, df, enable_short=enable_short)
+
+                    # 2.5 市场状态方向过滤（每1小时刷新）
+                    if use_regime_filter and regime_detector is not None:
+                        bar_count = state.get("bar_count", 0)
+                        if bar_count % regime_check_interval == 0 or regime_report is None:
+                            try:
+                                regime_report = regime_detector.analyze()
+                                allow_long, allow_short = regime_detector.direction_filter()
+                                log_message(
+                                    f"[市场状态] {regime_report.regime} "
+                                    f"(score={regime_report.composite_score:+.2f} "
+                                    f"conf={regime_report.confidence:.0%}) "
+                                    f"| allow_long={allow_long} allow_short={allow_short}"
+                                )
+                                if regime_report.details:
+                                    for d in regime_report.details[:2]:
+                                        log_message(f"  {d}")
+                            except Exception as e:
+                                log_message(f"[市场状态] 获取失败: {e}")
+                                allow_long, allow_short = True, True
+                        else:
+                            allow_long, allow_short = regime_detector.direction_filter()
+
+                        # 覆盖信号：市场状态不支持的交易方向 → 改为持有
+                        original_signal = signal_id
+                        if signal_id == 2 and not allow_long:
+                            signal_id = 1
+                            log_message(f"[状态过滤] 做多信号被宏观偏空覆盖 → 持有")
+                        elif signal_id == 3 and not allow_short:
+                            signal_id = 1
+                            log_message(f"[状态过滤] 做空信号被宏观偏多覆盖 → 持有")
+
                     current_price = bb_info["price"]
                     current_time = df.iloc[-1]["datetime"]
                     state["last_price"] = current_price

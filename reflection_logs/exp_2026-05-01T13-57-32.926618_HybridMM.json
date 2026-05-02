@@ -1,0 +1,34 @@
+{
+  "timestamp": "2026-05-01T13:57:32.926618",
+  "agent": "HybridMM",
+  "hypothesis": "高波动环境下应放宽止损，避免被噪音震出",
+  "tried": "atr_multiplier=3.0",
+  "params_before": {
+    "rsi_period": 7,
+    "rsi_low": 28,
+    "rsi_high": 78,
+    "ma_period": 30,
+    "atr_period": 10,
+    "atr_multiplier": 2.0,
+    "max_hold_bars": 12
+  },
+  "params_after": {
+    "rsi_period": 7,
+    "rsi_low": 28,
+    "rsi_high": 78,
+    "ma_period": 30,
+    "atr_period": 10,
+    "atr_multiplier": 3.0,
+    "max_hold_bars": 12
+  },
+  "score_before": 0.5354418135727803,
+  "score_after": 0.5222354287804848,
+  "sharpe_before": -0.003152464012647446,
+  "sharpe_after": -0.16102429219891806,
+  "ret_before": -7.350128717975579e-05,
+  "ret_after": -0.003802322611101583,
+  "dd_before": -0.013614873405391116,
+  "dd_after": -0.01459585388481611,
+  "result_summary": "score: 0.535 → 0.522 (-0.013), sharpe: -0.00 → -0.16 (-0.16), ret: -0.01% → -0.38%, DD: -1.4% → -1.5%",
+  "reflection": "变化不大 (score -0.013)。该参数可能不是关键因子。 下一步：回退该参数，尝试调整其他相关参数。考虑市场状态是否发生了变化。"
+}

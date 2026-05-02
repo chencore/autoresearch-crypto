@@ -1,0 +1,36 @@
+{
+  "timestamp": "2026-05-01T13:57:28.455709",
+  "agent": "PureAction",
+  "hypothesis": "均值回归在震荡市表现好，趋势市应降低权重",
+  "tried": "max_hold_bars=12, entry_zone=0.3",
+  "params_before": {
+    "window": 10,
+    "std_dev": 2.5,
+    "atr_period": 7,
+    "atr_multiplier": 3.0,
+    "max_hold_bars": 12,
+    "entry_zone": 0.0,
+    "trend_ma_period": 100,
+    "adx_threshold": null
+  },
+  "params_after": {
+    "window": 10,
+    "std_dev": 2.5,
+    "atr_period": 7,
+    "atr_multiplier": 3.0,
+    "max_hold_bars": 12,
+    "entry_zone": 0.3,
+    "trend_ma_period": 100,
+    "adx_threshold": null
+  },
+  "score_before": 0.5041925503899368,
+  "score_after": 0.37925780569614675,
+  "sharpe_before": -0.6935106636731613,
+  "sharpe_after": -1.4017005078532574,
+  "ret_before": -0.010570696854059647,
+  "ret_after": -0.05863798745252535,
+  "dd_before": -0.01143652942101835,
+  "dd_after": -0.05919591118706903,
+  "result_summary": "score: 0.504 → 0.379 (-0.125), sharpe: -0.69 → -1.40 (-0.71), ret: -1.06% → -5.86%, DD: -1.1% → -5.9%",
+  "reflection": "明显恶化 (score -0.125)。这个调整方向是错误的。 注意回撤扩大了 4.8%。可能是参数调整增加了尾部风险暴露。 下一步：回退该参数，尝试调整其他相关参数。考虑市场状态是否发生了变化。"
+}

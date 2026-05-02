@@ -51,6 +51,7 @@ class ExperimentLog:
     dd_after: float = 0.0
     result_summary: str = ""           # Human-readable result
     reflection: str = ""               # Why it worked/failed, what to try next
+    edge_flags: List[str] = field(default_factory=list)  # RISKY / OVERFIT / DEAD
 
 
 @dataclass
@@ -530,6 +531,202 @@ def gepa_evolve(
         print(f"\n{'='*60}")
         print(f"GEPA 进化完成。共 {len(engine.experiment_logs)} 次实验，"
               f"{len(engine.meta_reflections)} 次元反思。")
+        print(f"{'='*60}")
+
+    return engine
+
+
+# ---------------------------------------------------------------------------
+# GEPA V2 — with edge guards, mandatory reflection, and never-stop loop
+# ---------------------------------------------------------------------------
+
+from dex.scoring import (
+    risk_adjusted_score,
+    ScoredResult,
+    EdgeFlag,
+    detect_dead_agent,
+    pick_revival_action,
+)
+
+
+def gepa_evolve_v2(
+    agents: List[Any],
+    evaluate_fn_raw: Callable,   # (params) -> (score, sharpe, ret, max_dd)
+    engine: ReflectionEngine,
+    cycles: int = 30,
+    min_trades: int = 10,
+    max_dd: float = 0.30,
+    dead_threshold: int = 5,
+    verbose: bool = True,
+) -> ReflectionEngine:
+    """GEPA V2: risk-adjusted scoring + edge guards + never-stop revival.
+
+    Args:
+        agents: List of Agent objects.
+        evaluate_fn_raw: (params) -> (score, sharpe, ret, max_dd).
+        engine: ReflectionEngine instance.
+        cycles: Number of experiment cycles.
+        min_trades: Minimum trades before OVERFIT flag.
+        max_dd: Maximum acceptable drawdown before RISKY flag.
+        dead_threshold: Rounds of no improvement before DEAD flag.
+        verbose: Print progress.
+    """
+    if verbose:
+        print("=" * 60)
+        print("GEPA V2 反思式进化 (Risk-Adjusted + Edge Guards + Revival)")
+        print(f"Metric: Sharpe x (1-DD)^-1  |  MinTrades={min_trades}  "
+              f"MaxDD={max_dd*100:.0f}%  |  DeadThreshold={dead_threshold}")
+        print("=" * 60)
+
+    agent_states: Dict[str, dict] = {
+        a.name: {
+            "revival_count": 0,
+            "consecutive_rejections": 0,
+            "last_reflection": "",
+            "reflection_repeats": 0,
+            "score_history": [],
+        }
+        for a in agents
+    }
+
+    for cycle in range(1, cycles + 1):
+        if verbose:
+            print(f"\n--- Cycle {cycle}/{cycles} ---")
+
+        agent = agents[(cycle - 1) % len(agents)]
+        state = agent_states[agent.name]
+        h_idx = (cycle - 1) % len(engine.hypotheses)
+        hypothesis = engine.hypotheses[h_idx]
+
+        if verbose:
+            print(f"  Agent: {agent.name} ({agent.style})")
+            print(f"  假设: {hypothesis.text}")
+
+        # --- Edge guard: dead agent check ---
+        is_dead = detect_dead_agent(state["score_history"], dead_threshold)
+        if is_dead and state["revival_count"] < 3:
+            action, action_params = pick_revival_action(
+                agent.name, state["revival_count"]
+            )
+            state["revival_count"] += 1
+            if verbose:
+                print(f"  💤 DEAD detected — revival action: {action}")
+                print(f"     params: {action_params}")
+
+            if action == "widen_param_space":
+                scale = action_params.get("param_scale", 2.0)
+                for k in agent.params:
+                    if isinstance(agent.params[k], (int, float)):
+                        agent.params[k] = agent.params[k] * (1 + np.random.uniform(-0.5, 0.5) * scale)
+            elif action == "add_indicator":
+                pool = action_params.get("indicator_pool", ["use_adx"])
+                key = pool[state["revival_count"] % len(pool)]
+                if key in agent.params:
+                    agent.params[key] = True
+
+        # --- Run experiment ---
+        log = engine.run_experiment(
+            agent_name=agent.name,
+            hypothesis=hypothesis,
+            params_before=dict(agent.params),
+            evaluate_fn=evaluate_fn_raw,
+        )
+
+        # Compute risk-adjusted score for edge guard display
+        scored = risk_adjusted_score(
+            sharpe=log.sharpe_after,
+            total_return=log.ret_after,
+            max_drawdown=log.dd_after,
+            win_rate=0.45,
+            n_trades=10,
+            min_trades=min_trades,
+            max_dd=max_dd,
+        )
+
+        # --- Edge guard: mark flags on log ---
+        edge_flags_str = []
+        if EdgeFlag.RISKY in scored.flags:
+            edge_flags_str.append("RISKY")
+            state["consecutive_rejections"] += 1
+            if verbose:
+                print(f"  🔥 RISKY — DD={log.dd_after*100:.1f}% > {max_dd*100:.0f}%")
+        if EdgeFlag.OVERFIT in scored.flags:
+            edge_flags_str.append("OVERFIT")
+            if verbose:
+                print(f"  ⚠ OVERFIT — too few trades")
+
+        # Update log with edge info
+        log.edge_flags = edge_flags_str
+
+        # --- Mandatory reflection enforcement ---
+        if log.reflection == state["last_reflection"]:
+            state["reflection_repeats"] += 1
+            if state["reflection_repeats"] >= 3:
+                if verbose:
+                    print(f"  ⚠ 连续3轮反思重复 — 标记为DEAD")
+                state["score_history"] = []  # Force dead detection next cycle
+        else:
+            state["reflection_repeats"] = 0
+        state["last_reflection"] = log.reflection
+
+        # Update params if improved
+        if scored.score > 0 and log.score_after > log.score_before:
+            agent.params = log.params_after
+            state["consecutive_rejections"] = 0
+            if verbose:
+                print(f"  ✓ 接受 (score {log.score_before:.3f}→{log.score_after:.3f})")
+                print(f"     risk-adj score={scored.score:.4f} "
+                      f"sharpe_comp={scored.sharpe_component:.2f} "
+                      f"dd_comp={scored.dd_component:.2f}")
+        else:
+            state["consecutive_rejections"] += 1
+            if verbose:
+                print(f"  ✗ 拒绝 (score {log.score_before:.3f}→{log.score_after:.3f})")
+
+        state["score_history"].append(scored.score)
+        if verbose:
+            flags_display = f" [{','.join(edge_flags_str)}]" if edge_flags_str else ""
+            print(f"  反思{flags_display}: {log.reflection[:100]}...")
+
+        # --- Meta-reflection every 5 cycles ---
+        if cycle % 5 == 0:
+            if verbose:
+                print(f"\n  {'='*50}")
+            summary, new_h = engine.meta_reflect()
+
+            # Check if all agents are dead → escalate
+            dead_count = sum(
+                1 for s in agent_states.values()
+                if detect_dead_agent(s["score_history"], dead_threshold)
+            )
+            if dead_count >= len(agents) * 0.75:
+                summary += (
+                    f"\n\n  ⚠ 全部 {dead_count}/{len(agents)} Agent 枯竭！"
+                    f"\n  触发全局探索模式：扩大参数空间 + 启用新指标"
+                )
+                for a in agents:
+                    for k in a.params:
+                        if isinstance(a.params[k], (int, float)):
+                            a.params[k] = a.params[k] * (0.5 + np.random.random())
+
+            if verbose:
+                print(summary)
+                print(f"  {'='*50}")
+
+    if verbose:
+        print(f"\n{'='*60}")
+        print(f"GEPA V2 完成。{len(engine.experiment_logs)} 实验, "
+              f"{len(engine.meta_reflections)} 元反思")
+        # Summary of agent states
+        for name, st in agent_states.items():
+            flags = []
+            if detect_dead_agent(st["score_history"], dead_threshold):
+                flags.append("DEAD")
+            if st["reflection_repeats"] >= 3:
+                flags.append("STALE")
+            flag_str = f" [{','.join(flags)}]" if flags else ""
+            print(f"  {name}: {len(st['score_history'])} rounds, "
+                  f"{st['revival_count']} revivals{flag_str}")
         print(f"{'='*60}")
 
     return engine

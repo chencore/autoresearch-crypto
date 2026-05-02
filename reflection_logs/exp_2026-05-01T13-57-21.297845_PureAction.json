@@ -1,0 +1,36 @@
+{
+  "timestamp": "2026-05-01T13:57:21.297845",
+  "agent": "PureAction",
+  "hypothesis": "在低波动环境下收紧入场阈值可以减少假信号",
+  "tried": "std_dev=2.4, entry_zone=0.3",
+  "params_before": {
+    "window": 10,
+    "std_dev": 2.5,
+    "atr_period": 7,
+    "atr_multiplier": 1.5,
+    "max_hold_bars": 12,
+    "entry_zone": 0.0,
+    "trend_ma_period": 100,
+    "adx_threshold": null
+  },
+  "params_after": {
+    "window": 10,
+    "std_dev": 2.4,
+    "atr_period": 7,
+    "atr_multiplier": 1.5,
+    "max_hold_bars": 12,
+    "entry_zone": 0.3,
+    "trend_ma_period": 100,
+    "adx_threshold": null
+  },
+  "score_before": 0.49828557698104436,
+  "score_after": 0.3546272068448286,
+  "sharpe_before": -0.416315902591366,
+  "sharpe_after": -2.171852767340804,
+  "ret_before": -0.004950135049686999,
+  "ret_after": -0.09198060759269988,
+  "dd_before": -0.0076489428106653575,
+  "dd_after": -0.09251876991887967,
+  "result_summary": "score: 0.498 → 0.355 (-0.144), sharpe: -0.42 → -2.17 (-1.76), ret: -0.50% → -9.20%, DD: -0.8% → -9.3%",
+  "reflection": "明显恶化 (score -0.144)。这个调整方向是错误的。 注意回撤扩大了 8.5%。可能是参数调整增加了尾部风险暴露。 下一步：回退该参数，尝试调整其他相关参数。考虑市场状态是否发生了变化。"
+}

@@ -1,0 +1,37 @@
+{
+  "timestamp": "2026-05-01T13:57:22.496648",
+  "agent": "PureAction",
+  "hypothesis": "强趋势市中减少逆势交易，增加顺势仓位",
+  "tried": "use_adx=True, adx_threshold=20",
+  "params_before": {
+    "window": 10,
+    "std_dev": 2.5,
+    "atr_period": 7,
+    "atr_multiplier": 3.0,
+    "max_hold_bars": 12,
+    "entry_zone": 0.0,
+    "trend_ma_period": 100,
+    "adx_threshold": null
+  },
+  "params_after": {
+    "window": 10,
+    "std_dev": 2.5,
+    "atr_period": 7,
+    "atr_multiplier": 3.0,
+    "max_hold_bars": 12,
+    "entry_zone": 0.0,
+    "trend_ma_period": 100,
+    "adx_threshold": 20,
+    "use_adx": true
+  },
+  "score_before": 0.5041925503899368,
+  "score_after": 0.0,
+  "sharpe_before": -0.6935106636731613,
+  "sharpe_after": 0.0,
+  "ret_before": -0.010570696854059647,
+  "ret_after": 0.0,
+  "dd_before": -0.01143652942101835,
+  "dd_after": -0.99,
+  "result_summary": "score: 0.504 → 0.000 (-0.504), sharpe: -0.69 → 0.00 (+0.69), ret: -1.06% → +0.00%, DD: -1.1% → -99.0%",
+  "reflection": "明显恶化 (score -0.504)。这个调整方向是错误的。 夏普提升 +0.69，风险调整收益改善。 注意回撤扩大了 97.9%。可能是参数调整增加了尾部风险暴露。 下一步：回退该参数，尝试调整其他相关参数。考虑市场状态是否发生了变化。"
+}
