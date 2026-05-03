@@ -1073,6 +1073,10 @@ def main():
 
     checkpoint = torch.load(args.checkpoint, map_location="cpu", weights_only=False)
     params = checkpoint.get("params", {})
+    # 手动放宽RSI阈值：训练数据为strong_downtrend时rsi_low可能低至20，
+    # 中性震荡市中RSI很难触及20导致永久空仓。提升至30确保震荡市也能触发做多信号。
+    if "rsi_low" in params:
+        params["rsi_low"] = max(params["rsi_low"], 30)
     strategy_type = checkpoint.get("strategy", "bollinger_trend_filter")
 
     if strategy_type == "scalp":

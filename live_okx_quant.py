@@ -931,6 +931,9 @@ def main():
 
     checkpoint = torch.load(args.checkpoint, map_location="cpu", weights_only=False)
     params = checkpoint.get("params", {})
+    # 手动放宽RSI阈值（同live_nado_quant.py）：震荡市中rsi_low过低会导致永久空仓
+    if "rsi_low" in params:
+        params["rsi_low"] = max(params["rsi_low"], 30)
     strategy_type = checkpoint.get("strategy", "bollinger_trend_filter")
 
     if strategy_type == "scalp":
