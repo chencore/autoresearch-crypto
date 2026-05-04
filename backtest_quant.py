@@ -16,9 +16,10 @@ import numpy as np
 import pandas as pd
 import torch
 
-from train_quant import StrategyEvaluator, TrendStrategy as BollingerStrategy
-from inference_quant import fetch_latest_data
-from prepare_crypto import compute_features
+from train_quant import (StrategyEvaluator, TrendStrategy, ScalpStrategy,
+                          HybridMeanRevMomentumStrategy, AdaptiveHybridStrategy,
+                          PureActionStrategy, HybridStrategy, TrendFollowStrategy,
+                          load_crypto_data, list_crypto_files, COMMISSION, SLIPPAGE, INITIAL_CAPITAL)
 
 
 class SimpleBacktest:
@@ -195,71 +196,130 @@ def main():
 
     checkpoint = torch.load(args.checkpoint, map_location="cpu", weights_only=False)
     params = checkpoint.get("params", {})
-    strategy = BollingerStrategy(window=params.get("window", 20), std_dev=params.get("std_dev", 2.0))
-    print(f"策略参数: 周期={strategy.window}, 标准差倍数={strategy.std_dev}")
+    strategy_type = checkpoint.get("strategy", "bollinger_trend_filter")
+
+    if strategy_type == "scalp":
+        strategy = ScalpStrategy(
+            window=params.get("window", 10),
+            std_dev=params.get("std_dev", 1.2),
+            take_profit_pct=params.get("take_profit_pct", 0.005),
+            stop_loss_pct=params.get("stop_loss_pct", 0.003),
+            max_hold_bars=params.get("max_hold_bars", 6))
+    elif strategy_type == "hybrid_mm":
+        strategy = HybridMeanRevMomentumStrategy(
+            rsi_period=params.get("rsi_period", 14),
+            rsi_low=params.get("rsi_low", 25),
+            rsi_high=params.get("rsi_high", 75),
+            ma_period=params.get("ma_period", 20),
+            atr_period=params.get("atr_period", 14),
+            atr_multiplier=params.get("atr_multiplier", 2.0),
+            max_hold_bars=params.get("max_hold_bars", 24),
+            enable_short=params.get("enable_short", True))
+    elif strategy_type == "adaptive":
+        strategy = AdaptiveHybridStrategy(
+            rsi_period=params.get("rsi_period", 14),
+            rsi_low=params.get("rsi_low", 30),
+            rsi_high=params.get("rsi_high", 70),
+            ma_period=params.get("ma_period", 20),
+            trend_long_ma=params.get("trend_long_ma", 100),
+            trend_pull_ma=params.get("trend_pull_ma", 20),
+            adx_period=params.get("adx_period", 14),
+            adx_threshold=params.get("adx_threshold", 25),
+            atr_period=params.get("atr_period", 14),
+            atr_multiplier=params.get("atr_multiplier", 2.0),
+            max_hold_bars=params.get("max_hold_bars", 24),
+            enable_short=params.get("enable_short", True))
+    else:
+        strategy = TrendStrategy(
+            window=params.get("window", 20),
+            std_dev=params.get("std_dev", 2.0),
+            atr_multiplier=params.get("atr_multiplier", 2.5),
+            max_hold_bars=params.get("max_hold_bars", args.max_hold if hasattr(args, 'max_hold') else 48))
+    print(f"策略类型: {strategy_type} | 参数: {params}")
     print()
 
-    # 下载数据
+    # 加载数据（从本地 parquet）
     print("=" * 60)
-    print(f"下载 {args.symbol} {args.interval} 最近 {args.days} 天数据...")
+    print(f"加载 {args.symbol} {args.interval} 数据（最近 {args.days} 天）...")
     print("=" * 60)
-    limit = int(args.days * 24 * 60 / 5)
-    df = fetch_latest_data(args.symbol, args.interval, limit=limit)
-    print(f"获取到 {len(df)} 根K线")
+
+    # list_crypto_files 已按 (symbol, interval) 分组去重
+    all_files = list_crypto_files()
+    data_files = [f for f in all_files if args.symbol.upper() in os.path.basename(f).upper()]
+    # 优先匹配 interval
+    interval_match = [f for f in data_files if f"_{args.interval}" in os.path.basename(f)]
+    if interval_match:
+        data_files = interval_match
+    if not data_files:
+        data_files = [f for f in list_crypto_files() if args.symbol.upper() in os.path.basename(f).upper()]
+    if not data_files:
+        print(f"错误: 未找到 {args.symbol} 数据文件")
+        sys.exit(1)
+
+    df = load_crypto_data(data_files[0])
+    df = df.sort_values("timestamp").drop_duplicates().reset_index(drop=True)
+    n_bars = args.days * 288
+    if len(df) > n_bars:
+        df = df.iloc[-n_bars:].reset_index(drop=True)
+    print(f"数据量: {len(df)} 条K线, 价格范围: {df['close'].min():.2f} - {df['close'].max():.2f}")
     print()
 
     # 执行回测
     print("=" * 60)
-    print("执行 Walk-Forward 回测...")
+    print("执行回测（多空双向，手续费+滑点模拟）...")
     print("=" * 60)
-    signals, df_aligned = backtest(strategy, df)
+    enable_short = params.get("enable_short", True)
+    # AdaptiveHybridStrategy 的 generate_signals 不接受 enable_short 参数
+    if strategy_type == "adaptive":
+        signals = strategy.generate_signals(df)
+    else:
+        signals = strategy.generate_signals(df, enable_short=enable_short)
 
-    # 模拟交易
-    engine = SimpleBacktest(initial_capital=10000.0, commission=0.001, slippage=0.0005)
-    results_df, trades, metrics = engine.run(df_aligned, signals)
+    min_idx = strategy.window
+    prices = df["close"].values[min_idx:]
+    valid_signals = signals[min_idx:]
+    valid_df = df.iloc[min_idx:].reset_index(drop=True)
+
+    evaluator = StrategyEvaluator(initial_capital=INITIAL_CAPITAL, commission=COMMISSION, slippage=SLIPPAGE)
+    score, metrics, trades = evaluator.evaluate(valid_signals, prices, valid_df)
+    n_trades = len([t for t in trades if t.get("pnl") is not None])
 
     # 输出结果
     print()
     print("=" * 60)
-    print("回测结果")
+    print("回测结果（使用训练评分器）")
     print("=" * 60)
-    print(f"初始资金:    {metrics['initial_equity']:.2f} USDT")
-    print(f"最终资金:    {metrics['final_equity']:.2f} USDT")
+    print(f"策略类型:    {strategy_type}")
+    print(f"初始资金:    {INITIAL_CAPITAL:.2f} USDT")
+    print(f"最终权益:    {INITIAL_CAPITAL * (1 + metrics['total_return']):.2f} USDT")
+    print(f"综合评分:    {score:.4f}")
     print(f"总收益率:    {metrics['total_return']*100:.2f}%")
     print(f"年化收益率:  {metrics['annualized_return']*100:.2f}%")
     print(f"年化波动率:  {metrics['annualized_vol']*100:.2f}%")
     print(f"夏普比率:    {metrics['sharpe_ratio']:.4f}")
     print(f"最大回撤:    {metrics['max_drawdown']*100:.2f}%")
-    print(f"胜率:        {metrics['win_rate']*100:.2f}%")
-    print(f"交易次数:    {len(trades)}")
+    print(f"胜率:        {metrics['win_rate']*100:.1f}%")
+    print(f"交易次数:    {n_trades}")
     print()
 
     if trades:
+        trade_pnls = [(t.get("pnl"), t.get("type", "?")) for t in trades if t.get("pnl") is not None]
         print("=" * 60)
-        print("交易记录 (最近 10 笔)")
+        print(f"交易记录 ({len(trade_pnls)} 笔)")
         print("=" * 60)
-        for t in trades[-10:]:
-            ttype = t["type"]
-            ttime = t["time"]
-            tprice = t["price"]
-            if "capital_after" in t:
-                print(f"  [{ttime}] {ttype:12s} @ {tprice:10.2f}  资金: {t['capital_after']:,.2f}")
-            else:
-                print(f"  [{ttime}] {ttype:12s} @ {tprice:10.2f}")
+        for i, (pnl, ttype) in enumerate(trade_pnls[-20:]):
+            print(f"  [{i+1:3d}] {ttype:15s} PnL={pnl:+.2f} USDT")
         print()
-
-    results_df.to_csv(args.output, index=False)
-    print(f"详细回测结果已保存至: {args.output}")
 
     signal_counts = pd.Series(signals).value_counts().sort_index()
     print()
     print("=" * 60)
     print("信号统计")
     print("=" * 60)
-    labels = {0: "卖出 (SELL)", 1: "持有 (HOLD)", 2: "买入 (BUY)"}
+    labels = {0: "平仓 (CLOSE)", 1: "持有 (HOLD)", 2: "做多 (LONG)", 3: "做空 (SHORT)"}
     for sid, count in signal_counts.items():
         pct = count / len(signals) * 100
-        print(f"  {labels.get(sid, '未知'):15s}: {count:5d} 次 ({pct:5.2f}%)")
+        print(f"  {labels.get(sid, f'未知({sid})'):18s}: {count:5d} 次 ({pct:5.2f}%)")
     print()
 
     return metrics

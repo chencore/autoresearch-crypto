@@ -1881,6 +1881,8 @@ class AdaptiveHybridStrategy:
         self.atr_multiplier = atr_multiplier
         self.max_hold_bars = max_hold_bars
         self.enable_short = enable_short
+        self.window = max(rsi_period, ma_period, adx_period * 2,
+                          trend_long_ma, trend_pull_ma, atr_period)
 
     def _compute_rsi(self, close, period):
         n = len(close)
