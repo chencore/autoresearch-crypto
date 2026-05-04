@@ -48,7 +48,8 @@ from nado_protocol.utils.order import build_appendix, OrderType
 from nado_protocol.indexer_client.types import IndexerCandlesticksGranularity
 from nado_protocol.indexer_client.types.query import IndexerCandlesticksParams
 
-from train_quant import TrendStrategy, ScalpStrategy, HybridMeanRevMomentumStrategy, AdaptiveHybridStrategy
+from train_quant import (TrendStrategy, ScalpStrategy, HybridMeanRevMomentumStrategy,
+                          AdaptiveHybridStrategy, RegimeStrategy, TrendFollowStrategy)
 from dex.market_regime import MarketRegimeDetector
 
 LOG_DIR = "logs"
@@ -371,8 +372,13 @@ class NadoTrader:
 # ---------------------------------------------------------------------------
 
 def predict_signal(strategy, df, enable_short=False):
-    """生成布林带信号"""
-    signals = strategy.generate_signals(df, enable_short=enable_short)
+    """生成交易信号"""
+    import inspect
+    sig = inspect.signature(strategy.generate_signals)
+    if 'enable_short' in sig.parameters:
+        signals = strategy.generate_signals(df, enable_short=enable_short)
+    else:
+        signals = strategy.generate_signals(df)
     signal_id = int(signals[-1])
 
     close = df["close"].values
@@ -1148,6 +1154,21 @@ def main():
                     f"MA={strategy.ma_period}, trendL={strategy.trend_long_ma}, trendP={strategy.trend_pull_ma}, "
                     f"ADX[{strategy.adx_period}]>{strategy.adx_threshold}, "
                     f"ATR[{strategy.atr_period}]x{strategy.atr_multiplier}, hold={strategy.max_hold_bars}")
+    elif strategy_type == "regime":
+        ranging_params = params.get("ranging_params", {})
+        trending_params = params.get("trending_params", {})
+        adx_threshold = params.get("adx_threshold", 20)
+        strategy = RegimeStrategy(
+            ranging_params=ranging_params,
+            trending_params=trending_params,
+            adx_threshold=adx_threshold,
+            enable_short=enable_short,
+        )
+        rp = strategy.ranging
+        tp = strategy.trending
+        log_message(f"策略模式: Regime (动态ADX切换: <=ADX{adx_threshold}=RSI均值回归, >ADX{adx_threshold}=EMA趋势跟随)")
+        log_message(f"  震荡市: RSI[{rp.rsi_low}/{rp.rsi_high}] period={rp.rsi_period} MA={rp.ma_period} ATR[{rp.atr_period}]x{rp.atr_multiplier} hold={rp.max_hold_bars}")
+        log_message(f"  趋势市: longMA={tp.long_ma_period} pullMA={tp.pull_ma_period} ATR[{tp.atr_period}]x{tp.atr_multiplier} hold={tp.max_hold_bars} zone={tp.entry_zone}")
     else:
         strategy = TrendStrategy(
         window=params.get("window", 20),

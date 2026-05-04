@@ -1,0 +1,14 @@
+{
+  "rsi_period": 14,
+  "rsi_low": 25,
+  "rsi_high": 65,
+  "ma_period": 10,
+  "trend_long_ma": 100,
+  "trend_pull_ma": 20,
+  "adx_threshold": 20,
+  "adx_period": 14,
+  "atr_period": 14,
+  "atr_multiplier": 2.5,
+  "max_hold_bars": 12,
+  "enable_short": true
+}

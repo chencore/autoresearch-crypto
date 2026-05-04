@@ -46,7 +46,8 @@ from okx.Trade import TradeAPI
 from okx.MarketData import MarketAPI
 from okx.PublicData import PublicAPI
 
-from train_quant import TrendStrategy, ScalpStrategy, HybridMeanRevMomentumStrategy, AdaptiveHybridStrategy
+from train_quant import (TrendStrategy, ScalpStrategy, HybridMeanRevMomentumStrategy,
+                          AdaptiveHybridStrategy, RegimeStrategy, TrendFollowStrategy)
 
 LOG_DIR = "logs"
 os.makedirs(LOG_DIR, exist_ok=True)
@@ -357,8 +358,13 @@ def place_limit_order(trade_api, inst_id, side, pos_side, sz, px, td_mode="cross
 # ---------------------------------------------------------------------------
 
 def predict_signal(strategy, df, enable_short=False):
-    """生成布林带信号"""
-    signals = strategy.generate_signals(df, enable_short=enable_short)
+    """生成交易信号"""
+    import inspect
+    sig = inspect.signature(strategy.generate_signals)
+    if 'enable_short' in sig.parameters:
+        signals = strategy.generate_signals(df, enable_short=enable_short)
+    else:
+        signals = strategy.generate_signals(df)
     signal_id = int(signals[-1])
 
     close = df["close"].values
@@ -1000,6 +1006,21 @@ def main():
         log_message(f"策略模式: AdaptiveHybrid (ADX判市 + RSI均值回归/EMA趋势跟随)")
         log_message(f"参数: RSI=({strategy.rsi_low},{strategy.rsi_high}), trendL={strategy.trend_long_ma}, "
                     f"ADX_th={strategy.adx_threshold}, ATR={strategy.atr_multiplier}, hold={strategy.max_hold_bars}")
+    elif strategy_type == "regime":
+        ranging_params = params.get("ranging_params", {})
+        trending_params = params.get("trending_params", {})
+        adx_threshold = params.get("adx_threshold", 20)
+        strategy = RegimeStrategy(
+            ranging_params=ranging_params,
+            trending_params=trending_params,
+            adx_threshold=adx_threshold,
+            enable_short=params.get("enable_short", True),
+        )
+        rp = strategy.ranging
+        tp = strategy.trending
+        log_message(f"策略模式: Regime (动态ADX切换: ADX<={adx_threshold}=RSI均值回归, ADX>{adx_threshold}=EMA趋势跟随)")
+        log_message(f"  震荡市: RSI({rp.rsi_low},{rp.rsi_high}) MA={rp.ma_period} ATRx{rp.atr_multiplier}")
+        log_message(f"  趋势市: longMA={tp.long_ma_period} pullMA={tp.pull_ma_period} ATRx{tp.atr_multiplier}")
     else:
         strategy = TrendStrategy(
             window=params.get("window", 20),

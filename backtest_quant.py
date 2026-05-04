@@ -19,6 +19,7 @@ import torch
 from train_quant import (StrategyEvaluator, TrendStrategy, ScalpStrategy,
                           HybridMeanRevMomentumStrategy, AdaptiveHybridStrategy,
                           PureActionStrategy, HybridStrategy, TrendFollowStrategy,
+                          RegimeStrategy,
                           load_crypto_data, list_crypto_files, COMMISSION, SLIPPAGE, INITIAL_CAPITAL)
 
 
@@ -229,6 +230,12 @@ def main():
             atr_multiplier=params.get("atr_multiplier", 2.0),
             max_hold_bars=params.get("max_hold_bars", 24),
             enable_short=params.get("enable_short", True))
+    elif strategy_type == "regime":
+        strategy = RegimeStrategy(
+            ranging_params=params.get("ranging_params", {}),
+            trending_params=params.get("trending_params", {}),
+            adx_threshold=params.get("adx_threshold", 20),
+            enable_short=params.get("enable_short", True))
     else:
         strategy = TrendStrategy(
             window=params.get("window", 20),
@@ -269,9 +276,11 @@ def main():
     print("执行回测（多空双向，手续费+滑点模拟）...")
     print("=" * 60)
     enable_short = params.get("enable_short", True)
-    # AdaptiveHybridStrategy 的 generate_signals 不接受 enable_short 参数
+    # 不同策略的 generate_signals 签名不同
     if strategy_type == "adaptive":
         signals = strategy.generate_signals(df)
+    elif strategy_type == "regime":
+        signals = strategy.generate_signals(df, enable_short=enable_short)
     else:
         signals = strategy.generate_signals(df, enable_short=enable_short)
 
