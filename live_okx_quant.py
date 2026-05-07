@@ -46,7 +46,8 @@ from okx.Trade import TradeAPI
 from okx.MarketData import MarketAPI
 from okx.PublicData import PublicAPI
 
-from train_quant import TrendStrategy, ScalpStrategy, HybridMeanRevMomentumStrategy
+from train_quant import (TrendStrategy, ScalpStrategy, HybridMeanRevMomentumStrategy,
+                          AdaptiveHybridStrategy, RegimeStrategy, TrendFollowStrategy)
 
 LOG_DIR = "logs"
 os.makedirs(LOG_DIR, exist_ok=True)
@@ -357,8 +358,13 @@ def place_limit_order(trade_api, inst_id, side, pos_side, sz, px, td_mode="cross
 # ---------------------------------------------------------------------------
 
 def predict_signal(strategy, df, enable_short=False):
-    """生成布林带信号"""
-    signals = strategy.generate_signals(df, enable_short=enable_short)
+    """生成交易信号"""
+    import inspect
+    sig = inspect.signature(strategy.generate_signals)
+    if 'enable_short' in sig.parameters:
+        signals = strategy.generate_signals(df, enable_short=enable_short)
+    else:
+        signals = strategy.generate_signals(df)
     signal_id = int(signals[-1])
 
     close = df["close"].values
@@ -931,6 +937,9 @@ def main():
 
     checkpoint = torch.load(args.checkpoint, map_location="cpu", weights_only=False)
     params = checkpoint.get("params", {})
+    # 手动放宽RSI阈值（同live_nado_quant.py）：震荡市中rsi_low过低会导致永久空仓
+    if "rsi_low" in params:
+        params["rsi_low"] = max(params["rsi_low"], 30)
     strategy_type = checkpoint.get("strategy", "bollinger_trend_filter")
 
     if strategy_type == "scalp":
@@ -979,6 +988,39 @@ def main():
         log_message(f"策略模式: HybridMeanRevMomentumStrategy (混合均值回归+动量)")
         log_message(f"参数: RSI=({strategy.rsi_low},{strategy.rsi_high}), MA={strategy.ma_period}, "
                     f"ATR={strategy.atr_multiplier}, hold={strategy.max_hold_bars}, short={strategy.enable_short}")
+    elif strategy_type == "adaptive":
+        strategy = AdaptiveHybridStrategy(
+            rsi_period=params.get("rsi_period", 14),
+            rsi_low=params.get("rsi_low", 30),
+            rsi_high=params.get("rsi_high", 70),
+            ma_period=params.get("ma_period", 20),
+            trend_long_ma=params.get("trend_long_ma", 100),
+            trend_pull_ma=params.get("trend_pull_ma", 20),
+            adx_period=params.get("adx_period", 14),
+            adx_threshold=params.get("adx_threshold", 25),
+            atr_period=params.get("atr_period", 14),
+            atr_multiplier=params.get("atr_multiplier", 2.0),
+            max_hold_bars=params.get("max_hold_bars", args.max_hold),
+            enable_short=params.get("enable_short", True),
+        )
+        log_message(f"策略模式: AdaptiveHybrid (ADX判市 + RSI均值回归/EMA趋势跟随)")
+        log_message(f"参数: RSI=({strategy.rsi_low},{strategy.rsi_high}), trendL={strategy.trend_long_ma}, "
+                    f"ADX_th={strategy.adx_threshold}, ATR={strategy.atr_multiplier}, hold={strategy.max_hold_bars}")
+    elif strategy_type == "regime":
+        ranging_params = params.get("ranging_params", {})
+        trending_params = params.get("trending_params", {})
+        adx_threshold = params.get("adx_threshold", 20)
+        strategy = RegimeStrategy(
+            ranging_params=ranging_params,
+            trending_params=trending_params,
+            adx_threshold=adx_threshold,
+            enable_short=params.get("enable_short", True),
+        )
+        rp = strategy.ranging
+        tp = strategy.trending
+        log_message(f"策略模式: Regime (动态ADX切换: ADX<={adx_threshold}=RSI均值回归, ADX>{adx_threshold}=EMA趋势跟随)")
+        log_message(f"  震荡市: RSI({rp.rsi_low},{rp.rsi_high}) MA={rp.ma_period} ATRx{rp.atr_multiplier}")
+        log_message(f"  趋势市: longMA={tp.long_ma_period} pullMA={tp.pull_ma_period} ATRx{tp.atr_multiplier}")
     else:
         strategy = TrendStrategy(
             window=params.get("window", 20),

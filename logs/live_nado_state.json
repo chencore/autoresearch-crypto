@@ -3,8 +3,8 @@
   "product_id": 4,
   "interval": "5m",
   "initial_capital": 80.0,
-  "position": -1,
-  "strategy_size": 0.209,
+  "position": 0,
+  "strategy_size": 0.0,
   "trades": [
     {
       "time": "2026-04-27T11:48:56.432197",
@@ -210,17 +210,22 @@
       "price": 2292.9
     }
   ],
-  "last_signal": 3,
-  "last_price": 2288.3,
-  "bar_count": 426,
-  "entry_price": 2283.5,
-  "entry_bar": 412,
-  "tp_digest": "0xe5196cc6a2aea5a2583df4b18c6308f2f7016b080288f62658401944d49be1f3",
-  "tp_price": 2237.8,
-  "tp_side": "buy",
+  "last_signal": 1,
+  "last_price": 2309.0,
+  "bar_count": 428,
+  "entry_price": 0.0,
+  "entry_bar": 0,
+  "tp_digest": null,
+  "tp_price": 0.0,
+  "tp_side": null,
   "pending_open": false,
   "pending_open_signal": 3,
   "pending_open_price": 2292.8,
   "pending_open_size": 0.209,
-  "last_update": "2026-04-28T22:05:15.466005"
+  "last_update": "2026-04-28T22:05:15.466005",
+  "confirmed_entry_price": 0.0,
+  "confirmed_entry_bar": 0,
+  "pending_close": false,
+  "pending_close_bar": 0,
+  "pending_close_attempts": 0
 }
