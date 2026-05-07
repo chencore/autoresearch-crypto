@@ -1550,6 +1550,7 @@ class TrendFollowStrategy:
         self.entry_zone = entry_zone
         self.enable_short = enable_short
         self.volume_threshold = volume_threshold
+        self.window = max(long_ma_period, pull_ma_period, atr_period)
 
     def _compute_atr(self, df, period):
         high = df["high"].values.astype(float)
@@ -1872,7 +1873,7 @@ class AdaptiveHybridStrategy:
                  atr_period=14, atr_multiplier=2.0,
                  max_hold_bars=24, enable_short=True,
                  take_profit_pct=0.03, stop_loss_pct=0.02,
-                 ema_tolerance=0.0, use_volume_filter=True, volume_threshold=0.8):
+                 ema_tolerance=0.0, use_volume_filter=True, volume_threshold=0.5):
         self.rsi_period = rsi_period
         self.rsi_low = rsi_low
         self.rsi_high = rsi_high
@@ -1891,7 +1892,8 @@ class AdaptiveHybridStrategy:
         self.use_volume_filter = use_volume_filter
         self.volume_threshold = volume_threshold
         # 兼容实盘脚本所需的属性
-        self.window = max(rsi_period, ma_period, trend_long_ma, adx_period, atr_period)
+        self.window = max(rsi_period, ma_period, adx_period * 2,
+                          trend_long_ma, trend_pull_ma, atr_period)
         self.std_dev = 2.0
 
     def _compute_rsi(self, close, period):
@@ -2080,7 +2082,6 @@ class AdaptiveHybridStrategy:
                 regime_trending = adx[i] > self.adx_threshold
                 prev_rsi = rsi[i - 1]
 
-                # ADX 判市 + RSI 交叉双向入场
                 if regime_trending:
                     # 强趋势市：只顺势交易，用长期EMA过滤（带容差）
                     if is_uptrend:
@@ -2108,7 +2109,7 @@ class AdaptiveHybridStrategy:
                             lowest_after_entry = low[i]
                             continue
                 else:
-                    # 震荡市：RSI 双向均值回归（无EMA过滤，带成交量确认）
+                    # 震荡市：RSI 双向均值回归（带成交量确认）
                     if prev_rsi < self.rsi_low and rsi[i] >= self.rsi_low and vol_ok:
                         signals[i] = 2
                         position = 1
@@ -2126,6 +2127,120 @@ class AdaptiveHybridStrategy:
                         continue
 
         return signals
+
+
+# ---------------------------------------------------------------------------
+# 策略：市场状态动态选择器（震荡市=RSI均值回归，趋势市=EMA趋势跟随）
+# ---------------------------------------------------------------------------
+
+class RegimeStrategy:
+    """
+    基于实时ADX动态切换子策略：
+    - ADX <= adx_threshold (震荡市): HybridMeanRevMomentumStrategy (RSI均值回归)
+    - ADX >  adx_threshold (趋势市): TrendFollowStrategy (EMA趋势跟随回调)
+    """
+
+    def __init__(self, ranging_params=None, trending_params=None,
+                 enable_short=True, adx_threshold=25):
+        self.adx_threshold = adx_threshold
+        self.enable_short = enable_short
+
+        # 震荡市子策略：RSI均值回归+动量
+        rp = ranging_params or {}
+        self.ranging = HybridMeanRevMomentumStrategy(
+            rsi_period=rp.get("rsi_period", 14),
+            rsi_low=rp.get("rsi_low", 30),
+            rsi_high=rp.get("rsi_high", 70),
+            ma_period=rp.get("ma_period", 20),
+            atr_period=rp.get("atr_period", 14),
+            atr_multiplier=rp.get("atr_multiplier", 2.0),
+            max_hold_bars=rp.get("max_hold_bars", 24),
+            enable_short=enable_short,
+        )
+
+        # 趋势市子策略：EMA趋势跟随
+        tp = trending_params or {}
+        self.trending = TrendFollowStrategy(
+            long_ma_period=tp.get("long_ma_period", 100),
+            pull_ma_period=tp.get("pull_ma_period", 20),
+            atr_period=tp.get("atr_period", 14),
+            atr_multiplier=tp.get("atr_multiplier", 2.0),
+            max_hold_bars=tp.get("max_hold_bars", 24),
+            entry_zone=tp.get("entry_zone", 0.001),
+            enable_short=enable_short,
+        )
+
+        self.window = max(self.ranging.window, self.trending.window)
+        self._last_regime = "unknown"
+        self._last_adx = 0.0
+
+    @property
+    def current_regime(self):
+        return self._last_regime
+
+    @property
+    def current_adx(self):
+        return self._last_adx
+
+    def _compute_adx_simple(self, df, period=14):
+        """简版 ADX 计算（只用 close 价格估算，避免高精度需求）"""
+        high = df["high"].values.astype(float)
+        low = df["low"].values.astype(float)
+        close = df["close"].values.astype(float)
+        n = len(high)
+
+        plus_dm = np.zeros(n)
+        minus_dm = np.zeros(n)
+        for i in range(1, n):
+            up = high[i] - high[i - 1]
+            down = low[i - 1] - low[i]
+            plus_dm[i] = up if up > down and up > 0 else 0
+            minus_dm[i] = down if down > up and down > 0 else 0
+
+        tr1 = high - low
+        tr2 = np.abs(high - np.roll(close, 1))
+        tr3 = np.abs(low - np.roll(close, 1))
+        tr = np.maximum(tr1, np.maximum(tr2, tr3))
+        tr[0] = tr1[0]
+
+        atr_val = np.zeros(n)
+        atr_val[period - 1] = np.mean(tr[:period])
+        for i in range(period, n):
+            atr_val[i] = (atr_val[i - 1] * (period - 1) + tr[i]) / period
+
+        plus_di = np.zeros(n)
+        minus_di = np.zeros(n)
+        for i in range(period, n):
+            if atr_val[i] > 0:
+                plus_di[i] = 100 * np.mean(plus_dm[i - period + 1:i + 1]) / atr_val[i]
+                minus_di[i] = 100 * np.mean(minus_dm[i - period + 1:i + 1]) / atr_val[i]
+
+        dx = np.zeros(n)
+        for i in range(period, n):
+            di_sum = plus_di[i] + minus_di[i]
+            if di_sum > 0:
+                dx[i] = 100 * abs(plus_di[i] - minus_di[i]) / di_sum
+
+        adx = np.zeros(n)
+        adx[period * 2 - 1] = np.mean(dx[period:period * 2])
+        for i in range(period * 2, n):
+            adx[i] = (adx[i - 1] * (period - 1) + dx[i]) / period
+
+        return adx
+
+    def generate_signals(self, df, enable_short=False):
+        n = len(df)
+        # 计算当前 ADX 值
+        adx = self._compute_adx_simple(df)
+        adx_now = float(adx[-1]) if n > 0 else 0.0
+        self._last_adx = adx_now
+
+        if adx_now > self.adx_threshold:
+            self._last_regime = "trending"
+            return self.trending.generate_signals(df)
+        else:
+            self._last_regime = "ranging"
+            return self.ranging.generate_signals(df, enable_short=enable_short)
 
 
 # ---------------------------------------------------------------------------
@@ -2340,8 +2455,8 @@ class StrategyEvaluator:
             return_clamped * 0.20 +               # 收益权重
             win_rate_clamped * 0.15 +             # 胜率权重
             dd_score * 0.20 +                     # 回撤权重（单一路径）
-            min(1.0, n_trades / 40.0) * 0.10 +    # 交易次数权重降低
-            min_trade_penalty * 0.05              # 最低交易惩罚降低
+            min(1.0, n_trades / 20.0) * 0.15 +    # 交易次数权重提高，20笔满分
+            min_trade_penalty * 0.05              # 最低交易惩罚
         )
 
         return score, metrics, trades
@@ -4321,7 +4436,7 @@ def direct_adaptive_search(df, time_budget=TIME_BUDGET):
         "adx_period": [14],
         "atr_period": [7, 14],
         "atr_multiplier": [1.5, 2.5],
-        "max_hold_bars": [12, 24],
+        "max_hold_bars": [6, 12, 24],
         "ema_tolerance": [0.0, 0.005, 0.01],
     }
 
@@ -4529,12 +4644,12 @@ def direct_hybrid_mm_search(df, time_budget=TIME_BUDGET):
 
     grid = {
         "rsi_period": [14],
-        "rsi_low": [20, 25, 30, 35],
-        "rsi_high": [65, 70, 75, 80],
+        "rsi_low": [18, 20, 22, 25],
+        "rsi_high": [65, 68, 70, 72],
         "ma_period": [10, 20],
         "atr_period": [7, 14],
         "atr_multiplier": [1.5, 2.5],
-        "max_hold_bars": [12, 24],
+        "max_hold_bars": [6, 12, 24],
         "ema_tolerance": [0.0, 0.003, 0.005],
     }
 
