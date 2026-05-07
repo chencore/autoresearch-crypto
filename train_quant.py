@@ -2110,7 +2110,8 @@ class AdaptiveHybridStrategy:
                             continue
                 else:
                     # 震荡市：RSI 双向均值回归（带成交量确认）
-                    if prev_rsi < self.rsi_low and rsi[i] >= self.rsi_low and vol_ok:
+                    long_cross = (prev_rsi < self.rsi_low and rsi[i] >= self.rsi_low)
+                    if long_cross and vol_ok:
                         signals[i] = 2
                         position = 1
                         entry_price = price
