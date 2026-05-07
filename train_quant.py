@@ -1694,7 +1694,8 @@ class HybridMeanRevMomentumStrategy:
     def __init__(self, rsi_period=14, rsi_low=25, rsi_high=75,
                  ma_period=20, atr_period=14, atr_multiplier=2.0,
                  max_hold_bars=24, enable_short=True,
-                 take_profit_pct=0.03, stop_loss_pct=0.02):
+                 take_profit_pct=0.03, stop_loss_pct=0.02,
+                 ema_tolerance=0.005):
         self.rsi_period = rsi_period
         self.rsi_low = rsi_low
         self.rsi_high = rsi_high
@@ -1705,6 +1706,7 @@ class HybridMeanRevMomentumStrategy:
         self.enable_short = enable_short
         self.take_profit_pct = take_profit_pct
         self.stop_loss_pct = stop_loss_pct
+        self.ema_tolerance = ema_tolerance
         # 兼容实盘脚本所需的属性
         self.window = max(rsi_period, ma_period, atr_period)
         self.std_dev = 2.0
@@ -1824,10 +1826,10 @@ class HybridMeanRevMomentumStrategy:
             if position == 0:
                 prev_rsi = rsi[i - 1]
 
-                # 做多：RSI 从超卖区回升 + 价格在短期均线上方（趋势确认）
+                # 做多：RSI 从超卖区回升 + 价格在短期均线附近（宽松 EMA 容差）
                 long_cross = (prev_rsi < self.rsi_low and
                               rsi[i] >= self.rsi_low and
-                              price > ema_fast[i])
+                              price > ema_fast[i] * (1 - self.ema_tolerance))
                 if long_cross:
                     signals[i] = 2
                     position = 1
@@ -1836,11 +1838,11 @@ class HybridMeanRevMomentumStrategy:
                     highest_after_entry = high[i]
                     continue
 
-                # 做空：RSI 从超买区回落 + 价格跌破短期均线（趋势确认）
+                # 做空：RSI 从超买区回落 + 价格在短期均线附近（宽松 EMA 容差）
                 short_cross = (self.enable_short and
                                prev_rsi > self.rsi_high and
                                rsi[i] <= self.rsi_high and
-                               price < ema_fast[i])
+                               price < ema_fast[i] * (1 + self.ema_tolerance))
                 if short_cross:
                     signals[i] = 3
                     position = -1
@@ -1868,7 +1870,9 @@ class AdaptiveHybridStrategy:
                  trend_long_ma=100, trend_pull_ma=20,
                  adx_period=14, adx_threshold=25,
                  atr_period=14, atr_multiplier=2.0,
-                 max_hold_bars=24, enable_short=True):
+                 max_hold_bars=24, enable_short=True,
+                 take_profit_pct=0.03, stop_loss_pct=0.02,
+                 ema_tolerance=0.0, use_volume_filter=True, volume_threshold=0.8):
         self.rsi_period = rsi_period
         self.rsi_low = rsi_low
         self.rsi_high = rsi_high
@@ -1881,6 +1885,14 @@ class AdaptiveHybridStrategy:
         self.atr_multiplier = atr_multiplier
         self.max_hold_bars = max_hold_bars
         self.enable_short = enable_short
+        self.take_profit_pct = take_profit_pct
+        self.stop_loss_pct = stop_loss_pct
+        self.ema_tolerance = ema_tolerance
+        self.use_volume_filter = use_volume_filter
+        self.volume_threshold = volume_threshold
+        # 兼容实盘脚本所需的属性
+        self.window = max(rsi_period, ma_period, trend_long_ma, adx_period, atr_period)
+        self.std_dev = 2.0
 
     def _compute_rsi(self, close, period):
         n = len(close)
@@ -1973,6 +1985,13 @@ class AdaptiveHybridStrategy:
         # --- ATR ---
         atr = self._compute_atr(df, self.atr_period)
 
+        # --- Volume filter ---
+        vol_ratio = None
+        if self.use_volume_filter and "volume" in df.columns:
+            vol = df["volume"].values.astype(float)
+            vol_ma = pd.Series(vol).rolling(window=20, min_periods=20).mean().values
+            vol_ratio = np.where(vol_ma > 0, vol / vol_ma, 1.0)
+
         # --- 信号生成 ---
         signals = np.ones(n, dtype=int)
         position = 0
@@ -1989,11 +2008,24 @@ class AdaptiveHybridStrategy:
 
             is_uptrend = ema_fast[i] > ema_slow[i]
             is_downtrend = ema_fast[i] < ema_slow[i]
+            vol_ok = (vol_ratio is None or vol_ratio[i] >= self.volume_threshold)
 
             # === 持仓管理 ===
             if position == 1:
                 if high[i] > highest_after_entry:
                     highest_after_entry = high[i]
+
+                # 固定止盈
+                if self.take_profit_pct > 0 and price >= entry_price * (1 + self.take_profit_pct):
+                    signals[i] = 0
+                    position = 0
+                    continue
+                # 固定止损
+                if self.stop_loss_pct > 0 and price <= entry_price * (1 - self.stop_loss_pct):
+                    signals[i] = 0
+                    position = 0
+                    continue
+
                 if highest_after_entry > 0:
                     atr_stop = highest_after_entry - self.atr_multiplier * atr[i]
                     if price < atr_stop:
@@ -2014,6 +2046,18 @@ class AdaptiveHybridStrategy:
             elif position == -1:
                 if low[i] < lowest_after_entry:
                     lowest_after_entry = low[i]
+
+                # 固定止盈
+                if self.take_profit_pct > 0 and price <= entry_price * (1 - self.take_profit_pct):
+                    signals[i] = 0
+                    position = 0
+                    continue
+                # 固定止损
+                if self.stop_loss_pct > 0 and price >= entry_price * (1 + self.stop_loss_pct):
+                    signals[i] = 0
+                    position = 0
+                    continue
+
                 if lowest_after_entry < float('inf'):
                     atr_stop = lowest_after_entry + self.atr_multiplier * atr[i]
                     if price > atr_stop:
@@ -2038,11 +2082,12 @@ class AdaptiveHybridStrategy:
 
                 # ADX 判市 + RSI 交叉双向入场
                 if regime_trending:
-                    # 强趋势市：只顺势交易，用长期EMA过滤
+                    # 强趋势市：只顺势交易，用长期EMA过滤（带容差）
                     if is_uptrend:
                         long_cross = (prev_rsi < self.rsi_low and
                                       rsi[i] >= self.rsi_low and
-                                      price > trend_long[i])
+                                      price > trend_long[i] * (1 - self.ema_tolerance) and
+                                      vol_ok)
                         if long_cross:
                             signals[i] = 2
                             position = 1
@@ -2053,7 +2098,8 @@ class AdaptiveHybridStrategy:
                     elif is_downtrend and self.enable_short:
                         short_cross = (prev_rsi > self.rsi_high and
                                        rsi[i] <= self.rsi_high and
-                                       price < trend_long[i])
+                                       price < trend_long[i] * (1 + self.ema_tolerance) and
+                                       vol_ok)
                         if short_cross:
                             signals[i] = 3
                             position = -1
@@ -2062,9 +2108,8 @@ class AdaptiveHybridStrategy:
                             lowest_after_entry = low[i]
                             continue
                 else:
-                    # 震荡市：RSI 双向均值回归（无EMA过滤，提高交易频率）
-                    long_cross = (prev_rsi < self.rsi_low and rsi[i] >= self.rsi_low)
-                    if long_cross:
+                    # 震荡市：RSI 双向均值回归（无EMA过滤，带成交量确认）
+                    if prev_rsi < self.rsi_low and rsi[i] >= self.rsi_low and vol_ok:
                         signals[i] = 2
                         position = 1
                         entry_price = price
@@ -2072,15 +2117,13 @@ class AdaptiveHybridStrategy:
                         highest_after_entry = high[i]
                         continue
 
-                    if self.enable_short:
-                        short_cross = (prev_rsi > self.rsi_high and rsi[i] <= self.rsi_high)
-                        if short_cross:
-                            signals[i] = 3
-                            position = -1
-                            entry_price = price
-                            entry_bar = i
-                            lowest_after_entry = low[i]
-                            continue
+                    if self.enable_short and prev_rsi > self.rsi_high and rsi[i] <= self.rsi_high and vol_ok:
+                        signals[i] = 3
+                        position = -1
+                        entry_price = price
+                        entry_bar = i
+                        lowest_after_entry = low[i]
+                        continue
 
         return signals
 
@@ -2214,7 +2257,7 @@ class StrategyEvaluator:
         total_return = (equity[-1] / equity[0]) - 1
 
         n_steps = len(equity)
-        years = n_steps * 5 / (288 * 365)
+        years = n_steps / (288 * 365)
         if years < 0.01:
             years = 0.01
         # 防止 overflow: 限制 total_return 范围
@@ -2281,10 +2324,10 @@ class StrategyEvaluator:
         trade_pnls = [t for t in trades if t.get("pnl") is not None]
         n_trades = len(trade_pnls)
 
-        # 惩罚大回撤
-        dd_penalty = max(0, 1 - abs(metrics["max_drawdown"]) / 0.20) if metrics["max_drawdown"] < 0 else 1.0
+        # 回撤评分：线性评分，-20%回撤得0分，0回撤得1分（单一惩罚）
+        dd_score = max(0, 1 + metrics["max_drawdown"] / 0.20) if metrics["max_drawdown"] < 0 else 1.0
 
-        # 最低交易量门槛：少于10笔交易大幅惩罚
+        # 最低交易量门槛：少于10笔交易小幅惩罚
         min_trade_penalty = min(1.0, n_trades / 10.0) if n_trades < 10 else 1.0
 
         # 限制各项指标范围，防止异常值
@@ -2293,12 +2336,12 @@ class StrategyEvaluator:
         win_rate_clamped = max(0, min(1.0, metrics["win_rate"]))
 
         score = (
-            sharpe_clamped * 0.25 +
-            return_clamped * 0.15 +
-            win_rate_clamped * 0.10 +
-            dd_penalty * (1 + metrics["max_drawdown"]) * 0.15 +
-            min(1.0, n_trades / 40.0) * 0.25 +   # 交易次数权重大幅提高
-            min_trade_penalty * 0.10
+            sharpe_clamped * 0.35 +               # 夏普权重：质量优先
+            return_clamped * 0.20 +               # 收益权重
+            win_rate_clamped * 0.15 +             # 胜率权重
+            dd_score * 0.20 +                     # 回撤权重（单一路径）
+            min(1.0, n_trades / 40.0) * 0.10 +    # 交易次数权重降低
+            min_trade_penalty * 0.05              # 最低交易惩罚降低
         )
 
         return score, metrics, trades
@@ -3985,6 +4028,7 @@ def walk_forward_hybrid_mm_search(df, time_budget=TIME_BUDGET, n_windows=5):
         "atr_period": [7, 14],
         "atr_multiplier": [1.5, 2.0, 2.5],
         "max_hold_bars": [12, 18, 24, 36],
+        "ema_tolerance": [0.0, 0.003, 0.005],
     }
 
     total_combos = 1
@@ -4026,16 +4070,17 @@ def walk_forward_hybrid_mm_search(df, time_budget=TIME_BUDGET, n_windows=5):
                         for atr_p in grid["atr_period"]:
                             for atr_m in grid["atr_multiplier"]:
                                 for max_hold in grid["max_hold_bars"]:
-                                    if time.time() - t_w_start > per_window_budget:
-                                        break
-                                    tried += 1
+                                    for etol in grid["ema_tolerance"]:
+                                        if time.time() - t_w_start > per_window_budget:
+                                            break
+                                        tried += 1
 
-                                    strategy = HybridMeanRevMomentumStrategy(
-                                        rsi_period=rsi_p, rsi_low=rsi_l, rsi_high=rsi_h,
-                                        ma_period=ma_p, atr_period=atr_p,
-                                        atr_multiplier=atr_m, max_hold_bars=max_hold,
-                                        enable_short=True,
-                                    )
+                                        strategy = HybridMeanRevMomentumStrategy(
+                                            rsi_period=rsi_p, rsi_low=rsi_l, rsi_high=rsi_h,
+                                            ma_period=ma_p, atr_period=atr_p,
+                                            atr_multiplier=atr_m, max_hold_bars=max_hold,
+                                            enable_short=True, ema_tolerance=etol,
+                                        )
 
                                     try:
                                         signals = strategy.generate_signals(val_df)
@@ -4056,6 +4101,7 @@ def walk_forward_hybrid_mm_search(df, time_budget=TIME_BUDGET, n_windows=5):
                                             "rsi_high": rsi_h, "ma_period": ma_p,
                                             "atr_period": atr_p, "atr_multiplier": atr_m,
                                             "max_hold_bars": max_hold, "enable_short": True,
+                                            "ema_tolerance": etol,
                                         }
                                         best_metrics = metrics
 
@@ -4188,12 +4234,21 @@ def analyze_market_regime(df):
     for i in range(period, n):
         atr[i] = (atr[i - 1] * (period - 1) + tr[i]) / period
 
+    # DI+ / DI- 使用 Wilder 平滑（与 ATR / ADX 保持一致）
+    smoothed_plus_dm = np.zeros(n)
+    smoothed_minus_dm = np.zeros(n)
+    smoothed_plus_dm[period - 1] = np.sum(plus_dm[:period])
+    smoothed_minus_dm[period - 1] = np.sum(minus_dm[:period])
+    for i in range(period, n):
+        smoothed_plus_dm[i] = (smoothed_plus_dm[i - 1] * (period - 1) + plus_dm[i]) / period
+        smoothed_minus_dm[i] = (smoothed_minus_dm[i - 1] * (period - 1) + minus_dm[i]) / period
+
     plus_di = np.zeros(n)
     minus_di = np.zeros(n)
-    for i in range(period, n):
+    for i in range(period - 1, n):
         if atr[i] > 0:
-            plus_di[i] = 100 * np.mean(plus_dm[i - period + 1:i + 1]) / atr[i]
-            minus_di[i] = 100 * np.mean(minus_dm[i - period + 1:i + 1]) / atr[i]
+            plus_di[i] = 100 * smoothed_plus_dm[i] / atr[i]
+            minus_di[i] = 100 * smoothed_minus_dm[i] / atr[i]
 
     dx = np.zeros(n)
     for i in range(period, n):
@@ -4267,6 +4322,7 @@ def direct_adaptive_search(df, time_budget=TIME_BUDGET):
         "atr_period": [7, 14],
         "atr_multiplier": [1.5, 2.5],
         "max_hold_bars": [12, 24],
+        "ema_tolerance": [0.0, 0.005, 0.01],
     }
 
     total_combos = 1
@@ -4295,22 +4351,24 @@ def direct_adaptive_search(df, time_budget=TIME_BUDGET):
                                 for atr_p in grid["atr_period"]:
                                     for atr_m in grid["atr_multiplier"]:
                                         for max_hold in grid["max_hold_bars"]:
-                                            if time.time() - t_start > time_budget:
-                                                break
-                                            tried += 1
+                                            for etol in grid["ema_tolerance"]:
+                                                if time.time() - t_start > time_budget:
+                                                    break
+                                                tried += 1
 
-                                            strategy = AdaptiveHybridStrategy(
-                                                rsi_low=rsi_l, rsi_high=rsi_h,
-                                                ma_period=ma_p,
-                                                trend_long_ma=trend_long,
-                                                trend_pull_ma=trend_pull,
-                                                adx_threshold=adx_th,
-                                                adx_period=adx_p,
-                                                atr_period=atr_p,
-                                                atr_multiplier=atr_m,
-                                                max_hold_bars=max_hold,
-                                                enable_short=True,
-                                            )
+                                                strategy = AdaptiveHybridStrategy(
+                                                    rsi_low=rsi_l, rsi_high=rsi_h,
+                                                    ma_period=ma_p,
+                                                    trend_long_ma=trend_long,
+                                                    trend_pull_ma=trend_pull,
+                                                    adx_threshold=adx_th,
+                                                    adx_period=adx_p,
+                                                    atr_period=atr_p,
+                                                    atr_multiplier=atr_m,
+                                                    max_hold_bars=max_hold,
+                                                    enable_short=True,
+                                                    ema_tolerance=etol,
+                                                )
 
                                             try:
                                                 signals = strategy.generate_signals(df)
@@ -4339,6 +4397,7 @@ def direct_adaptive_search(df, time_budget=TIME_BUDGET):
                                                     "atr_multiplier": atr_m,
                                                     "max_hold_bars": max_hold,
                                                     "enable_short": True,
+                                                    "ema_tolerance": etol,
                                                 }
                                                 best_metrics = metrics
                                                 best_trades = trades
@@ -4350,7 +4409,8 @@ def direct_adaptive_search(df, time_budget=TIME_BUDGET):
         print(f"最优参数: rsiL={best_params['rsi_low']} rsiH={best_params['rsi_high']} "
               f"ma={best_params['ma_period']} trendL={best_params['trend_long_ma']} "
               f"adx_th={best_params['adx_threshold']} atr_p={best_params['atr_period']} "
-              f"atr_m={best_params['atr_multiplier']} hold={best_params['max_hold_bars']}")
+              f"atr_m={best_params['atr_multiplier']} hold={best_params['max_hold_bars']} "
+              f"tol={best_params.get('ema_tolerance', 0):.3f}")
         print(f"全量评分={best_score:.4f} | 收益={best_metrics['total_return']*100:+.2f}% | "
               f"夏普={best_metrics['sharpe_ratio']:.2f} | DD={best_metrics['max_drawdown']*100:.1f}% | "
               f"交易={n_trades}")
@@ -4475,6 +4535,7 @@ def direct_hybrid_mm_search(df, time_budget=TIME_BUDGET):
         "atr_period": [7, 14],
         "atr_multiplier": [1.5, 2.5],
         "max_hold_bars": [12, 24],
+        "ema_tolerance": [0.0, 0.003, 0.005],
     }
 
     total_combos = 1
@@ -4497,53 +4558,57 @@ def direct_hybrid_mm_search(df, time_budget=TIME_BUDGET):
                 for atr_p in grid["atr_period"]:
                     for atr_m in grid["atr_multiplier"]:
                         for max_hold in grid["max_hold_bars"]:
-                            if time.time() - t_start > time_budget:
-                                break
-                            tried += 1
+                            for etol in grid["ema_tolerance"]:
+                                if time.time() - t_start > time_budget:
+                                    break
+                                tried += 1
 
-                            strategy = HybridMeanRevMomentumStrategy(
-                                rsi_period=14,
-                                rsi_low=rsi_l,
-                                rsi_high=rsi_h,
-                                ma_period=ma_p,
-                                atr_period=atr_p,
-                                atr_multiplier=atr_m,
-                                max_hold_bars=max_hold,
-                                enable_short=True,
-                            )
-
-                            try:
-                                signals = strategy.generate_signals(df)
-                                min_idx = max(14, ma_p, atr_p)
-                                score, metrics, trades = evaluator.evaluate(
-                                    signals[min_idx:], prices[min_idx:],
-                                    df.iloc[min_idx:].reset_index(drop=True),
+                                strategy = HybridMeanRevMomentumStrategy(
+                                    rsi_period=14,
+                                    rsi_low=rsi_l,
+                                    rsi_high=rsi_h,
+                                    ma_period=ma_p,
+                                    atr_period=atr_p,
+                                    atr_multiplier=atr_m,
+                                    max_hold_bars=max_hold,
+                                    enable_short=True,
+                                    ema_tolerance=etol,
                                 )
-                            except Exception:
-                                score = 0.0
-                                metrics = {}
-                                trades = []
 
-                            if score > best_score:
-                                best_score = score
-                                best_params = {
-                                    "rsi_period": 14,
-                                    "rsi_low": rsi_l,
-                                    "rsi_high": rsi_h,
-                                    "ma_period": ma_p,
-                                    "atr_period": atr_p,
-                                    "atr_multiplier": atr_m,
-                                    "max_hold_bars": max_hold,
-                                    "enable_short": True,
-                                }
-                                best_metrics = metrics
-                                best_trades = trades
+                                try:
+                                    signals = strategy.generate_signals(df)
+                                    min_idx = max(14, ma_p, atr_p)
+                                    score, metrics, trades = evaluator.evaluate(
+                                        signals[min_idx:], prices[min_idx:],
+                                        df.iloc[min_idx:].reset_index(drop=True),
+                                    )
+                                except Exception:
+                                    score = 0.0
+                                    metrics = {}
+                                    trades = []
+
+                                if score > best_score:
+                                    best_score = score
+                                    best_params = {
+                                        "rsi_period": 14,
+                                        "rsi_low": rsi_l,
+                                        "rsi_high": rsi_h,
+                                        "ma_period": ma_p,
+                                        "atr_period": atr_p,
+                                        "atr_multiplier": atr_m,
+                                        "max_hold_bars": max_hold,
+                                        "enable_short": True,
+                                        "ema_tolerance": etol,
+                                    }
+                                    best_metrics = metrics
+                                    best_trades = trades
 
     n_trades = len([t for t in best_trades if t.get("pnl") is not None])
     if best_params and best_metrics:
         print(f"    最优: rsiL={best_params['rsi_low']} rsiH={best_params['rsi_high']} "
               f"ma={best_params['ma_period']} atr_p={best_params['atr_period']} "
-              f"atr_m={best_params['atr_multiplier']} hold={best_params['max_hold_bars']}")
+              f"atr_m={best_params['atr_multiplier']} hold={best_params['max_hold_bars']} "
+              f"tolerance={best_params.get('ema_tolerance', 0):.3f}")
         print(f"    评分={best_score:.4f} | 收益={best_metrics['total_return']*100:+.2f}% | "
               f"夏普={best_metrics['sharpe_ratio']:.2f} | DD={best_metrics['max_drawdown']*100:.1f}% | "
               f"交易={n_trades}")
@@ -4585,11 +4650,17 @@ def smart_search(df, time_budget=TIME_BUDGET):
             ("adaptive", direct_adaptive_search, 0.3),
             ("hybrid_mm", direct_hybrid_mm_search, 0.2),
         ]
-    elif "downtrend" in regime:
+    elif regime == "strong_downtrend":
         strategy_pool = [
             ("trendfollow", direct_trendfollow_search, 0.5),
             ("adaptive", direct_adaptive_search, 0.3),
             ("hybrid_mm", direct_hybrid_mm_search, 0.2),
+        ]
+    elif regime == "weak_downtrend":
+        strategy_pool = [
+            ("adaptive", direct_adaptive_search, 0.4),
+            ("hybrid_mm", direct_hybrid_mm_search, 0.4),
+            ("trendfollow", direct_trendfollow_search, 0.2),
         ]
     else:
         strategy_pool = [

@@ -1,0 +1,16 @@
+{
+  "total_return": -0.0036159913540092514,
+  "annualized_return": -0.008983150290224451,
+  "annualized_vol": 0.02543115024918613,
+  "sharpe_ratio": -0.3532341322434654,
+  "max_drawdown": -0.009386199170526497,
+  "win_rate": 0.4090909090909091,
+  "regime": "weak_downtrend",
+  "regime_info": {
+    "regime": "weak_downtrend",
+    "adx": 24.52067944371266,
+    "ema50_vs_ema200": "downtrend",
+    "price_vs_ema200_pct": -0.9652238190695238,
+    "volatility_annualized": 0.41226304250792195
+  }
+}

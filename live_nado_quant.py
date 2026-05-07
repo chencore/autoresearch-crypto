@@ -48,7 +48,7 @@ from nado_protocol.utils.order import build_appendix, OrderType
 from nado_protocol.indexer_client.types import IndexerCandlesticksGranularity
 from nado_protocol.indexer_client.types.query import IndexerCandlesticksParams
 
-from train_quant import TrendStrategy, ScalpStrategy, HybridMeanRevMomentumStrategy
+from train_quant import TrendStrategy, ScalpStrategy, HybridMeanRevMomentumStrategy, AdaptiveHybridStrategy
 from dex.market_regime import MarketRegimeDetector
 
 LOG_DIR = "logs"
@@ -1119,11 +1119,40 @@ def main():
             enable_short=enable_short,
             take_profit_pct=params.get("take_profit_pct", 0.03),
             stop_loss_pct=params.get("stop_loss_pct", args.stop_loss if args.stop_loss is not None else 0.02),
+            ema_tolerance=params.get("ema_tolerance", 0.0),
         )
         log_message(f"策略模式: HybridMM (RSI均值回归+EMA动量)")
         log_message(f"参数: RSI[{strategy.rsi_low}/{strategy.rsi_high}] period={strategy.rsi_period}, "
                     f"MA={strategy.ma_period}, ATR[{strategy.atr_period}]x{strategy.atr_multiplier}, "
-                    f"hold={strategy.max_hold_bars}, TP={strategy.take_profit_pct*100:.1f}%, SL={strategy.stop_loss_pct*100:.1f}%")
+                    f"hold={strategy.max_hold_bars}, TP={strategy.take_profit_pct*100:.1f}%, SL={strategy.stop_loss_pct*100:.1f}%, "
+                    f"EMA_tol={strategy.ema_tolerance:.3f}")
+    elif strategy_type == "adaptive":
+        strategy = AdaptiveHybridStrategy(
+            rsi_period=params.get("rsi_period", 14),
+            rsi_low=params.get("rsi_low", 30),
+            rsi_high=params.get("rsi_high", 70),
+            ma_period=params.get("ma_period", 20),
+            trend_long_ma=params.get("trend_long_ma", 100),
+            trend_pull_ma=params.get("trend_pull_ma", 20),
+            adx_period=params.get("adx_period", 14),
+            adx_threshold=params.get("adx_threshold", 25),
+            atr_period=params.get("atr_period", 14),
+            atr_multiplier=params.get("atr_multiplier", 2.0),
+            max_hold_bars=params.get("max_hold_bars", 24),
+            enable_short=enable_short,
+            take_profit_pct=params.get("take_profit_pct", 0.03),
+            stop_loss_pct=params.get("stop_loss_pct", args.stop_loss if args.stop_loss is not None else 0.02),
+            ema_tolerance=params.get("ema_tolerance", 0.0),
+            use_volume_filter=params.get("use_volume_filter", True),
+            volume_threshold=params.get("volume_threshold", 0.8),
+        )
+        log_message(f"策略模式: Adaptive (ADX判市自适应: 震荡=RSI均值回归, 趋势=EMA趋势跟随)")
+        log_message(f"参数: RSI[{strategy.rsi_low}/{strategy.rsi_high}] MA={strategy.ma_period}, "
+                    f"趋势MA={strategy.trend_long_ma}/{strategy.trend_pull_ma}, "
+                    f"ADX[{strategy.adx_period}]<={strategy.adx_threshold}, "
+                    f"ATR[{strategy.atr_period}]x{strategy.atr_multiplier}, "
+                    f"hold={strategy.max_hold_bars}, TP={strategy.take_profit_pct*100:.1f}%, SL={strategy.stop_loss_pct*100:.1f}%, "
+                    f"EMA_tol={strategy.ema_tolerance:.3f}, VolFilter={strategy.use_volume_filter}({strategy.volume_threshold})")
     else:
         strategy = TrendStrategy(
         window=params.get("window", 20),
