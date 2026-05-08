@@ -30,9 +30,10 @@ archives/
 checkpoints/*.pt
 !checkpoints/quant_model.pt
 
-# IDE
+# IDE / Editor configs
 .idea/
 .vscode/
+.claude/
 *.swp
 *.swo
 *~
