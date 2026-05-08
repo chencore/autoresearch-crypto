@@ -1,6 +1,5 @@
 import re
 import csv
-import os
 import math
 import numpy as np
 
@@ -211,7 +210,7 @@ def main():
     print("=" * 60)
     print("Strategy 1: Original HybridMM (as-run, no trades)")
     print("=" * 60)
-    print(f"Result: 0 trades, cash held, PnL = 0%")
+    print("Result: 0 trades, cash held, PnL = 0%")
     print()
 
     # Strategy 2: Our optimal BB+MA100 strategy

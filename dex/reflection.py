@@ -16,15 +16,13 @@ identifies blind spots, and proposes a new research direction.
 from __future__ import annotations
 
 import json
-import math
 import os
 import random
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Tuple
 
 import numpy as np
-import pandas as pd
 
 
 # ---------------------------------------------------------------------------
@@ -344,12 +342,12 @@ class ReflectionEngine:
             f"  平均 sharpe 变化: {np.mean(sharpe_improvements):+.2f}",
             f"  最佳 Agent: {best_agent}",
             f"  需关注 Agent: {worst_agent}",
-            f"",
-            f"发现的盲点:",
+            "",
+            "发现的盲点:",
         ]
         for bs in blind_spots[-3:]:
             summary_lines.append(f"  - {bs}")
-        summary_lines.append(f"")
+        summary_lines.append("")
         summary_lines.append(f"新假设: {new_h.text}")
         summary_lines.append(f"验证实验: {new_h.agent} 调整 {new_h.param_changes}")
 
@@ -542,7 +540,6 @@ def gepa_evolve(
 
 from dex.scoring import (
     risk_adjusted_score,
-    ScoredResult,
     EdgeFlag,
     detect_dead_agent,
     pick_revival_action,
@@ -653,7 +650,7 @@ def gepa_evolve_v2(
         if EdgeFlag.OVERFIT in scored.flags:
             edge_flags_str.append("OVERFIT")
             if verbose:
-                print(f"  ⚠ OVERFIT — too few trades")
+                print("  ⚠ OVERFIT — too few trades")
 
         # Update log with edge info
         log.edge_flags = edge_flags_str
@@ -663,7 +660,7 @@ def gepa_evolve_v2(
             state["reflection_repeats"] += 1
             if state["reflection_repeats"] >= 3:
                 if verbose:
-                    print(f"  ⚠ 连续3轮反思重复 — 标记为DEAD")
+                    print("  ⚠ 连续3轮反思重复 — 标记为DEAD")
                 state["score_history"] = []  # Force dead detection next cycle
         else:
             state["reflection_repeats"] = 0

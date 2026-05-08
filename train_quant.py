@@ -2810,7 +2810,7 @@ def grid_search(df, time_budget=TIME_BUDGET):
         indicator_str = ", ".join(f"{k}={v}" for k, v in best_params.items() if k.startswith("use_") or k in ("adx_threshold", "volume_threshold", "macd_confirm_mode", "mfi_threshold", "mfi_period", "stoch_threshold", "stoch_period"))
         print(f"  活跃指标: {indicator_str}")
     else:
-        print(f"  无额外指标（纯均线交叉策略）")
+        print("  无额外指标（纯均线交叉策略）")
 
     print()
     return best_params, best_score, best_metrics
@@ -3006,7 +3006,7 @@ def scalp_grid_search(df, time_budget=TIME_BUDGET):
                   f"score={score:.4f} | ret={ret:+.2f}% | "
                   f"WR={wr:.0f}% | trades={n_trades}{best_tag}")
 
-    print(f"\nStage 2 完成")
+    print("\nStage 2 完成")
     print(f"  活跃指标: {best_s2_desc}")
 
     return best_s2_score, best_s2_params, metrics, trades
@@ -3041,7 +3041,7 @@ def pure_grid_search(df, time_budget=TIME_BUDGET):
     for v in grid.values():
         total_combos *= len(v)
 
-    print(f"纯价格行为策略参数搜索 (无因子约束)")
+    print("纯价格行为策略参数搜索 (无因子约束)")
     print(f"  验证集: {len(val_df)} 条K线, 参数组合: {total_combos}, 时间预算: {time_budget:.0f}s")
     print()
 
@@ -3156,7 +3156,7 @@ def walk_forward_pure_search(df, time_budget=TIME_BUDGET, n_windows=5):
     for v in grid.values():
         total_combos *= len(v)
 
-    print(f"Walk-Forward 验证搜索 (纯价格行为, 无因子约束)")
+    print("Walk-Forward 验证搜索 (纯价格行为, 无因子约束)")
     print(f"  总数据: {n} 条K线, {n_windows} 个窗口, 每窗口 {seg_size} 条")
     print(f"  参数组合: {total_combos}, 总时间预算: {time_budget:.0f}s")
     print()
@@ -3366,7 +3366,7 @@ def walk_forward_trend_search(df, time_budget=TIME_BUDGET, n_windows=5):
     for v in grid.values():
         total_combos *= len(v)
 
-    print(f"Walk-Forward 验证搜索 (趋势对齐方案C)")
+    print("Walk-Forward 验证搜索 (趋势对齐方案C)")
     print(f"  总数据: {n} 条K线, {n_windows} 个窗口, 每窗口 {seg_size} 条")
     print(f"  参数组合: {total_combos}, 总时间预算: {time_budget:.0f}s")
     print()
@@ -3559,7 +3559,7 @@ def walk_forward_adx_search(df, time_budget=TIME_BUDGET, n_windows=5):
     for v in grid.values():
         total_combos *= len(v)
 
-    print(f"Walk-Forward 验证搜索 (ADX趋势强度 + 趋势对齐)")
+    print("Walk-Forward 验证搜索 (ADX趋势强度 + 趋势对齐)")
     print(f"  总数据: {n} 条K线, {n_windows} 个窗口, 每窗口 {seg_size} 条")
     print(f"  参数组合: {total_combos}, 总时间预算: {time_budget:.0f}s")
     print()
@@ -3760,7 +3760,7 @@ def walk_forward_hybrid_search(df, time_budget=TIME_BUDGET, n_windows=5):
     for v in grid.values():
         total_combos *= len(v)
 
-    print(f"Walk-Forward 验证搜索 (市场状态自适应: 震荡=均值回归, 趋势=趋势跟随)")
+    print("Walk-Forward 验证搜索 (市场状态自适应: 震荡=均值回归, 趋势=趋势跟随)")
     print(f"  总数据: {n} 条K线, {n_windows} 个窗口, 每窗口 {seg_size} 条")
     print(f"  参数组合: {total_combos}, 总时间预算: {time_budget:.0f}s")
     print()
@@ -3958,7 +3958,7 @@ def walk_forward_trendfollow_search(df, time_budget=TIME_BUDGET, n_windows=5):
     for v in grid.values():
         total_combos *= len(v)
 
-    print(f"Walk-Forward 验证搜索 (纯趋势跟随: EMA定方向, EMA回调入场)")
+    print("Walk-Forward 验证搜索 (纯趋势跟随: EMA定方向, EMA回调入场)")
     print(f"  总数据: {n} 条K线, {n_windows} 个窗口, 每窗口 {seg_size} 条")
     print(f"  参数组合: {total_combos}, 总时间预算: {time_budget:.0f}s")
     print()
@@ -4151,7 +4151,7 @@ def walk_forward_hybrid_mm_search(df, time_budget=TIME_BUDGET, n_windows=5):
     for v in grid.values():
         total_combos *= len(v)
 
-    print(f"Walk-Forward 验证搜索 (混合均值回归 + 动量: RSI极端值 + EMA过滤)")
+    print("Walk-Forward 验证搜索 (混合均值回归 + 动量: RSI极端值 + EMA过滤)")
     print(f"  总数据: {n} 条K线, {n_windows} 个窗口, 每窗口 {seg_size} 条")
     print(f"  参数组合: {total_combos}, 总时间预算: {time_budget:.0f}s")
     print()
@@ -4445,7 +4445,7 @@ def direct_adaptive_search(df, time_budget=TIME_BUDGET):
     for v in grid.values():
         total_combos *= len(v)
 
-    print(f"直接全量搜索 (市场状态自适应: ADX判市, 震荡=RSI均值回归, 趋势=EMA趋势跟随)")
+    print("直接全量搜索 (市场状态自适应: ADX判市, 震荡=RSI均值回归, 趋势=EMA趋势跟随)")
     print(f"  总数据: {n} 条K线")
     print(f"  参数组合: {total_combos}, 时间预算: {time_budget:.0f}s")
     print()
@@ -4561,7 +4561,7 @@ def direct_trendfollow_search(df, time_budget=TIME_BUDGET):
     for v in grid.values():
         total_combos *= len(v)
 
-    print(f"  直接全量搜索 (TrendFollowStrategy)")
+    print("  直接全量搜索 (TrendFollowStrategy)")
     print(f"    参数组合: {total_combos}")
 
     best_score = -float("inf")
@@ -4658,7 +4658,7 @@ def direct_hybrid_mm_search(df, time_budget=TIME_BUDGET):
     for v in grid.values():
         total_combos *= len(v)
 
-    print(f"  直接全量搜索 (HybridMeanRevMomentumStrategy)")
+    print("  直接全量搜索 (HybridMeanRevMomentumStrategy)")
     print(f"    参数组合: {total_combos}")
 
     best_score = -float("inf")
@@ -4753,7 +4753,7 @@ def smart_search(df, time_budget=TIME_BUDGET):
 
     # 1. 趋势分析
     regime, regime_info = analyze_market_regime(df)
-    print(f"\n市场状态分析:")
+    print("\n市场状态分析:")
     print(f"  判定结果: {regime}")
     print(f"  ADX={regime_info['adx']:.1f} | EMA趋势: {regime_info['ema50_vs_ema200']} | "
           f"价格偏离EMA200={regime_info['price_vs_ema200_pct']:+.2f}% | "
@@ -4918,7 +4918,7 @@ def walk_forward_adaptive_search(df, time_budget=TIME_BUDGET, n_windows=5):
     for v in grid.values():
         total_combos *= len(v)
 
-    print(f"Walk-Forward 验证搜索 (市场状态自适应: ADX判市, 震荡=RSI均值回归, 趋势=EMA趋势跟随)")
+    print("Walk-Forward 验证搜索 (市场状态自适应: ADX判市, 震荡=RSI均值回归, 趋势=EMA趋势跟随)")
     print(f"  总数据: {n} 条K线, {n_windows} 个窗口, 每窗口 {seg_size} 条")
     print(f"  参数组合: {total_combos}, 总时间预算: {time_budget:.0f}s")
     print()
@@ -5223,8 +5223,8 @@ def archive_results(mode, symbol, best_params, best_metrics, df, checkpoint_path
         "",
         "## 回测指标",
         "",
-        f"| 指标 | 数值 |",
-        f"|------|------|",
+        "| 指标 | 数值 |",
+        "|------|------|",
         f"| 综合评分 | {best_metrics.get('score', best_metrics.get('total_return', 0)):.6f} |",
         f"| 总收益率 | {best_metrics.get('total_return', 0)*100:.2f}% |",
         f"| 年化收益率 | {best_metrics.get('annualized_return', 0)*100:.2f}% |",
@@ -5544,7 +5544,7 @@ def main():
         print(f"ATR止损倍数:    {best_params.get('atr_multiplier', '?')}")
         print(f"最大持仓K线:   {best_params.get('max_hold_bars', '?')}")
         print(f"回调容忍度:     {best_params.get('entry_zone', 0.0)}")
-        print(f"活跃指标:       纯趋势跟随 (顺势回调入场)")
+        print("活跃指标:       纯趋势跟随 (顺势回调入场)")
     elif mode == "hybrid_mm":
         print(f"RSI周期:        {best_params.get('rsi_period', '?')}")
         print(f"RSI超卖阈值:    {best_params.get('rsi_low', '?')} (RSI<阈值且价格在EMA上方才做多)")
@@ -5553,7 +5553,7 @@ def main():
         print(f"ATR周期:        {best_params.get('atr_period', '?')}")
         print(f"ATR止损倍数:    {best_params.get('atr_multiplier', '?')}")
         print(f"最大持仓K线:   {best_params.get('max_hold_bars', '?')}")
-        print(f"活跃指标:       RSI极端值 + EMA动量过滤 (混合策略)")
+        print("活跃指标:       RSI极端值 + EMA动量过滤 (混合策略)")
     elif mode == "adaptive":
         print(f"RSI超卖阈值:    {best_params.get('rsi_low', '?')} (震荡市做多)")
         print(f"RSI超买阈值:    {best_params.get('rsi_high', '?')} (震荡市做空)")
@@ -5564,7 +5564,7 @@ def main():
         print(f"ATR周期:        {best_params.get('atr_period', '?')}")
         print(f"ATR止损倍数:    {best_params.get('atr_multiplier', '?')}")
         print(f"最大持仓K线:   {best_params.get('max_hold_bars', '?')}")
-        print(f"活跃指标:       ADX判市 + 震荡市RSI均值回归 + 趋势市EMA趋势跟随")
+        print("活跃指标:       ADX判市 + 震荡市RSI均值回归 + 趋势市EMA趋势跟随")
     elif mode == "smart":
         print(f"选中策略:       {best_result.get('strategy_name', '?')}")
         print(f"市场状态:       {best_metrics.get('regime', '?')}")
@@ -5591,7 +5591,7 @@ def main():
             print(f"ADX阈值:        {best_params.get('adx_threshold', '?')}")
             print(f"ATR止损倍数:    {best_params.get('atr_multiplier', '?')}")
             print(f"最大持仓K线:   {best_params.get('max_hold_bars', '?')}")
-        print(f"活跃指标:       智能选择 (趋势感知 + 多策略竞争)")
+        print("活跃指标:       智能选择 (趋势感知 + 多策略竞争)")
     elif mode in ("pure", "pure_wf", "pure_trend", "pure_adx", "hybrid"):
         print(f"布林带周期:     {best_params.get('window', '?')}")
         print(f"标准差倍数:     {best_params.get('std_dev', '?')}")
@@ -5607,13 +5607,13 @@ def main():
             else:
                 print(f"ADX阈值:        {best_params['adx_threshold']} (adx_period={best_params.get('adx_period', 14)}, ADX>阈值时空仓避险)")
         if mode == "hybrid":
-            print(f"活跃指标:       市场状态自适应 (震荡=均值回归, 趋势=趋势跟随)")
+            print("活跃指标:       市场状态自适应 (震荡=均值回归, 趋势=趋势跟随)")
         elif best_params.get("adx_threshold") is None and best_params.get("trend_ma_period") is None:
-            print(f"活跃指标:       无（纯价格行为，无因子约束）")
+            print("活跃指标:       无（纯价格行为，无因子约束）")
         elif best_params.get("adx_threshold") is not None:
-            print(f"活跃指标:       ADX趋势强度过滤 + 趋势对齐")
+            print("活跃指标:       ADX趋势强度过滤 + 趋势对齐")
         else:
-            print(f"活跃指标:       趋势对齐（方案C）")
+            print("活跃指标:       趋势对齐（方案C）")
     elif best_params:
         print(f"布林带周期:     {best_params['window']}")
         print(f"标准差倍数:     {best_params['std_dev']}")
@@ -5640,7 +5640,7 @@ def main():
         if any(best_params.get(k) for k in indicator_keys if k.startswith("use_")):
             print(f"活跃指标:       {', '.join(active_indicators)}")
         else:
-            print(f"活跃指标:       无（纯布林带策略）")
+            print("活跃指标:       无（纯布林带策略）")
     print(f"综合评分:       {best_score:.6f}")
     print(f"夏普比率:       {best_metrics.get('sharpe_ratio', 0):.4f}")
     print(f"总收益率:       {best_metrics.get('total_return', 0)*100:.2f}%")

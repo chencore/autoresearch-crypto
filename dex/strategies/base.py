@@ -1,7 +1,6 @@
 """Base strategy classes and evaluation utilities for the dex trading framework."""
 
 import math
-import time
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Tuple
 
@@ -12,7 +11,6 @@ from dex.config import (
     INITIAL_CAPITAL,
     COMMISSION,
     SLIPPAGE,
-    BARS_PER_YEAR,
     EVAL_MAX_DRAWDOWN,
     EVAL_MIN_EQUITY_RATIO,
     EVAL_MIN_RETURN,

@@ -13,9 +13,8 @@ import time
 import functools
 from datetime import datetime, timedelta
 from decimal import Decimal
-from typing import Any, Callable, Dict, Optional, Tuple
+from typing import Any, Callable, Optional, Tuple
 
-import numpy as np
 import pandas as pd
 
 

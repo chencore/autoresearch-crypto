@@ -30,7 +30,6 @@ from decimal import Decimal
 from dotenv import load_dotenv
 load_dotenv()
 
-import numpy as np
 import pandas as pd
 import torch
 
@@ -49,7 +48,7 @@ from nado_protocol.indexer_client.types import IndexerCandlesticksGranularity
 from nado_protocol.indexer_client.types.query import IndexerCandlesticksParams
 
 from train_quant import (TrendStrategy, ScalpStrategy, HybridMeanRevMomentumStrategy,
-                          AdaptiveHybridStrategy, RegimeStrategy, TrendFollowStrategy)
+                          AdaptiveHybridStrategy, RegimeStrategy)
 from dex.market_regime import MarketRegimeDetector
 
 LOG_DIR = "logs"
@@ -351,7 +350,7 @@ class NadoTrader:
         except Exception as e:
             error_str = str(e)
             if ("error_code:2008" in error_str or "crosses the book" in error_str) and order_type == OrderType.POST_ONLY:
-                log_message(f"[POST_ONLY降级] error_code:2008，自动重试 IOC")
+                log_message("[POST_ONLY降级] error_code:2008，自动重试 IOC")
                 tick = float(self.get_tick_size(product_id))
                 if side == "buy":
                     new_price = price + tick
@@ -516,7 +515,7 @@ def execute_trade(signal_id, trader, product_id, tick_size, size_increment, capi
     log_message(f"[交易] target_pos={target_pos} position={position}")
 
     if target_pos == position:
-        log_message(f"[交易] 无需换仓，跳过")
+        log_message("[交易] 无需换仓，跳过")
         state["last_signal"] = signal_id
         return state
 
@@ -1072,7 +1071,7 @@ def main():
     regime_check_interval = 12  # 每12轮(1小时)刷新一次市场状态
     mode_str = "多空双向" if enable_short else "只做多"
     log_message(f"启动 Nado Mainnet 实盘交易 ({mode_str})")
-    log_message(f"混合费率: 开仓=Maker, 止盈=Maker, 止损=Taker, 超时=Taker")
+    log_message("混合费率: 开仓=Maker, 止盈=Maker, 止损=Taker, 超时=Taker")
     if not os.path.exists(args.checkpoint):
         log_message(f"错误: 未找到 {args.checkpoint}，请先运行 train_quant.py 训练策略")
         sys.exit(1)
@@ -1113,7 +1112,7 @@ def main():
         session_str = ""
         if strategy.use_session_filter:
             session_str = f", session={strategy.session_start}-{strategy.session_end} UTC"
-        log_message(f"策略模式: ScalpStrategy (高频剥头皮)")
+        log_message("策略模式: ScalpStrategy (高频剥头皮)")
         log_message(f"参数: w={strategy.window}, std={strategy.std_dev}, "
                     f"TP={strategy.take_profit_pct*100:.1f}%, SL={strategy.stop_loss_pct*100:.1f}%, "
                     f"hold={strategy.max_hold_bars}, 指标=[{indicators_str}]{session_str}")
@@ -1131,7 +1130,7 @@ def main():
             stop_loss_pct=params.get("stop_loss_pct", args.stop_loss if args.stop_loss is not None else 0.02),
             ema_tolerance=params.get("ema_tolerance", 0.0),
         )
-        log_message(f"策略模式: HybridMM (RSI均值回归+EMA动量)")
+        log_message("策略模式: HybridMM (RSI均值回归+EMA动量)")
         log_message(f"参数: RSI[{strategy.rsi_low}/{strategy.rsi_high}] period={strategy.rsi_period}, "
                     f"MA={strategy.ma_period}, ATR[{strategy.atr_period}]x{strategy.atr_multiplier}, "
                     f"hold={strategy.max_hold_bars}, TP={strategy.take_profit_pct*100:.1f}%, SL={strategy.stop_loss_pct*100:.1f}%, "
@@ -1156,7 +1155,7 @@ def main():
             use_volume_filter=params.get("use_volume_filter", True),
             volume_threshold=params.get("volume_threshold", 0.5),
         )
-        log_message(f"策略模式: Adaptive (ADX判市自适应: 震荡=RSI均值回归, 趋势=EMA趋势跟随)")
+        log_message("策略模式: Adaptive (ADX判市自适应: 震荡=RSI均值回归, 趋势=EMA趋势跟随)")
         log_message(f"参数: RSI[{strategy.rsi_low}/{strategy.rsi_high}] MA={strategy.ma_period}, "
                     f"趋势MA={strategy.trend_long_ma}/{strategy.trend_pull_ma}, "
                     f"ADX[{strategy.adx_period}]<={strategy.adx_threshold}, "
@@ -1411,10 +1410,10 @@ def main():
                         original_signal = signal_id
                         if signal_id == 2 and not allow_long:
                             signal_id = 1
-                            log_message(f"[状态过滤] 做多信号被宏观偏空覆盖 → 持有")
+                            log_message("[状态过滤] 做多信号被宏观偏空覆盖 → 持有")
                         elif signal_id == 3 and not allow_short:
                             signal_id = 1
-                            log_message(f"[状态过滤] 做空信号被宏观偏多覆盖 → 持有")
+                            log_message("[状态过滤] 做空信号被宏观偏多覆盖 → 持有")
 
                     current_price = bb_info["price"]
                     current_time = df.iloc[-1]["datetime"]

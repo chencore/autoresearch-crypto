@@ -29,7 +29,7 @@ warnings.filterwarnings("ignore")
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from dex.evolution import EvolutionEngine, Agent, create_default_agents
+from dex.evolution import create_default_agents
 from dex.reflection import ReflectionEngine, gepa_evolve
 from dex.strategies.base import StrategyEvaluator
 from dex.strategies.grid import grid_signals_to_discrete

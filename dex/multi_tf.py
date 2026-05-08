@@ -7,7 +7,7 @@ and computes consensus trend signals for entry filtering.
 
 from __future__ import annotations
 
-from typing import Dict, List, Tuple
+from typing import Dict, Tuple
 
 import numpy as np
 import pandas as pd

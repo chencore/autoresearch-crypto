@@ -6,7 +6,7 @@ This single module replaces ~7 duplicated implementations across strategy classe
 """
 
 import numpy as np
-from typing import Tuple, Optional
+from typing import Tuple
 
 
 def compute_atr(df: dict, period: int) -> np.ndarray:

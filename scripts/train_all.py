@@ -19,10 +19,7 @@ import os
 import sys
 import time
 import warnings
-from datetime import datetime
 
-import numpy as np
-import pandas as pd
 import pyarrow.parquet as pq
 
 warnings.filterwarnings("ignore")
@@ -34,9 +31,9 @@ from dex.strategies import (
     HybridMeanRevMomentumStrategy, AdaptiveHybridStrategy,
 )
 from dex.strategies.base import StrategyEvaluator
-from dex.evolution import EvolutionEngine, create_default_agents, Agent
-from dex.reflection import ReflectionEngine, gepa_evolve_v2, ExperimentLog
-from dex.scoring import risk_adjusted_score, EdgeFlag, detect_dead_agent
+from dex.evolution import Agent
+from dex.reflection import ReflectionEngine, gepa_evolve_v2
+from dex.scoring import risk_adjusted_score
 
 DATA_FILE = os.path.join(
     os.path.dirname(__file__), "..", "data", "crypto", "ETHUSDT_5m.parquet"
@@ -284,7 +281,7 @@ def main():
     print(f"  Done in {time.time()-t1:.0f}s")
 
     # Phase 2: GEPA V2 on top 2
-    print(f"\n[Phase 2] GEPA V2 evolution on top performers...")
+    print("\n[Phase 2] GEPA V2 evolution on top performers...")
     print("-" * 60)
 
     best_agents = []

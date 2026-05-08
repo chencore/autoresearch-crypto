@@ -8,7 +8,6 @@ short in downtrends.  Exits via ATR trailing stop, MA reversal, or time-out.
 from __future__ import annotations
 
 import numpy as np
-import pandas as pd
 
 from dex.indicators import compute_atr, compute_ema
 from dex.strategies.base import BaseStrategy

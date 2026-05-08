@@ -13,7 +13,6 @@ Usage:
 import os
 import time
 import argparse
-import csv
 
 import requests
 import pyarrow as pa
@@ -202,7 +201,7 @@ def download_binance(symbol, interval, start_ts, end_ts):
 
                 if response.status_code == 451:
                     # Binance 451 错误通常是地区限制，尝试不同端点
-                    print(f"    451 错误，尝试备用端点...", flush=True)
+                    print("    451 错误，尝试备用端点...", flush=True)
                     response = requests.get(
                         "https://api.binance.us/api/v3/klines",
                         params=params,
@@ -213,7 +212,7 @@ def download_binance(symbol, interval, start_ts, end_ts):
                 data = response.json()
 
                 if not data:
-                    print(f"    无更多数据，停止", flush=True)
+                    print("    无更多数据，停止", flush=True)
                     return all_candles
 
                 # Binance 返回格式:
@@ -308,7 +307,7 @@ def prepare_crypto_data_streaming(symbol, interval, start_days, force=False):
     df = df.drop_duplicates(subset=["timestamp"]).sort_values("timestamp")
 
     # 计算技术指标
-    print(f"  计算技术指标...", flush=True)
+    print("  计算技术指标...", flush=True)
     df = compute_features(df)
 
     # 保存（新格式，带天数标识）

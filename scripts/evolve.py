@@ -18,7 +18,6 @@ import json
 import warnings
 from datetime import datetime
 
-import numpy as np
 import pandas as pd
 import pyarrow.parquet as pq
 
@@ -29,12 +28,9 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from dex.evolution import (
     EvolutionEngine,
-    Agent,
-    create_default_agents,
     run_evolution,
 )
 from dex.strategies.base import StrategyEvaluator
-from dex.strategies import TrendStrategy
 from dex.config import DATA_DIR
 
 

@@ -37,7 +37,6 @@ from decimal import Decimal
 from dotenv import load_dotenv
 load_dotenv()
 
-import numpy as np
 import pandas as pd
 import torch
 
@@ -47,7 +46,7 @@ from okx.MarketData import MarketAPI
 from okx.PublicData import PublicAPI
 
 from train_quant import (TrendStrategy, ScalpStrategy, HybridMeanRevMomentumStrategy,
-                          AdaptiveHybridStrategy, RegimeStrategy, TrendFollowStrategy)
+                          AdaptiveHybridStrategy, RegimeStrategy)
 
 LOG_DIR = "logs"
 os.makedirs(LOG_DIR, exist_ok=True)
@@ -472,7 +471,7 @@ def execute_trade(signal_id, trade_api, account_api, inst_id, tick_sz, lot_sz,
     log_message(f"[交易] target_pos={target_pos} position={position}")
 
     if target_pos == position:
-        log_message(f"[交易] 无需换仓，跳过")
+        log_message("[交易] 无需换仓，跳过")
         state["last_signal"] = signal_id
         return state
 
@@ -929,7 +928,7 @@ def main():
     # 加载策略参数
     log_message("=" * 50)
     log_message(f"启动 {mode_name} ({mode_str})")
-    log_message(f"混合费率: 开仓=Maker, 止盈=Maker, 止损=Taker, 超时=Maker")
+    log_message("混合费率: 开仓=Maker, 止盈=Maker, 止损=Taker, 超时=Maker")
     log_message(f"保证金模式: {args.margin_mode}, 杠杆: {args.leverage}x")
     if not os.path.exists(args.checkpoint):
         log_message(f"错误: 未找到 {args.checkpoint}，请先运行 train_quant.py 训练策略")
@@ -970,7 +969,7 @@ def main():
         session_str = ""
         if strategy.use_session_filter:
             session_str = f", session={strategy.session_start}-{strategy.session_end} UTC"
-        log_message(f"策略模式: ScalpStrategy (高频剥头皮)")
+        log_message("策略模式: ScalpStrategy (高频剥头皮)")
         log_message(f"参数: w={strategy.window}, std={strategy.std_dev}, "
                     f"TP={strategy.take_profit_pct*100:.1f}%, SL={strategy.stop_loss_pct*100:.1f}%, "
                     f"hold={strategy.max_hold_bars}, 指标=[{indicators_str}]{session_str}")
@@ -985,7 +984,7 @@ def main():
             max_hold_bars=params.get("max_hold_bars", args.max_hold),
             enable_short=params.get("enable_short", True),
         )
-        log_message(f"策略模式: HybridMeanRevMomentumStrategy (混合均值回归+动量)")
+        log_message("策略模式: HybridMeanRevMomentumStrategy (混合均值回归+动量)")
         log_message(f"参数: RSI=({strategy.rsi_low},{strategy.rsi_high}), MA={strategy.ma_period}, "
                     f"ATR={strategy.atr_multiplier}, hold={strategy.max_hold_bars}, short={strategy.enable_short}")
     elif strategy_type == "adaptive":
@@ -1003,7 +1002,7 @@ def main():
             max_hold_bars=params.get("max_hold_bars", args.max_hold),
             enable_short=params.get("enable_short", True),
         )
-        log_message(f"策略模式: AdaptiveHybrid (ADX判市 + RSI均值回归/EMA趋势跟随)")
+        log_message("策略模式: AdaptiveHybrid (ADX判市 + RSI均值回归/EMA趋势跟随)")
         log_message(f"参数: RSI=({strategy.rsi_low},{strategy.rsi_high}), trendL={strategy.trend_long_ma}, "
                     f"ADX_th={strategy.adx_threshold}, ATR={strategy.atr_multiplier}, hold={strategy.max_hold_bars}")
     elif strategy_type == "regime":
@@ -1063,7 +1062,7 @@ def main():
         )
         active_indicators = [k for k in ["use_adx", "use_volume", "use_macd", "use_ma_cross", "use_mfi", "use_stochastic", "use_rsi_divergence", "use_macd_divergence", "use_trend_filter", "use_obv_trend", "use_volume_spike", "use_vwap", "use_htf_macd", "use_resonance"] if getattr(strategy, k)]
         indicators_str = ", ".join(active_indicators) if active_indicators else "无"
-        log_message(f"策略模式: TrendStrategy")
+        log_message("策略模式: TrendStrategy")
         log_message(f"参数: 周期={strategy.window}, 标准差={strategy.std_dev}, "
                     f"ATR止损={strategy.atr_multiplier}, 最大持仓={strategy.max_hold_bars}根K线, "
                     f"RSI阈值={strategy.rsi_threshold}, 活跃指标=[{indicators_str}]")

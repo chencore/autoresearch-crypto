@@ -10,10 +10,9 @@ parameter shifts.  Output is an adaptive ensemble with dynamic weights.
 from __future__ import annotations
 
 import copy
-import math
 import random
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -202,7 +201,6 @@ class EvolutionEngine:
         self, signals: np.ndarray, prices: np.ndarray, df: pd.DataFrame
     ) -> Tuple[float, dict]:
         """Relaxed scoring that rewards market outperformance, not absolute profit."""
-        from dex.config import BARS_PER_YEAR
         equity, trades = self.evaluator.simulate(signals, prices, df)
 
         if len(equity) == 0 or not np.all(np.isfinite(equity)):
@@ -379,7 +377,7 @@ class EvolutionEngine:
         for agent, w in zip(self.agents, weights):
             agent.weight = float(w)
 
-        print(f"  Weights: " + " | ".join(
+        print("  Weights: " + " | ".join(
             f"{a.name}={a.weight:.2f}" for a in self.agents
         ))
         print()

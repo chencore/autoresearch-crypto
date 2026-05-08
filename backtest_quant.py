@@ -18,7 +18,6 @@ import torch
 
 from train_quant import (StrategyEvaluator, TrendStrategy, ScalpStrategy,
                           HybridMeanRevMomentumStrategy, AdaptiveHybridStrategy,
-                          PureActionStrategy, HybridStrategy, TrendFollowStrategy,
                           RegimeStrategy,
                           load_crypto_data, list_crypto_files, COMMISSION, SLIPPAGE, INITIAL_CAPITAL)
 

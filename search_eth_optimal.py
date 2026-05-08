@@ -24,7 +24,6 @@ import json
 import argparse
 import itertools
 from datetime import datetime
-from concurrent.futures import ProcessPoolExecutor, as_completed
 
 # Fix Windows GBK encoding issues
 if sys.platform == 'win32':
@@ -32,7 +31,6 @@ if sys.platform == 'win32':
     sys.stderr.reconfigure(encoding='utf-8', errors='replace')
 
 import numpy as np
-import pandas as pd
 import pyarrow.parquet as pq
 import torch
 
@@ -784,7 +782,7 @@ def main():
     print(f"\n  搜索耗时: {search_time:.0f}s")
 
     # 全量验证 + Walk-Forward
-    print(f"\n[3/3] 冠军策略全量验证 + Walk-Forward...")
+    print("\n[3/3] 冠军策略全量验证 + Walk-Forward...")
     print("-" * 70)
 
     validated = []
