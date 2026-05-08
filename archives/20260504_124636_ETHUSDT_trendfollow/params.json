@@ -1,9 +1,0 @@
-{
-  "long_ma_period": 50,
-  "pull_ma_period": 20,
-  "atr_period": 7,
-  "atr_multiplier": 3.0,
-  "max_hold_bars": 24,
-  "entry_zone": 0.001,
-  "enable_short": true
-}

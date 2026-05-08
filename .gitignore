@@ -6,18 +6,40 @@ dist/
 wheels/
 *.egg-info
 
-
 # Virtual environments
 .venv
 worktrees/
-results/
-queue/
 
-# Logs, state, lock files
+# Environment secrets
+.env
+.env.local
+
+# Runtime artifacts (generated during execution)
+data/
+logs/*.txt
+logs/*.json
+logs/*.log
+logs/*.csv
 logs/*.lock
 logs/*.pid
+reflection_logs/
+search_results/
+archives/
 
-.env
+# Checkpoints (keep only small default examples in repo)
+checkpoints/*.pt
+!checkpoints/quant_model.pt
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
 
 # Agent prompt files (generated per-session by launchers)
 CLAUDE.md
@@ -25,11 +47,5 @@ AGENTS.md
 
 # Experimental code/artifacts
 dev/
-
-# Results file
 results.tsv
-data/crypto.rar
-data/crypto/BTCUSDT_5m.parquet
-data/crypto - 副本/BTCUSDT_5m.parquet
-data/crypto - 副本/ETHUSDT_5m.parquet
 uv.lock

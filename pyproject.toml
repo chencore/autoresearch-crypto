@@ -1,12 +1,12 @@
 [project]
-name = "autoresearch"
+name = "autoresearch-dex"
 version = "0.1.0"
-description = "Autonomous pretraining research swarm"
+description = "Autonomous cryptocurrency quantitative trading strategy research framework"
 readme = "README.md"
+license = {text = "MIT"}
 requires-python = ">=3.10"
 dependencies = [
     "ccxt>=4.0.0",
-    "kernels>=0.11.7",
     "matplotlib>=3.10.8",
     "nado-protocol>=0.3.5",
     "numpy>=2.2.6",
@@ -14,15 +14,22 @@ dependencies = [
     "pyarrow>=21.0.0",
     "python-okx>=0.4.1",
     "requests>=2.32.0",
-    "rustbpe>=0.1.0",
     "tiktoken>=0.11.0",
-    "setuptools<70",
     "torch>=2.5.0",
-    "torchvision>=0.20.0",
 ]
 
+[project.optional-dependencies]
+dev = [
+    "ruff>=0.5.0",
+    "pytest>=8.0.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/yourusername/autoresearch-dex"
+Repository = "https://github.com/yourusername/autoresearch-dex"
+
 [tool.uv]
-index-url = "https://pypi.tuna.tsinghua.edu.cn/simple"
+index-url = "https://pypi.org/simple"
 
 [[tool.uv.index]]
 name = "pytorch-cu124"
@@ -32,3 +39,10 @@ explicit = true
 [tool.uv.sources]
 torch = { index = "pytorch-cu124" }
 torchvision = { index = "pytorch-cu124" }
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+ignore = ["E501"]
