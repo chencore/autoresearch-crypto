@@ -41,16 +41,27 @@ class ScalpStrategy(BaseStrategy):
         rsi_period: RSI lookback period.
     """
 
-    def __init__(self, window=10, std_dev=1.2,
-                 take_profit_pct=0.005, stop_loss_pct=0.003,
-                 max_hold_bars=6,
-                 use_volume_filter=False, volume_threshold=0.8,
-                 rsi_entry_low=30, rsi_entry_high=70,
-                 rsi_extreme_low=20, rsi_extreme_high=80,
-                 use_rsi_entry=False,
-                 use_trend_align=False, trend_ma_period=50,
-                 use_session_filter=False, session_start=13, session_end=21,
-                 rsi_period=14):
+    def __init__(
+        self,
+        window=10,
+        std_dev=1.2,
+        take_profit_pct=0.005,
+        stop_loss_pct=0.003,
+        max_hold_bars=6,
+        use_volume_filter=False,
+        volume_threshold=0.8,
+        rsi_entry_low=30,
+        rsi_entry_high=70,
+        rsi_extreme_low=20,
+        rsi_extreme_high=80,
+        use_rsi_entry=False,
+        use_trend_align=False,
+        trend_ma_period=50,
+        use_session_filter=False,
+        session_start=13,
+        session_end=21,
+        rsi_period=14,
+    ):
         self.window = window
         self.std_dev = std_dev
         self.take_profit_pct = take_profit_pct
@@ -83,8 +94,12 @@ class ScalpStrategy(BaseStrategy):
         n = len(close)
 
         # Bollinger Bands
-        rolling_mean = pd.Series(close).rolling(window=self.window, min_periods=self.window).mean().values
-        rolling_std = pd.Series(close).rolling(window=self.window, min_periods=self.window).std().values
+        rolling_mean = (
+            pd.Series(close).rolling(window=self.window, min_periods=self.window).mean().values
+        )
+        rolling_std = (
+            pd.Series(close).rolling(window=self.window, min_periods=self.window).std().values
+        )
         upper = rolling_mean + self.std_dev * rolling_std
         lower = rolling_mean - self.std_dev * rolling_std
 
@@ -101,7 +116,12 @@ class ScalpStrategy(BaseStrategy):
         # Trend MA (trend alignment)
         trend_ma = None
         if self.use_trend_align:
-            trend_ma = pd.Series(close).rolling(window=self.trend_ma_period, min_periods=self.trend_ma_period).mean().values
+            trend_ma = (
+                pd.Series(close)
+                .rolling(window=self.trend_ma_period, min_periods=self.trend_ma_period)
+                .mean()
+                .values
+            )
 
         # Session filter (UTC hour)
         hours = None
@@ -185,7 +205,7 @@ class ScalpStrategy(BaseStrategy):
                 if price > trend_ma[i]:
                     trend_short_ok = False  # Uptrend, no short
                 elif price < trend_ma[i]:
-                    trend_long_ok = False   # Downtrend, no long
+                    trend_long_ok = False  # Downtrend, no long
                 else:
                     trend_long_ok = False
                     trend_short_ok = False
@@ -196,8 +216,14 @@ class ScalpStrategy(BaseStrategy):
                 vol_pass = vol_ratio[i] >= self.volume_threshold
 
             # RSI entry conditions: require oversold/overbought
-            rsi_long_ok = rsi[i] < self.rsi_entry_low if self.use_rsi_entry else rsi[i] > self.rsi_extreme_low
-            rsi_short_ok = rsi[i] > self.rsi_entry_high if self.use_rsi_entry else rsi[i] < self.rsi_extreme_high
+            rsi_long_ok = (
+                rsi[i] < self.rsi_entry_low if self.use_rsi_entry else rsi[i] > self.rsi_extreme_low
+            )
+            rsi_short_ok = (
+                rsi[i] > self.rsi_entry_high
+                if self.use_rsi_entry
+                else rsi[i] < self.rsi_extreme_high
+            )
 
             # Long: price touches lower band + RSI oversold + uptrend + volume
             if price <= lower[i] and rsi_long_ok and trend_long_ok and vol_pass:

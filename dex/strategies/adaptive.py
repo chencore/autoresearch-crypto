@@ -37,11 +37,21 @@ class AdaptiveHybridStrategy(BaseStrategy):
         enable_short: Whether short selling is allowed.
     """
 
-    def __init__(self, rsi_period=14, rsi_low=30, rsi_high=70, ma_period=20,
-                 trend_long_ma=100, trend_pull_ma=20,
-                 adx_period=14, adx_threshold=25,
-                 atr_period=14, atr_multiplier=2.0,
-                 max_hold_bars=24, enable_short=True):
+    def __init__(
+        self,
+        rsi_period=14,
+        rsi_low=30,
+        rsi_high=70,
+        ma_period=20,
+        trend_long_ma=100,
+        trend_pull_ma=20,
+        adx_period=14,
+        adx_threshold=25,
+        atr_period=14,
+        atr_multiplier=2.0,
+        max_hold_bars=24,
+        enable_short=True,
+    ):
         self.rsi_period = rsi_period
         self.rsi_low = rsi_low
         self.rsi_high = rsi_high
@@ -92,10 +102,16 @@ class AdaptiveHybridStrategy(BaseStrategy):
         entry_price = 0.0
         entry_bar = 0
         highest_after_entry = 0.0
-        lowest_after_entry = float('inf')
+        lowest_after_entry = float("inf")
 
-        min_idx = max(self.rsi_period, self.ma_period, self.adx_period * 2,
-                      self.trend_long_ma, self.trend_pull_ma, self.atr_period)
+        min_idx = max(
+            self.rsi_period,
+            self.ma_period,
+            self.adx_period * 2,
+            self.trend_long_ma,
+            self.trend_pull_ma,
+            self.atr_period,
+        )
 
         for i in range(min_idx, n):
             price = close[i]
@@ -127,7 +143,7 @@ class AdaptiveHybridStrategy(BaseStrategy):
             elif position == -1:
                 if low[i] < lowest_after_entry:
                     lowest_after_entry = low[i]
-                if lowest_after_entry < float('inf'):
+                if lowest_after_entry < float("inf"):
                     atr_stop = lowest_after_entry + self.atr_multiplier * atr[i]
                     if price > atr_stop:
                         signals[i] = 0
@@ -153,9 +169,11 @@ class AdaptiveHybridStrategy(BaseStrategy):
                 if regime_trending:
                     # Strong trend: only trade in trend direction, with long EMA filter
                     if is_uptrend:
-                        long_cross = (prev_rsi < self.rsi_low and
-                                      rsi[i] >= self.rsi_low and
-                                      price > trend_long[i])
+                        long_cross = (
+                            prev_rsi < self.rsi_low
+                            and rsi[i] >= self.rsi_low
+                            and price > trend_long[i]
+                        )
                         if long_cross:
                             signals[i] = 2
                             position = 1
@@ -164,9 +182,11 @@ class AdaptiveHybridStrategy(BaseStrategy):
                             highest_after_entry = high[i]
                             continue
                     elif is_downtrend and self.enable_short:
-                        short_cross = (prev_rsi > self.rsi_high and
-                                       rsi[i] <= self.rsi_high and
-                                       price < trend_long[i])
+                        short_cross = (
+                            prev_rsi > self.rsi_high
+                            and rsi[i] <= self.rsi_high
+                            and price < trend_long[i]
+                        )
                         if short_cross:
                             signals[i] = 3
                             position = -1
@@ -176,7 +196,7 @@ class AdaptiveHybridStrategy(BaseStrategy):
                             continue
                 else:
                     # Ranging: RSI bidirectional mean-reversion (no EMA filter)
-                    long_cross = (prev_rsi < self.rsi_low and rsi[i] >= self.rsi_low)
+                    long_cross = prev_rsi < self.rsi_low and rsi[i] >= self.rsi_low
                     if long_cross:
                         signals[i] = 2
                         position = 1
@@ -186,7 +206,7 @@ class AdaptiveHybridStrategy(BaseStrategy):
                         continue
 
                     if self.enable_short:
-                        short_cross = (prev_rsi > self.rsi_high and rsi[i] <= self.rsi_high)
+                        short_cross = prev_rsi > self.rsi_high and rsi[i] <= self.rsi_high
                         if short_cross:
                             signals[i] = 3
                             position = -1

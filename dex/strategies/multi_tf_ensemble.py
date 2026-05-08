@@ -25,6 +25,7 @@ from dex.strategies.base import BaseStrategy
 # Per-timeframe signal generator
 # ---------------------------------------------------------------------------
 
+
 def _tf_signal(
     df: pd.DataFrame,
     ma_fast: int = 10,
@@ -72,6 +73,7 @@ def _tf_signal(
 # Multi-TF Ensemble Strategy
 # ---------------------------------------------------------------------------
 
+
 class MultiTFEnsembleStrategy(BaseStrategy):
     """Nested multi-timeframe voting ensemble.
 
@@ -110,14 +112,41 @@ class MultiTFEnsembleStrategy(BaseStrategy):
         enable_short: bool = True,
     ) -> None:
         self.tf_weights = tf_weights or {
-            "1d": 0.4, "4h": 0.3, "1h": 0.2, "15m": 0.1,
+            "1d": 0.4,
+            "4h": 0.3,
+            "1h": 0.2,
+            "15m": 0.1,
         }
         self.vote_threshold = vote_threshold
         self.tf_params = tf_params or {
-            "1d":  {"ma_fast": 10, "ma_slow": 30, "rsi_period": 14, "rsi_oversold": 30, "rsi_overbought": 70},
-            "4h":  {"ma_fast": 10, "ma_slow": 30, "rsi_period": 14, "rsi_oversold": 30, "rsi_overbought": 70},
-            "1h":  {"ma_fast": 10, "ma_slow": 30, "rsi_period": 14, "rsi_oversold": 30, "rsi_overbought": 70},
-            "15m": {"ma_fast": 5,  "ma_slow": 20, "rsi_period": 7,  "rsi_oversold": 25, "rsi_overbought": 75},
+            "1d": {
+                "ma_fast": 10,
+                "ma_slow": 30,
+                "rsi_period": 14,
+                "rsi_oversold": 30,
+                "rsi_overbought": 70,
+            },
+            "4h": {
+                "ma_fast": 10,
+                "ma_slow": 30,
+                "rsi_period": 14,
+                "rsi_oversold": 30,
+                "rsi_overbought": 70,
+            },
+            "1h": {
+                "ma_fast": 10,
+                "ma_slow": 30,
+                "rsi_period": 14,
+                "rsi_oversold": 30,
+                "rsi_overbought": 70,
+            },
+            "15m": {
+                "ma_fast": 5,
+                "ma_slow": 20,
+                "rsi_period": 7,
+                "rsi_oversold": 25,
+                "rsi_overbought": 75,
+            },
         }
         self.atr_period = atr_period
         self.atr_multiplier = atr_multiplier
@@ -147,13 +176,15 @@ class MultiTFEnsembleStrategy(BaseStrategy):
             start = i * tf_bars
             end = min(start + tf_bars, n)
             w = df.iloc[start:end]
-            records.append({
-                "open": w["open"].iloc[0],
-                "high": w["high"].max(),
-                "low": w["low"].min(),
-                "close": w["close"].iloc[-1],
-                "volume": w["volume"].sum(),
-            })
+            records.append(
+                {
+                    "open": w["open"].iloc[0],
+                    "high": w["high"].max(),
+                    "low": w["low"].min(),
+                    "close": w["close"].iloc[-1],
+                    "volume": w["volume"].sum(),
+                }
+            )
         result = pd.DataFrame(records)
         result.index = [min((i + 1) * tf_bars - 1, n - 1) for i in range(n_htf)]
         self._cache[tf_name] = result
@@ -211,13 +242,20 @@ class MultiTFEnsembleStrategy(BaseStrategy):
                 if highest_after_entry > 0:
                     atr_stop = highest_after_entry - self.atr_multiplier * atr[i]
                     if price < atr_stop:
-                        signals[i] = 0; position = 0; continue
+                        signals[i] = 0
+                        position = 0
+                        continue
                 # 15m TF exit: if 15m goes bearish, exit long
                 if tf_votes.get("15m", np.zeros(n))[i] < 0:
-                    signals[i] = 0; position = 0; continue
+                    signals[i] = 0
+                    position = 0
+                    continue
                 if i - entry_bar >= self.max_hold_bars:
-                    signals[i] = 0; position = 0; continue
-                signals[i] = 2; continue
+                    signals[i] = 0
+                    position = 0
+                    continue
+                signals[i] = 2
+                continue
 
             elif position == -1:
                 if low[i] < lowest_after_entry:
@@ -225,12 +263,19 @@ class MultiTFEnsembleStrategy(BaseStrategy):
                 if lowest_after_entry < float("inf"):
                     atr_stop = lowest_after_entry + self.atr_multiplier * atr[i]
                     if price > atr_stop:
-                        signals[i] = 0; position = 0; continue
+                        signals[i] = 0
+                        position = 0
+                        continue
                 if tf_votes.get("15m", np.zeros(n))[i] > 0:
-                    signals[i] = 0; position = 0; continue
+                    signals[i] = 0
+                    position = 0
+                    continue
                 if i - entry_bar >= self.max_hold_bars:
-                    signals[i] = 0; position = 0; continue
-                signals[i] = 3; continue
+                    signals[i] = 0
+                    position = 0
+                    continue
+                signals[i] = 3
+                continue
 
             # --- Entry: weighted voting ---
             if position == 0:
@@ -244,12 +289,17 @@ class MultiTFEnsembleStrategy(BaseStrategy):
 
                 # Entry decision
                 if weighted_score >= self.vote_threshold and day_vote >= 0:
-                    signals[i] = 2; position = 1; entry_bar = i
-                    highest_after_entry = high[i]; continue
-                elif (self.enable_short and weighted_score <= -self.vote_threshold
-                      and day_vote <= 0):
-                    signals[i] = 3; position = -1; entry_bar = i
-                    lowest_after_entry = low[i]; continue
+                    signals[i] = 2
+                    position = 1
+                    entry_bar = i
+                    highest_after_entry = high[i]
+                    continue
+                elif self.enable_short and weighted_score <= -self.vote_threshold and day_vote <= 0:
+                    signals[i] = 3
+                    position = -1
+                    entry_bar = i
+                    lowest_after_entry = low[i]
+                    continue
 
         return signals
 

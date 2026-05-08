@@ -16,10 +16,19 @@ import numpy as np
 import pandas as pd
 import torch
 
-from train_quant import (StrategyEvaluator, TrendStrategy, ScalpStrategy,
-                          HybridMeanRevMomentumStrategy, AdaptiveHybridStrategy,
-                          RegimeStrategy,
-                          load_crypto_data, list_crypto_files, COMMISSION, SLIPPAGE, INITIAL_CAPITAL)
+from train_quant import (
+    StrategyEvaluator,
+    TrendStrategy,
+    ScalpStrategy,
+    HybridMeanRevMomentumStrategy,
+    AdaptiveHybridStrategy,
+    RegimeStrategy,
+    load_crypto_data,
+    list_crypto_files,
+    COMMISSION,
+    SLIPPAGE,
+    INITIAL_CAPITAL,
+)
 
 
 class SimpleBacktest:
@@ -61,15 +70,17 @@ class SimpleBacktest:
                     shares = capital * (1 - self.commission) / exec_price
                     cost = capital * self.commission
                     capital = 0.0
-                    trades.append({
-                        "step": i,
-                        "time": datetimes[i],
-                        "type": "BUY",
-                        "price": price,
-                        "exec_price": exec_price,
-                        "shares": shares,
-                        "cost": cost,
-                    })
+                    trades.append(
+                        {
+                            "step": i,
+                            "time": datetimes[i],
+                            "type": "BUY",
+                            "price": price,
+                            "exec_price": exec_price,
+                            "shares": shares,
+                            "cost": cost,
+                        }
+                    )
                     position = 1
 
                 elif target_pos == 0 and position == 1:
@@ -77,16 +88,18 @@ class SimpleBacktest:
                     gross = shares * exec_price
                     cost = gross * self.commission
                     capital = gross - cost
-                    trades.append({
-                        "step": i,
-                        "time": datetimes[i],
-                        "type": "SELL",
-                        "price": price,
-                        "exec_price": exec_price,
-                        "shares": shares,
-                        "cost": cost,
-                        "capital_after": capital,
-                    })
+                    trades.append(
+                        {
+                            "step": i,
+                            "time": datetimes[i],
+                            "type": "SELL",
+                            "price": price,
+                            "exec_price": exec_price,
+                            "shares": shares,
+                            "cost": cost,
+                            "capital_after": capital,
+                        }
+                    )
                     shares = 0.0
                     position = 0
 
@@ -102,27 +115,31 @@ class SimpleBacktest:
             gross = shares * exec_price
             cost = gross * self.commission
             capital = gross - cost
-            trades.append({
-                "step": len(signals) - 1,
-                "time": datetimes[-1],
-                "type": "SELL (Final)",
-                "price": closes[-1],
-                "exec_price": exec_price,
-                "shares": shares,
-                "cost": cost,
-                "capital_after": capital,
-            })
+            trades.append(
+                {
+                    "step": len(signals) - 1,
+                    "time": datetimes[-1],
+                    "type": "SELL (Final)",
+                    "price": closes[-1],
+                    "exec_price": exec_price,
+                    "shares": shares,
+                    "cost": cost,
+                    "capital_after": capital,
+                }
+            )
             equity_curve[-1] = capital
             position = 0
             shares = 0.0
 
-        results_df = pd.DataFrame({
-            "datetime": datetimes[:len(signals)],
-            "close": closes[:len(signals)],
-            "signal": signals,
-            "position": [1 if s == 2 else 0 for s in signals],
-            "equity": equity_curve,
-        })
+        results_df = pd.DataFrame(
+            {
+                "datetime": datetimes[: len(signals)],
+                "close": closes[: len(signals)],
+                "signal": signals,
+                "position": [1 if s == 2 else 0 for s in signals],
+                "equity": equity_curve,
+            }
+        )
 
         metrics = self._compute_metrics(equity_curve)
         return results_df, trades, metrics
@@ -182,8 +199,12 @@ def main():
     parser.add_argument("--symbol", type=str, default="BTCUSDT", help="交易对")
     parser.add_argument("--interval", type=str, default="5m", help="K线周期")
     parser.add_argument("--days", type=int, default=7, help="回测多少天的数据")
-    parser.add_argument("--checkpoint", type=str, default="checkpoints/quant_model.pt", help="策略参数路径")
-    parser.add_argument("--output", type=str, default="backtest_result.csv", help="回测结果输出文件")
+    parser.add_argument(
+        "--checkpoint", type=str, default="checkpoints/quant_model.pt", help="策略参数路径"
+    )
+    parser.add_argument(
+        "--output", type=str, default="backtest_result.csv", help="回测结果输出文件"
+    )
     args = parser.parse_args()
 
     # 加载策略参数
@@ -204,7 +225,8 @@ def main():
             std_dev=params.get("std_dev", 1.2),
             take_profit_pct=params.get("take_profit_pct", 0.005),
             stop_loss_pct=params.get("stop_loss_pct", 0.003),
-            max_hold_bars=params.get("max_hold_bars", 6))
+            max_hold_bars=params.get("max_hold_bars", 6),
+        )
     elif strategy_type == "hybrid_mm":
         strategy = HybridMeanRevMomentumStrategy(
             rsi_period=params.get("rsi_period", 14),
@@ -214,7 +236,8 @@ def main():
             atr_period=params.get("atr_period", 14),
             atr_multiplier=params.get("atr_multiplier", 2.0),
             max_hold_bars=params.get("max_hold_bars", 24),
-            enable_short=params.get("enable_short", True))
+            enable_short=params.get("enable_short", True),
+        )
     elif strategy_type == "adaptive":
         strategy = AdaptiveHybridStrategy(
             rsi_period=params.get("rsi_period", 14),
@@ -228,19 +251,24 @@ def main():
             atr_period=params.get("atr_period", 14),
             atr_multiplier=params.get("atr_multiplier", 2.0),
             max_hold_bars=params.get("max_hold_bars", 24),
-            enable_short=params.get("enable_short", True))
+            enable_short=params.get("enable_short", True),
+        )
     elif strategy_type == "regime":
         strategy = RegimeStrategy(
             ranging_params=params.get("ranging_params", {}),
             trending_params=params.get("trending_params", {}),
             adx_threshold=params.get("adx_threshold", 20),
-            enable_short=params.get("enable_short", True))
+            enable_short=params.get("enable_short", True),
+        )
     else:
         strategy = TrendStrategy(
             window=params.get("window", 20),
             std_dev=params.get("std_dev", 2.0),
             atr_multiplier=params.get("atr_multiplier", 2.5),
-            max_hold_bars=params.get("max_hold_bars", args.max_hold if hasattr(args, 'max_hold') else 48))
+            max_hold_bars=params.get(
+                "max_hold_bars", args.max_hold if hasattr(args, "max_hold") else 48
+            ),
+        )
     print(f"策略类型: {strategy_type} | 参数: {params}")
     print()
 
@@ -257,7 +285,9 @@ def main():
     if interval_match:
         data_files = interval_match
     if not data_files:
-        data_files = [f for f in list_crypto_files() if args.symbol.upper() in os.path.basename(f).upper()]
+        data_files = [
+            f for f in list_crypto_files() if args.symbol.upper() in os.path.basename(f).upper()
+        ]
     if not data_files:
         print(f"错误: 未找到 {args.symbol} 数据文件")
         sys.exit(1)
@@ -288,7 +318,9 @@ def main():
     valid_signals = signals[min_idx:]
     valid_df = df.iloc[min_idx:].reset_index(drop=True)
 
-    evaluator = StrategyEvaluator(initial_capital=INITIAL_CAPITAL, commission=COMMISSION, slippage=SLIPPAGE)
+    evaluator = StrategyEvaluator(
+        initial_capital=INITIAL_CAPITAL, commission=COMMISSION, slippage=SLIPPAGE
+    )
     score, metrics, trades = evaluator.evaluate(valid_signals, prices, valid_df)
     n_trades = len([t for t in trades if t.get("pnl") is not None])
 
@@ -301,22 +333,24 @@ def main():
     print(f"初始资金:    {INITIAL_CAPITAL:.2f} USDT")
     print(f"最终权益:    {INITIAL_CAPITAL * (1 + metrics['total_return']):.2f} USDT")
     print(f"综合评分:    {score:.4f}")
-    print(f"总收益率:    {metrics['total_return']*100:.2f}%")
-    print(f"年化收益率:  {metrics['annualized_return']*100:.2f}%")
-    print(f"年化波动率:  {metrics['annualized_vol']*100:.2f}%")
+    print(f"总收益率:    {metrics['total_return'] * 100:.2f}%")
+    print(f"年化收益率:  {metrics['annualized_return'] * 100:.2f}%")
+    print(f"年化波动率:  {metrics['annualized_vol'] * 100:.2f}%")
     print(f"夏普比率:    {metrics['sharpe_ratio']:.4f}")
-    print(f"最大回撤:    {metrics['max_drawdown']*100:.2f}%")
-    print(f"胜率:        {metrics['win_rate']*100:.1f}%")
+    print(f"最大回撤:    {metrics['max_drawdown'] * 100:.2f}%")
+    print(f"胜率:        {metrics['win_rate'] * 100:.1f}%")
     print(f"交易次数:    {n_trades}")
     print()
 
     if trades:
-        trade_pnls = [(t.get("pnl"), t.get("type", "?")) for t in trades if t.get("pnl") is not None]
+        trade_pnls = [
+            (t.get("pnl"), t.get("type", "?")) for t in trades if t.get("pnl") is not None
+        ]
         print("=" * 60)
         print(f"交易记录 ({len(trade_pnls)} 笔)")
         print("=" * 60)
         for i, (pnl, ttype) in enumerate(trade_pnls[-20:]):
-            print(f"  [{i+1:3d}] {ttype:15s} PnL={pnl:+.2f} USDT")
+            print(f"  [{i + 1:3d}] {ttype:15s} PnL={pnl:+.2f} USDT")
         print()
 
     signal_counts = pd.Series(signals).value_counts().sort_index()

@@ -86,7 +86,7 @@ class HybridMeanRevMomentumStrategy(BaseStrategy):
         entry_price = 0.0
         entry_bar = 0
         highest_after_entry = 0.0
-        lowest_after_entry = float('inf')
+        lowest_after_entry = float("inf")
 
         min_idx = max(self.rsi_period, self.ma_period, self.atr_period)
 
@@ -120,7 +120,7 @@ class HybridMeanRevMomentumStrategy(BaseStrategy):
             elif position == -1:
                 if low[i] < lowest_after_entry:
                     lowest_after_entry = low[i]
-                if lowest_after_entry < float('inf'):
+                if lowest_after_entry < float("inf"):
                     atr_stop = lowest_after_entry + self.atr_multiplier * atr[i]
                     if price > atr_stop:
                         signals[i] = 0
@@ -142,9 +142,9 @@ class HybridMeanRevMomentumStrategy(BaseStrategy):
                 prev_rsi = rsi[i - 1]
 
                 # 做多：RSI 从超卖区回升 + 价格在短期均线上方（趋势确认）
-                long_cross = (prev_rsi < self.rsi_low and
-                              rsi[i] >= self.rsi_low and
-                              price > ema_fast[i])
+                long_cross = (
+                    prev_rsi < self.rsi_low and rsi[i] >= self.rsi_low and price > ema_fast[i]
+                )
                 if long_cross:
                     signals[i] = 2
                     position = 1
@@ -154,10 +154,12 @@ class HybridMeanRevMomentumStrategy(BaseStrategy):
                     continue
 
                 # 做空：RSI 从超买区回落 + 价格跌破短期均线（趋势确认）
-                short_cross = (self.enable_short and
-                               prev_rsi > self.rsi_high and
-                               rsi[i] <= self.rsi_high and
-                               price < ema_fast[i])
+                short_cross = (
+                    self.enable_short
+                    and prev_rsi > self.rsi_high
+                    and rsi[i] <= self.rsi_high
+                    and price < ema_fast[i]
+                )
                 if short_cross:
                     signals[i] = 3
                     position = -1

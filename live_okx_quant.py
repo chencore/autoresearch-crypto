@@ -35,6 +35,7 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 
 from dotenv import load_dotenv
+
 load_dotenv()
 
 import pandas as pd
@@ -45,8 +46,13 @@ from okx.Trade import TradeAPI
 from okx.MarketData import MarketAPI
 from okx.PublicData import PublicAPI
 
-from train_quant import (TrendStrategy, ScalpStrategy, HybridMeanRevMomentumStrategy,
-                          AdaptiveHybridStrategy, RegimeStrategy)
+from train_quant import (
+    TrendStrategy,
+    ScalpStrategy,
+    HybridMeanRevMomentumStrategy,
+    AdaptiveHybridStrategy,
+    RegimeStrategy,
+)
 
 LOG_DIR = "logs"
 os.makedirs(LOG_DIR, exist_ok=True)
@@ -55,8 +61,12 @@ LOG_FILE = os.path.join(LOG_DIR, "live_okx_log.txt")
 LOCK_FILE = os.path.join(LOG_DIR, "live_okx_quant.lock")
 
 INTERVAL_SECONDS_MAP = {
-    "1m": 60, "5m": 300, "15m": 900,
-    "1h": 3600, "4h": 14400, "1d": 86400,
+    "1m": 60,
+    "5m": 300,
+    "15m": 900,
+    "1h": 3600,
+    "4h": 14400,
+    "1d": 86400,
 }
 
 try:
@@ -114,10 +124,14 @@ def retry_on_exception(max_retries=3, delay=1.0, exceptions=(Exception,)):
                 except exceptions as e:
                     if attempt == max_retries - 1:
                         raise
-                    log_message(f"{func.__name__} 失败 (尝试 {attempt+1}/{max_retries}): {e}，{delay}s 后重试...")
+                    log_message(
+                        f"{func.__name__} 失败 (尝试 {attempt + 1}/{max_retries}): {e}，{delay}s 后重试..."
+                    )
                     time.sleep(delay)
             return None
+
         return wrapper
+
     return decorator
 
 
@@ -133,6 +147,7 @@ def align_next_wake_time(interval_seconds, offset_seconds=10):
 # ---------------------------------------------------------------------------
 # OKX API 初始化
 # ---------------------------------------------------------------------------
+
 
 def get_okx_credentials():
     """从环境变量读取 API 凭证"""
@@ -161,6 +176,7 @@ def init_okx_api(flag="1"):
 # ---------------------------------------------------------------------------
 # OKX API 封装
 # ---------------------------------------------------------------------------
+
 
 @retry_on_exception(max_retries=3, delay=1.0)
 def get_balance(account_api, ccy="USDT"):
@@ -234,16 +250,18 @@ def fetch_candles(market_api, inst_id, bar="5m", limit=300):
 
     records = []
     for c in candles:
-        records.append({
-            "timestamp": int(c[0]),
-            "open": float(c[1]),
-            "high": float(c[2]),
-            "low": float(c[3]),
-            "close": float(c[4]),
-            "volume": float(c[5]),
-            "quote_volume": float(c[6]),
-            "datetime": pd.to_datetime(int(c[0]), unit="ms"),
-        })
+        records.append(
+            {
+                "timestamp": int(c[0]),
+                "open": float(c[1]),
+                "high": float(c[2]),
+                "low": float(c[3]),
+                "close": float(c[4]),
+                "volume": float(c[5]),
+                "quote_volume": float(c[6]),
+                "datetime": pd.to_datetime(int(c[0]), unit="ms"),
+            }
+        )
 
     df = pd.DataFrame(records)
     return df
@@ -345,7 +363,9 @@ def place_limit_order(trade_api, inst_id, side, pos_side, sz, px, td_mode="cross
     )
     if resp.get("code") == "0":
         order_id = resp["data"][0].get("ordId")
-        log_message(f"限价单成功 [{side.upper()} {pos_side}] 订单ID: {order_id} 价格={px} 数量={sz}")
+        log_message(
+            f"限价单成功 [{side.upper()} {pos_side}] 订单ID: {order_id} 价格={px} 数量={sz}"
+        )
         return order_id
     else:
         log_message(f"限价单失败: {resp}")
@@ -356,11 +376,13 @@ def place_limit_order(trade_api, inst_id, side, pos_side, sz, px, td_mode="cross
 # 信号生成
 # ---------------------------------------------------------------------------
 
+
 def predict_signal(strategy, df, enable_short=False):
     """生成交易信号"""
     import inspect
+
     sig = inspect.signature(strategy.generate_signals)
-    if 'enable_short' in sig.parameters:
+    if "enable_short" in sig.parameters:
         signals = strategy.generate_signals(df, enable_short=enable_short)
     else:
         signals = strategy.generate_signals(df)
@@ -385,6 +407,7 @@ def predict_signal(strategy, df, enable_short=False):
 # ---------------------------------------------------------------------------
 # 价格/数量精度处理
 # ---------------------------------------------------------------------------
+
 
 def round_to_tick(price, tick_size):
     """将价格对齐到 tick_size，避免浮点精度问题"""
@@ -422,9 +445,22 @@ def compute_ioc_price(side, best_bid, best_ask, tick_size):
 # 交易执行
 # ---------------------------------------------------------------------------
 
-def execute_trade(signal_id, trade_api, account_api, inst_id, tick_sz, lot_sz,
-                  capital_per_trade, state, current_price, best_bid, best_ask,
-                  td_mode="cross", force_ioc=False):
+
+def execute_trade(
+    signal_id,
+    trade_api,
+    account_api,
+    inst_id,
+    tick_sz,
+    lot_sz,
+    capital_per_trade,
+    state,
+    current_price,
+    best_bid,
+    best_ask,
+    td_mode="cross",
+    force_ioc=False,
+):
     """
     根据信号执行交易（支持多空双向）
     signal_id: 0=平仓, 1=持有, 2=做多, 3=做空
@@ -491,29 +527,39 @@ def execute_trade(signal_id, trade_api, account_api, inst_id, tick_sz, lot_sz,
         # 平多仓（卖出平多）
         if strategy_size > 0:
             actual_position = get_position(account_api, inst_id)
-            sell_size = min(strategy_size, abs(actual_position)) if actual_position > 0 else strategy_size
+            sell_size = (
+                min(strategy_size, abs(actual_position)) if actual_position > 0 else strategy_size
+            )
             if sell_size > 0:
                 sell_size = round_to_size(sell_size, lot_sz)
             if sell_size > 0:
                 if close_as_maker:
                     order_price = compute_order_price("sell", best_bid, best_ask, tick_sz)
                     if order_price:
-                        order_id = place_limit_order(trade_api, inst_id, "sell", "long", sell_size, order_price, td_mode)
+                        order_id = place_limit_order(
+                            trade_api, inst_id, "sell", "long", sell_size, order_price, td_mode
+                        )
                     else:
                         order_id = None
                 else:
-                    order_id = place_market_order(trade_api, inst_id, "sell", "long", sell_size, td_mode)
+                    order_id = place_market_order(
+                        trade_api, inst_id, "sell", "long", sell_size, td_mode
+                    )
                     order_price = current_price
                 if order_id:
-                    trades.append({
-                        "time": datetime.now().isoformat(),
-                        "type": f"CLOSE_LONG_{close_type_str}",
-                        "instId": inst_id,
-                        "orderId": order_id,
-                        "size": sell_size,
-                        "price": order_price,
-                    })
-                    log_message(f"[平多{close_type_str}] pnl={pnl_pct*100:+.2f}% 下单卖出 size={sell_size:.8f} price={order_price}")
+                    trades.append(
+                        {
+                            "time": datetime.now().isoformat(),
+                            "type": f"CLOSE_LONG_{close_type_str}",
+                            "instId": inst_id,
+                            "orderId": order_id,
+                            "size": sell_size,
+                            "price": order_price,
+                        }
+                    )
+                    log_message(
+                        f"[平多{close_type_str}] pnl={pnl_pct * 100:+.2f}% 下单卖出 size={sell_size:.8f} price={order_price}"
+                    )
                 else:
                     log_message(f"[平多失败] {close_type_str}单未成交")
         state["position"] = 0
@@ -524,29 +570,39 @@ def execute_trade(signal_id, trade_api, account_api, inst_id, tick_sz, lot_sz,
         # 平空仓（买入平空）
         if strategy_size > 0:
             actual_position = get_position(account_api, inst_id)
-            close_size = min(strategy_size, abs(actual_position)) if actual_position < 0 else strategy_size
+            close_size = (
+                min(strategy_size, abs(actual_position)) if actual_position < 0 else strategy_size
+            )
             if close_size > 0:
                 close_size = round_to_size(close_size, lot_sz)
             if close_size > 0:
                 if close_as_maker:
                     order_price = compute_order_price("buy", best_bid, best_ask, tick_sz)
                     if order_price:
-                        order_id = place_limit_order(trade_api, inst_id, "buy", "short", close_size, order_price, td_mode)
+                        order_id = place_limit_order(
+                            trade_api, inst_id, "buy", "short", close_size, order_price, td_mode
+                        )
                     else:
                         order_id = None
                 else:
-                    order_id = place_market_order(trade_api, inst_id, "buy", "short", close_size, td_mode)
+                    order_id = place_market_order(
+                        trade_api, inst_id, "buy", "short", close_size, td_mode
+                    )
                     order_price = current_price
                 if order_id:
-                    trades.append({
-                        "time": datetime.now().isoformat(),
-                        "type": f"CLOSE_SHORT_{close_type_str}",
-                        "instId": inst_id,
-                        "orderId": order_id,
-                        "size": close_size,
-                        "price": order_price,
-                    })
-                    log_message(f"[平空{close_type_str}] pnl={pnl_pct*100:+.2f}% 下单买入 size={close_size:.8f} price={order_price}")
+                    trades.append(
+                        {
+                            "time": datetime.now().isoformat(),
+                            "type": f"CLOSE_SHORT_{close_type_str}",
+                            "instId": inst_id,
+                            "orderId": order_id,
+                            "size": close_size,
+                            "price": order_price,
+                        }
+                    )
+                    log_message(
+                        f"[平空{close_type_str}] pnl={pnl_pct * 100:+.2f}% 下单买入 size={close_size:.8f} price={order_price}"
+                    )
                 else:
                     log_message(f"[平空失败] {close_type_str}单未成交")
         state["position"] = 0
@@ -554,7 +610,9 @@ def execute_trade(signal_id, trade_api, account_api, inst_id, tick_sz, lot_sz,
         state["entry_bar"] = 0
 
     # --- 开新仓 ---
-    log_message(f"[交易] 检查开仓: target_pos={target_pos} state_position={state.get('position', 0)} force_ioc={force_ioc}")
+    log_message(
+        f"[交易] 检查开仓: target_pos={target_pos} state_position={state.get('position', 0)} force_ioc={force_ioc}"
+    )
     if target_pos == 1 and state.get("position", 0) == 0:
         if current_price <= 0:
             log_message("[跳过开多] 价格无效")
@@ -565,42 +623,54 @@ def execute_trade(signal_id, trade_api, account_api, inst_id, tick_sz, lot_sz,
             if order_size > 0:
                 notional = order_size * current_price
                 if force_ioc:
-                    order_id = place_market_order(trade_api, inst_id, "buy", "long", order_size, td_mode)
+                    order_id = place_market_order(
+                        trade_api, inst_id, "buy", "long", order_size, td_mode
+                    )
                     if order_id:
-                        trades.append({
-                            "time": datetime.now().isoformat(),
-                            "type": "BUY_OPEN_IOC_FALLBACK",
-                            "instId": inst_id,
-                            "orderId": order_id,
-                            "size": order_size,
-                            "price": current_price,
-                        })
+                        trades.append(
+                            {
+                                "time": datetime.now().isoformat(),
+                                "type": "BUY_OPEN_IOC_FALLBACK",
+                                "instId": inst_id,
+                                "orderId": order_id,
+                                "size": order_size,
+                                "price": current_price,
+                            }
+                        )
                         state["position"] = 1
                         state["strategy_size"] = order_size
                         state["entry_price"] = current_price
                         state["entry_bar"] = state.get("bar_count", 0)
-                        log_message(f"[开多市价兜底] size={order_size:.8f} price={current_price:.2f}")
+                        log_message(
+                            f"[开多市价兜底] size={order_size:.8f} price={current_price:.2f}"
+                        )
                     else:
                         log_message("[开多市价失败] 兜底单也未成交")
                 else:
                     order_price = compute_order_price("buy", best_bid, best_ask, tick_sz)
                     if order_price:
-                        order_id = place_limit_order(trade_api, inst_id, "buy", "long", order_size, order_price, td_mode)
+                        order_id = place_limit_order(
+                            trade_api, inst_id, "buy", "long", order_size, order_price, td_mode
+                        )
                         if order_id:
-                            trades.append({
-                                "time": datetime.now().isoformat(),
-                                "type": "BUY_OPEN_MAKER",
-                                "instId": inst_id,
-                                "orderId": order_id,
-                                "size": order_size,
-                                "price": order_price,
-                            })
+                            trades.append(
+                                {
+                                    "time": datetime.now().isoformat(),
+                                    "type": "BUY_OPEN_MAKER",
+                                    "instId": inst_id,
+                                    "orderId": order_id,
+                                    "size": order_size,
+                                    "price": order_price,
+                                }
+                            )
                             state["pending_open"] = True
                             state["pending_order_id"] = order_id
                             state["pending_open_signal"] = 2
                             state["pending_open_price"] = current_price
                             state["pending_open_size"] = order_size
-                            log_message(f"[开多Maker] 挂单买入 size={order_size:.8f} price={order_price:.2f} notional={notional:.2f}")
+                            log_message(
+                                f"[开多Maker] 挂单买入 size={order_size:.8f} price={order_price:.2f} notional={notional:.2f}"
+                            )
                         else:
                             log_message("[开多失败] 限价单被拒绝")
                     else:
@@ -616,42 +686,54 @@ def execute_trade(signal_id, trade_api, account_api, inst_id, tick_sz, lot_sz,
             if order_size > 0:
                 notional = order_size * current_price
                 if force_ioc:
-                    order_id = place_market_order(trade_api, inst_id, "sell", "short", order_size, td_mode)
+                    order_id = place_market_order(
+                        trade_api, inst_id, "sell", "short", order_size, td_mode
+                    )
                     if order_id:
-                        trades.append({
-                            "time": datetime.now().isoformat(),
-                            "type": "SELL_SHORT_IOC_FALLBACK",
-                            "instId": inst_id,
-                            "orderId": order_id,
-                            "size": order_size,
-                            "price": current_price,
-                        })
+                        trades.append(
+                            {
+                                "time": datetime.now().isoformat(),
+                                "type": "SELL_SHORT_IOC_FALLBACK",
+                                "instId": inst_id,
+                                "orderId": order_id,
+                                "size": order_size,
+                                "price": current_price,
+                            }
+                        )
                         state["position"] = -1
                         state["strategy_size"] = order_size
                         state["entry_price"] = current_price
                         state["entry_bar"] = state.get("bar_count", 0)
-                        log_message(f"[开空市价兜底] size={order_size:.8f} price={current_price:.2f}")
+                        log_message(
+                            f"[开空市价兜底] size={order_size:.8f} price={current_price:.2f}"
+                        )
                     else:
                         log_message("[开空市价失败] 兜底单也未成交")
                 else:
                     order_price = compute_order_price("sell", best_bid, best_ask, tick_sz)
                     if order_price:
-                        order_id = place_limit_order(trade_api, inst_id, "sell", "short", order_size, order_price, td_mode)
+                        order_id = place_limit_order(
+                            trade_api, inst_id, "sell", "short", order_size, order_price, td_mode
+                        )
                         if order_id:
-                            trades.append({
-                                "time": datetime.now().isoformat(),
-                                "type": "SELL_SHORT_MAKER",
-                                "instId": inst_id,
-                                "orderId": order_id,
-                                "size": order_size,
-                                "price": order_price,
-                            })
+                            trades.append(
+                                {
+                                    "time": datetime.now().isoformat(),
+                                    "type": "SELL_SHORT_MAKER",
+                                    "instId": inst_id,
+                                    "orderId": order_id,
+                                    "size": order_size,
+                                    "price": order_price,
+                                }
+                            )
                             state["pending_open"] = True
                             state["pending_order_id"] = order_id
                             state["pending_open_signal"] = 3
                             state["pending_open_price"] = current_price
                             state["pending_open_size"] = order_size
-                            log_message(f"[开空Maker] 挂单卖出 size={order_size:.8f} price={order_price:.2f} notional={notional:.2f}")
+                            log_message(
+                                f"[开空Maker] 挂单卖出 size={order_size:.8f} price={order_price:.2f} notional={notional:.2f}"
+                            )
                         else:
                             log_message("[开空失败] 限价单被拒绝")
                     else:
@@ -690,7 +772,7 @@ def manage_tp_order(trade_api, inst_id, tick_sz, lot_sz, strategy, state, td_mod
         return state
 
     # 计算止盈价格和方向
-    tp_pct = getattr(strategy, 'take_profit_pct', 0.02)
+    tp_pct = getattr(strategy, "take_profit_pct", 0.02)
     if pos == 1:
         tp_price = round_to_tick(entry_price * (1 + tp_pct), tick_sz)
         tp_side = "sell"
@@ -718,12 +800,16 @@ def manage_tp_order(trade_api, inst_id, tick_sz, lot_sz, strategy, state, td_mod
         return state
 
     # 挂止盈限价单 (Maker)
-    order_id = place_limit_order(trade_api, inst_id, tp_side, tp_pos_side, order_size, tp_price, td_mode)
+    order_id = place_limit_order(
+        trade_api, inst_id, tp_side, tp_pos_side, order_size, tp_price, td_mode
+    )
     if order_id:
         state["tp_order_id"] = order_id
         state["tp_price"] = tp_price
         state["tp_side"] = tp_side
-        log_message(f"[TP挂单] {tp_side.upper()} {tp_pos_side} size={order_size:.8f} @ {tp_price:.2f} (入场={entry_price:.2f}, TP={tp_pct*100:.1f}%)")
+        log_message(
+            f"[TP挂单] {tp_side.upper()} {tp_pos_side} size={order_size:.8f} @ {tp_price:.2f} (入场={entry_price:.2f}, TP={tp_pct * 100:.1f}%)"
+        )
 
     return state
 
@@ -755,11 +841,17 @@ def check_stop_loss(state, current_price, stop_loss_pct=0.03, max_hold_bars=48):
     if pos == 1:
         # 多头止损：价格下跌超过阈值
         if entry_price > 0 and (entry_price - current_price) / entry_price >= stop_loss_pct:
-            return True, f"多头止损: 跌幅 {(entry_price - current_price) / entry_price * 100:.2f}% >= {stop_loss_pct * 100:.0f}%"
+            return (
+                True,
+                f"多头止损: 跌幅 {(entry_price - current_price) / entry_price * 100:.2f}% >= {stop_loss_pct * 100:.0f}%",
+            )
     elif pos == -1:
         # 空头止损：价格上涨超过阈值
         if entry_price > 0 and (current_price - entry_price) / entry_price >= stop_loss_pct:
-            return True, f"空头止损: 涨幅 {(current_price - entry_price) / entry_price * 100:.2f}% >= {stop_loss_pct * 100:.0f}%"
+            return (
+                True,
+                f"空头止损: 涨幅 {(current_price - entry_price) / entry_price * 100:.2f}% >= {stop_loss_pct * 100:.0f}%",
+            )
 
     if current_bar - entry_bar >= max_hold_bars:
         pos_name = "多头" if pos == 1 else "空头"
@@ -768,8 +860,20 @@ def check_stop_loss(state, current_price, stop_loss_pct=0.03, max_hold_bars=48):
     return False, ""
 
 
-def force_close(trade_api, account_api, inst_id, state, current_price,
-                best_bid, best_ask, tick_sz, lot_sz, reason, use_maker=False, td_mode="cross"):
+def force_close(
+    trade_api,
+    account_api,
+    inst_id,
+    state,
+    current_price,
+    best_bid,
+    best_ask,
+    tick_sz,
+    lot_sz,
+    reason,
+    use_maker=False,
+    td_mode="cross",
+):
     """
     强制平仓。
     use_maker=False: 市价单 (Taker) -- 止损场景，必须保证成交
@@ -785,7 +889,9 @@ def force_close(trade_api, account_api, inst_id, state, current_price,
     cancel_all_orders(trade_api, inst_id)
 
     actual_position = get_position(account_api, inst_id)
-    close_size = min(strategy_size, abs(actual_position)) if abs(actual_position) > 0 else strategy_size
+    close_size = (
+        min(strategy_size, abs(actual_position)) if abs(actual_position) > 0 else strategy_size
+    )
     if close_size > 0:
         close_size = round_to_size(close_size, lot_sz)
     if close_size <= 0:
@@ -808,7 +914,9 @@ def force_close(trade_api, account_api, inst_id, state, current_price,
     if use_maker:
         order_price = compute_order_price(side, best_bid, best_ask, tick_sz)
         if order_price:
-            order_id = place_limit_order(trade_api, inst_id, side, pos_side, close_size, order_price, td_mode)
+            order_id = place_limit_order(
+                trade_api, inst_id, side, pos_side, close_size, order_price, td_mode
+            )
         else:
             order_id = None
         fee_label = "Maker"
@@ -820,15 +928,17 @@ def force_close(trade_api, account_api, inst_id, state, current_price,
     if order_id:
         trades = state.get("trades", [])
         pos_name = "多头" if pos == 1 else "空头"
-        trades.append({
-            "time": datetime.now().isoformat(),
-            "type": f"FORCE_CLOSE_{fee_label}",
-            "instId": inst_id,
-            "orderId": order_id,
-            "size": close_size,
-            "price": order_price,
-            "reason": reason,
-        })
+        trades.append(
+            {
+                "time": datetime.now().isoformat(),
+                "type": f"FORCE_CLOSE_{fee_label}",
+                "instId": inst_id,
+                "orderId": order_id,
+                "size": close_size,
+                "price": order_price,
+                "reason": reason,
+            }
+        )
         state["trades"] = trades
         state["position"] = 0
         state["strategy_size"] = 0.0
@@ -837,7 +947,9 @@ def force_close(trade_api, account_api, inst_id, state, current_price,
         state["tp_order_id"] = None
         state["tp_price"] = 0.0
         state["tp_side"] = None
-        log_message(f"[强制平仓-{fee_label}] {reason}，{pos_name}{side} {close_size:.8f} @ {order_price}")
+        log_message(
+            f"[强制平仓-{fee_label}] {reason}，{pos_name}{side} {close_size:.8f} @ {order_price}"
+        )
 
     state["last_update"] = datetime.now().isoformat()
     return state
@@ -880,7 +992,7 @@ def print_status(account_api, inst_id, state, leverage=1.0):
     log_message(f"当前信号: {signal_str}")
     log_message(f"持仓状态: {pos_str}")
     if state.get("pending_open"):
-        pending_dir = "做多" if state.get('pending_open_signal') == 2 else "做空"
+        pending_dir = "做多" if state.get("pending_open_signal") == 2 else "做空"
         log_message(f"挂单方向: {pending_dir}")
         log_message(f"挂单价格: {state.get('pending_open_price', 0):.2f}")
     log_message(f"合约持仓: {position:.6f} | 杠杆: {leverage}x")
@@ -896,15 +1008,31 @@ def print_status(account_api, inst_id, state, leverage=1.0):
 # 主程序
 # ---------------------------------------------------------------------------
 
+
 def main():
     lock_fd = acquire_lock()
     parser = argparse.ArgumentParser(description="OKX Agent Trade Kit 永续合约混合费率实盘交易")
-    parser.add_argument("--symbol", type=str, default="BTC-USDT-SWAP", help="交易对，如 BTC-USDT-SWAP, ETH-USDT-SWAP")
-    parser.add_argument("--interval", type=str, default="5m", help="K线周期: 1m, 5m, 15m, 1H, 4H, 1D")
-    parser.add_argument("--checkpoint", type=str, default="checkpoints/quant_model.pt", help="策略参数路径")
+    parser.add_argument(
+        "--symbol",
+        type=str,
+        default="BTC-USDT-SWAP",
+        help="交易对，如 BTC-USDT-SWAP, ETH-USDT-SWAP",
+    )
+    parser.add_argument(
+        "--interval", type=str, default="5m", help="K线周期: 1m, 5m, 15m, 1H, 4H, 1D"
+    )
+    parser.add_argument(
+        "--checkpoint", type=str, default="checkpoints/quant_model.pt", help="策略参数路径"
+    )
     parser.add_argument("--capital", type=float, default=100.0, help="每次交易保证金（USDT）")
     parser.add_argument("--leverage", type=float, default=1.0, help="杠杆倍数")
-    parser.add_argument("--margin-mode", type=str, default="cross", choices=["cross", "isolated"], help="保证金模式: cross(全仓) / isolated(逐仓)")
+    parser.add_argument(
+        "--margin-mode",
+        type=str,
+        default="cross",
+        choices=["cross", "isolated"],
+        help="保证金模式: cross(全仓) / isolated(逐仓)",
+    )
     parser.add_argument("--demo", action="store_true", help="Demo Trading 模拟盘（默认）")
     parser.add_argument("--live", action="store_true", help="实盘交易（真钱！）")
     parser.add_argument("--once", action="store_true", help="只运行一次然后退出")
@@ -962,17 +1090,21 @@ def main():
             session_end=params.get("session_end", 23),
             rsi_period=params.get("rsi_period", 14),
         )
-        active_indicators = [k for k in ["use_volume_filter", "use_rsi_entry",
-                                          "use_trend_align", "use_session_filter"]
-                             if getattr(strategy, k)]
+        active_indicators = [
+            k
+            for k in ["use_volume_filter", "use_rsi_entry", "use_trend_align", "use_session_filter"]
+            if getattr(strategy, k)
+        ]
         indicators_str = ", ".join(active_indicators) if active_indicators else "无"
         session_str = ""
         if strategy.use_session_filter:
             session_str = f", session={strategy.session_start}-{strategy.session_end} UTC"
         log_message("策略模式: ScalpStrategy (高频剥头皮)")
-        log_message(f"参数: w={strategy.window}, std={strategy.std_dev}, "
-                    f"TP={strategy.take_profit_pct*100:.1f}%, SL={strategy.stop_loss_pct*100:.1f}%, "
-                    f"hold={strategy.max_hold_bars}, 指标=[{indicators_str}]{session_str}")
+        log_message(
+            f"参数: w={strategy.window}, std={strategy.std_dev}, "
+            f"TP={strategy.take_profit_pct * 100:.1f}%, SL={strategy.stop_loss_pct * 100:.1f}%, "
+            f"hold={strategy.max_hold_bars}, 指标=[{indicators_str}]{session_str}"
+        )
     elif strategy_type == "hybrid_mm":
         strategy = HybridMeanRevMomentumStrategy(
             rsi_period=params.get("rsi_period", 14),
@@ -985,8 +1117,10 @@ def main():
             enable_short=params.get("enable_short", True),
         )
         log_message("策略模式: HybridMeanRevMomentumStrategy (混合均值回归+动量)")
-        log_message(f"参数: RSI=({strategy.rsi_low},{strategy.rsi_high}), MA={strategy.ma_period}, "
-                    f"ATR={strategy.atr_multiplier}, hold={strategy.max_hold_bars}, short={strategy.enable_short}")
+        log_message(
+            f"参数: RSI=({strategy.rsi_low},{strategy.rsi_high}), MA={strategy.ma_period}, "
+            f"ATR={strategy.atr_multiplier}, hold={strategy.max_hold_bars}, short={strategy.enable_short}"
+        )
     elif strategy_type == "adaptive":
         strategy = AdaptiveHybridStrategy(
             rsi_period=params.get("rsi_period", 14),
@@ -1003,8 +1137,10 @@ def main():
             enable_short=params.get("enable_short", True),
         )
         log_message("策略模式: AdaptiveHybrid (ADX判市 + RSI均值回归/EMA趋势跟随)")
-        log_message(f"参数: RSI=({strategy.rsi_low},{strategy.rsi_high}), trendL={strategy.trend_long_ma}, "
-                    f"ADX_th={strategy.adx_threshold}, ATR={strategy.atr_multiplier}, hold={strategy.max_hold_bars}")
+        log_message(
+            f"参数: RSI=({strategy.rsi_low},{strategy.rsi_high}), trendL={strategy.trend_long_ma}, "
+            f"ADX_th={strategy.adx_threshold}, ATR={strategy.atr_multiplier}, hold={strategy.max_hold_bars}"
+        )
     elif strategy_type == "regime":
         ranging_params = params.get("ranging_params", {})
         trending_params = params.get("trending_params", {})
@@ -1017,9 +1153,15 @@ def main():
         )
         rp = strategy.ranging
         tp = strategy.trending
-        log_message(f"策略模式: Regime (动态ADX切换: ADX<={adx_threshold}=RSI均值回归, ADX>{adx_threshold}=EMA趋势跟随)")
-        log_message(f"  震荡市: RSI({rp.rsi_low},{rp.rsi_high}) MA={rp.ma_period} ATRx{rp.atr_multiplier}")
-        log_message(f"  趋势市: longMA={tp.long_ma_period} pullMA={tp.pull_ma_period} ATRx{tp.atr_multiplier}")
+        log_message(
+            f"策略模式: Regime (动态ADX切换: ADX<={adx_threshold}=RSI均值回归, ADX>{adx_threshold}=EMA趋势跟随)"
+        )
+        log_message(
+            f"  震荡市: RSI({rp.rsi_low},{rp.rsi_high}) MA={rp.ma_period} ATRx{rp.atr_multiplier}"
+        )
+        log_message(
+            f"  趋势市: longMA={tp.long_ma_period} pullMA={tp.pull_ma_period} ATRx{tp.atr_multiplier}"
+        )
     else:
         strategy = TrendStrategy(
             window=params.get("window", 20),
@@ -1060,12 +1202,33 @@ def main():
             use_resonance=params.get("use_resonance", False),
             resonance_min_score=params.get("resonance_min_score", 3),
         )
-        active_indicators = [k for k in ["use_adx", "use_volume", "use_macd", "use_ma_cross", "use_mfi", "use_stochastic", "use_rsi_divergence", "use_macd_divergence", "use_trend_filter", "use_obv_trend", "use_volume_spike", "use_vwap", "use_htf_macd", "use_resonance"] if getattr(strategy, k)]
+        active_indicators = [
+            k
+            for k in [
+                "use_adx",
+                "use_volume",
+                "use_macd",
+                "use_ma_cross",
+                "use_mfi",
+                "use_stochastic",
+                "use_rsi_divergence",
+                "use_macd_divergence",
+                "use_trend_filter",
+                "use_obv_trend",
+                "use_volume_spike",
+                "use_vwap",
+                "use_htf_macd",
+                "use_resonance",
+            ]
+            if getattr(strategy, k)
+        ]
         indicators_str = ", ".join(active_indicators) if active_indicators else "无"
         log_message("策略模式: TrendStrategy")
-        log_message(f"参数: 周期={strategy.window}, 标准差={strategy.std_dev}, "
-                    f"ATR止损={strategy.atr_multiplier}, 最大持仓={strategy.max_hold_bars}根K线, "
-                    f"RSI阈值={strategy.rsi_threshold}, 活跃指标=[{indicators_str}]")
+        log_message(
+            f"参数: 周期={strategy.window}, 标准差={strategy.std_dev}, "
+            f"ATR止损={strategy.atr_multiplier}, 最大持仓={strategy.max_hold_bars}根K线, "
+            f"RSI阈值={strategy.rsi_threshold}, 活跃指标=[{indicators_str}]"
+        )
 
     # 初始化 OKX API
     account_api, trade_api, market_api, public_api = init_okx_api(flag=flag)
@@ -1080,7 +1243,9 @@ def main():
     lot_sz = inst_info["lotSz"]
     min_sz = inst_info["minSz"]
     ct_val = inst_info.get("ctVal", 1)
-    log_message(f"交易对信息: {args.symbol}, Tick: {tick_sz}, Lot: {lot_sz}, Min: {min_sz}, CtVal: {ct_val}")
+    log_message(
+        f"交易对信息: {args.symbol}, Tick: {tick_sz}, Lot: {lot_sz}, Min: {min_sz}, CtVal: {ct_val}"
+    )
 
     # 加载或初始化状态
     state = load_state()
@@ -1112,8 +1277,10 @@ def main():
             "pending_open_price": 0.0,
             "pending_open_size": 0.0,
         }
-        log_message(f"初始化账户，保证金: {args.capital:.2f} USDT, 杠杆: {args.leverage}x, "
-                    f"实际名义价值: {args.capital * args.leverage:.2f} USDT")
+        log_message(
+            f"初始化账户，保证金: {args.capital:.2f} USDT, 杠杆: {args.leverage}x, "
+            f"实际名义价值: {args.capital * args.leverage:.2f} USDT"
+        )
     else:
         log_message("恢复上一次交易状态")
         # 兼容旧状态文件
@@ -1158,7 +1325,9 @@ def main():
                         if abs(tp_pnl) > 0.5:
                             log_message(f"[TP成交] 止盈限价单已成交! 盈亏={tp_pnl:+.2f}%")
                         else:
-                            log_message(f"[持仓同步] 实际持仓=0, state={stale_pos}, PnL={tp_pnl:+.2f}% -> 可能挂单未成交，重置状态")
+                            log_message(
+                                f"[持仓同步] 实际持仓=0, state={stale_pos}, PnL={tp_pnl:+.2f}% -> 可能挂单未成交，重置状态"
+                            )
                     else:
                         log_message(f"[持仓同步] 实际持仓=0, state={stale_pos} -> 重置状态")
                     state["position"] = 0
@@ -1175,7 +1344,9 @@ def main():
                     state["position"] = pos_dir
                     state["strategy_size"] = abs(actual_pos)
                     if state.get("entry_price", 0) == 0:
-                        state["entry_price"] = state.get("pending_open_price", state.get("last_price", 0))
+                        state["entry_price"] = state.get(
+                            "pending_open_price", state.get("last_price", 0)
+                        )
                     if state.get("entry_bar", 0) == 0:
                         state["entry_bar"] = state.get("bar_count", 0) - 1
                     state["pending_open"] = False
@@ -1193,13 +1364,16 @@ def main():
                     state["last_price"] = current_price
 
                     log_message(f"K线时间: {current_time} | 价格: {current_price:.2f}")
-                    log_message(f"布林带: 上轨={bb_info['upper']:.2f} 中轨={bb_info['mid']:.2f} 下轨={bb_info['lower']:.2f}")
+                    log_message(
+                        f"布林带: 上轨={bb_info['upper']:.2f} 中轨={bb_info['mid']:.2f} 下轨={bb_info['lower']:.2f}"
+                    )
 
                     state["bar_count"] = state.get("bar_count", 0) + 1
 
                     # 3. 检查止损/时间退出
                     should_exit, exit_reason = check_stop_loss(
-                        state, current_price,
+                        state,
+                        current_price,
                         stop_loss_pct=args.stop_loss,
                         max_hold_bars=strategy.max_hold_bars,
                     )
@@ -1216,9 +1390,18 @@ def main():
                         is_timeout = "时间退出" in exit_reason
                         state["pending_open"] = False
                         state = force_close(
-                            trade_api, account_api, args.symbol, state,
-                            current_price, best_bid, best_ask, tick_sz, lot_sz,
-                            exit_reason, use_maker=is_timeout, td_mode=args.margin_mode,
+                            trade_api,
+                            account_api,
+                            args.symbol,
+                            state,
+                            current_price,
+                            best_bid,
+                            best_ask,
+                            tick_sz,
+                            lot_sz,
+                            exit_reason,
+                            use_maker=is_timeout,
+                            td_mode=args.margin_mode,
                         )
                     else:
                         # === 检查 pending_open 状态 ===
@@ -1226,22 +1409,42 @@ def main():
                         pending_order_id = state.get("pending_order_id")
                         if pending and pending_order_id:
                             # 检查挂单是否成交
-                            order_state, fill_sz, avg_px = get_order_status(trade_api, args.symbol, pending_order_id)
+                            order_state, fill_sz, avg_px = get_order_status(
+                                trade_api, args.symbol, pending_order_id
+                            )
                             if order_state == "filled":
                                 # Maker 挂单成交了!
                                 pos_dir = 1 if fill_sz > 0 else -1  # 根据 pending 信号判断方向
                                 pending_signal = state.get("pending_open_signal", 2)
                                 pos_dir = 1 if pending_signal == 2 else -1
                                 state["position"] = pos_dir
-                                state["strategy_size"] = abs(fill_sz) if fill_sz != 0 else state.get("pending_open_size", 0)
-                                state["entry_price"] = avg_px if avg_px > 0 else state.get("pending_open_price", current_price)
+                                state["strategy_size"] = (
+                                    abs(fill_sz)
+                                    if fill_sz != 0
+                                    else state.get("pending_open_size", 0)
+                                )
+                                state["entry_price"] = (
+                                    avg_px
+                                    if avg_px > 0
+                                    else state.get("pending_open_price", current_price)
+                                )
                                 state["entry_bar"] = state.get("bar_count", 0) - 1
                                 state["pending_open"] = False
                                 state["pending_order_id"] = None
                                 pos_name = "多" if pos_dir == 1 else "空"
-                                log_message(f"[Maker成交] 入场成功 {pos_name} @{state['entry_price']:.2f} size={state['strategy_size']:.8f}")
+                                log_message(
+                                    f"[Maker成交] 入场成功 {pos_name} @{state['entry_price']:.2f} size={state['strategy_size']:.8f}"
+                                )
                                 # 挂 TP 单
-                                state = manage_tp_order(trade_api, args.symbol, tick_sz, lot_sz, strategy, state, td_mode=args.margin_mode)
+                                state = manage_tp_order(
+                                    trade_api,
+                                    args.symbol,
+                                    tick_sz,
+                                    lot_sz,
+                                    strategy,
+                                    state,
+                                    td_mode=args.margin_mode,
+                                )
                             elif order_state in ("live", "partially_filled"):
                                 # Maker 没成交完 -> IOC 兜底
                                 pending_signal = state.get("pending_open_signal", 0)
@@ -1250,23 +1453,50 @@ def main():
                                 state["pending_order_id"] = None
 
                                 if signal_id == pending_signal:
-                                    log_message(f"[市价兜底] Maker未成交，切换市价单 signal={signal_id}")
+                                    log_message(
+                                        f"[市价兜底] Maker未成交，切换市价单 signal={signal_id}"
+                                    )
                                     state = execute_trade(
-                                        signal_id, trade_api, account_api, args.symbol,
-                                        tick_sz, lot_sz,
-                                        args.capital * args.leverage, state, current_price,
-                                        best_bid, best_ask,
-                                        td_mode=args.margin_mode, force_ioc=True,
+                                        signal_id,
+                                        trade_api,
+                                        account_api,
+                                        args.symbol,
+                                        tick_sz,
+                                        lot_sz,
+                                        args.capital * args.leverage,
+                                        state,
+                                        current_price,
+                                        best_bid,
+                                        best_ask,
+                                        td_mode=args.margin_mode,
+                                        force_ioc=True,
                                     )
                                     if state.get("position", 0) != 0:
-                                        state = manage_tp_order(trade_api, args.symbol, tick_sz, lot_sz, strategy, state, td_mode=args.margin_mode)
+                                        state = manage_tp_order(
+                                            trade_api,
+                                            args.symbol,
+                                            tick_sz,
+                                            lot_sz,
+                                            strategy,
+                                            state,
+                                            td_mode=args.margin_mode,
+                                        )
                                 else:
-                                    log_message(f"[信号变化] 挂单期间信号改变 ({pending_signal}->{signal_id})，取消挂单")
+                                    log_message(
+                                        f"[信号变化] 挂单期间信号改变 ({pending_signal}->{signal_id})，取消挂单"
+                                    )
                                     state = execute_trade(
-                                        signal_id, trade_api, account_api, args.symbol,
-                                        tick_sz, lot_sz,
-                                        args.capital * args.leverage, state, current_price,
-                                        best_bid, best_ask,
+                                        signal_id,
+                                        trade_api,
+                                        account_api,
+                                        args.symbol,
+                                        tick_sz,
+                                        lot_sz,
+                                        args.capital * args.leverage,
+                                        state,
+                                        current_price,
+                                        best_bid,
+                                        best_ask,
                                         td_mode=args.margin_mode,
                                     )
                             elif order_state == "canceled":
@@ -1276,20 +1506,37 @@ def main():
                                 log_message("[挂单已取消] 外部取消或已处理")
                                 # 重新执行当前信号
                                 state = execute_trade(
-                                    signal_id, trade_api, account_api, args.symbol,
-                                    tick_sz, lot_sz,
-                                    args.capital * args.leverage, state, current_price,
-                                    best_bid, best_ask,
+                                    signal_id,
+                                    trade_api,
+                                    account_api,
+                                    args.symbol,
+                                    tick_sz,
+                                    lot_sz,
+                                    args.capital * args.leverage,
+                                    state,
+                                    current_price,
+                                    best_bid,
+                                    best_ask,
                                     td_mode=args.margin_mode,
                                 )
                                 if state.get("position", 0) != 0:
-                                    state = manage_tp_order(trade_api, args.symbol, tick_sz, lot_sz, strategy, state, td_mode=args.margin_mode)
+                                    state = manage_tp_order(
+                                        trade_api,
+                                        args.symbol,
+                                        tick_sz,
+                                        lot_sz,
+                                        strategy,
+                                        state,
+                                        td_mode=args.margin_mode,
+                                    )
                         else:
                             # === 正常流程 (无 pending) ===
                             # 检查 TP 单是否已成交
                             if state.get("position", 0) != 0 and state.get("tp_order_id"):
                                 tp_order_id = state["tp_order_id"]
-                                tp_state, _, _ = get_order_status(trade_api, args.symbol, tp_order_id)
+                                tp_state, _, _ = get_order_status(
+                                    trade_api, args.symbol, tp_order_id
+                                )
                                 if tp_state == "filled":
                                     entry_p = state.get("entry_price", 0)
                                     pos_dir = state.get("position", 0)
@@ -1300,9 +1547,13 @@ def main():
                                     else:
                                         tp_pnl = 0
                                     if abs(tp_pnl) > 0.5:
-                                        log_message(f"[TP成交] 止盈限价单已成交! 盈亏={tp_pnl:+.2f}%")
+                                        log_message(
+                                            f"[TP成交] 止盈限价单已成交! 盈亏={tp_pnl:+.2f}%"
+                                        )
                                     else:
-                                        log_message(f"[状态修正] 持仓已归零但PnL={tp_pnl:+.2f}%异常，重置状态")
+                                        log_message(
+                                            f"[状态修正] 持仓已归零但PnL={tp_pnl:+.2f}%异常，重置状态"
+                                        )
                                     state["position"] = 0
                                     state["strategy_size"] = 0.0
                                     state["entry_bar"] = 0
@@ -1315,10 +1566,17 @@ def main():
 
                             # 正常交易 (先尝试 Maker)
                             state = execute_trade(
-                                signal_id, trade_api, account_api, args.symbol,
-                                tick_sz, lot_sz,
-                                args.capital * args.leverage, state, current_price,
-                                best_bid, best_ask,
+                                signal_id,
+                                trade_api,
+                                account_api,
+                                args.symbol,
+                                tick_sz,
+                                lot_sz,
+                                args.capital * args.leverage,
+                                state,
+                                current_price,
+                                best_bid,
+                                best_ask,
                                 td_mode=args.margin_mode,
                             )
 
@@ -1326,7 +1584,15 @@ def main():
                             if state.get("pending_open"):
                                 log_message("[挂单等待] Maker单已挂出，下轮检查成交")
                             elif state.get("position", 0) != 0:
-                                state = manage_tp_order(trade_api, args.symbol, tick_sz, lot_sz, strategy, state, td_mode=args.margin_mode)
+                                state = manage_tp_order(
+                                    trade_api,
+                                    args.symbol,
+                                    tick_sz,
+                                    lot_sz,
+                                    strategy,
+                                    state,
+                                    td_mode=args.margin_mode,
+                                )
 
                     # 6. 打印状态
                     print_status(account_api, args.symbol, state, leverage=args.leverage)
@@ -1335,6 +1601,7 @@ def main():
             except Exception as e:
                 log_message(f"本轮执行异常: {e}")
                 import traceback
+
                 log_message(traceback.format_exc())
 
             if args.once:
@@ -1344,7 +1611,9 @@ def main():
             next_wake = align_next_wake_time(interval_seconds, offset_seconds=15)
             sleep_seconds = (next_wake - datetime.now()).total_seconds()
             if sleep_seconds > 0:
-                log_message(f"下次运行时间: {next_wake.strftime('%H:%M:%S')}，休眠 {sleep_seconds:.0f} 秒")
+                log_message(
+                    f"下次运行时间: {next_wake.strftime('%H:%M:%S')}，休眠 {sleep_seconds:.0f} 秒"
+                )
                 time.sleep(sleep_seconds)
             else:
                 log_message("处理耗时较长，立即进入下一轮")

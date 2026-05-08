@@ -40,13 +40,14 @@ DEFAULT_START_DAYS = 60  # 默认下载60天数据
 # 技术指标计算
 # ---------------------------------------------------------------------------
 
+
 def _ema(series, window):
     """计算指数移动平均"""
     alpha = 2 / (window + 1)
     ema = np.zeros(len(series), dtype=np.float64)
     ema[0] = series[0]
     for i in range(1, len(series)):
-        ema[i] = alpha * series[i] + (1 - alpha) * ema[i-1]
+        ema[i] = alpha * series[i] + (1 - alpha) * ema[i - 1]
     return ema.astype(np.float32)
 
 
@@ -54,8 +55,8 @@ def _rolling_mean(series, window):
     """计算滚动平均"""
     mean = np.zeros(len(series), dtype=np.float32)
     for i in range(window - 1, len(series)):
-        mean[i] = np.mean(series[max(0, i-window+1):i+1])
-    mean[:window-1] = mean[window-1]
+        mean[i] = np.mean(series[max(0, i - window + 1) : i + 1])
+    mean[: window - 1] = mean[window - 1]
     return mean
 
 
@@ -63,8 +64,8 @@ def _rolling_std(series, window):
     """计算滚动标准差"""
     std = np.zeros(len(series), dtype=np.float32)
     for i in range(window - 1, len(series)):
-        std[i] = np.std(series[max(0, i-window+1):i+1])
-    std[:window-1] = std[window-1]
+        std[i] = np.std(series[max(0, i - window + 1) : i + 1])
+    std[: window - 1] = std[window - 1]
     return std
 
 
@@ -83,7 +84,7 @@ def compute_features(df):
     # 波动率 (滚动标准差, 窗口=12)
     volatility = np.zeros(n, dtype=np.float32)
     for i in range(12, n):
-        volatility[i] = np.std(returns[max(0, i-12):i])
+        volatility[i] = np.std(returns[max(0, i - 12) : i])
     volatility[:12] = volatility[12]
 
     # RSI (相对强弱指数, 窗口=14)
@@ -95,8 +96,8 @@ def compute_features(df):
     avg_gain[14] = np.mean(gains[1:15])
     avg_loss[14] = np.mean(losses[1:15])
     for i in range(15, n):
-        avg_gain[i] = (avg_gain[i-1] * 13 + gains[i]) / 14
-        avg_loss[i] = (avg_loss[i-1] * 13 + losses[i]) / 14
+        avg_gain[i] = (avg_gain[i - 1] * 13 + gains[i]) / 14
+        avg_loss[i] = (avg_loss[i - 1] * 13 + losses[i]) / 14
         if avg_loss[i] == 0:
             rsi[i] = 100
         else:
@@ -120,11 +121,7 @@ def compute_features(df):
     tr = np.zeros(n, dtype=np.float32)
     tr[0] = high[0] - low[0]
     for i in range(1, n):
-        tr[i] = max(
-            high[i] - low[i],
-            abs(high[i] - close[i-1]),
-            abs(low[i] - close[i-1])
-        )
+        tr[i] = max(high[i] - low[i], abs(high[i] - close[i - 1]), abs(low[i] - close[i - 1]))
     atr = _rolling_mean(tr, 14)
 
     # 成交量变化率
@@ -169,16 +166,16 @@ def download_binance(symbol, interval, start_ts, end_ts):
     - 每次最多返回 1000 条（我们用 100）
     - 数据从 startTime 到 endTime 按时间顺序
     """
-    interval_map = {
-        "1m": "1m", "5m": "5m", "15m": "15m",
-        "1h": "1h", "4h": "4h", "1d": "1d"
-    }
+    interval_map = {"1m": "1m", "5m": "5m", "15m": "15m", "1h": "1h", "4h": "4h", "1d": "1d"}
     timeframe = interval_map.get(interval, "5m")
 
     all_candles = []
     current_start = start_ts
 
-    print(f"    开始下载 {symbol} {interval} 从 {days_between(start_ts, end_ts):.1f} 天前...", flush=True)
+    print(
+        f"    开始下载 {symbol} {interval} 从 {days_between(start_ts, end_ts):.1f} 天前...",
+        flush=True,
+    )
 
     while current_start < end_ts:
         max_retries = 3
@@ -193,19 +190,14 @@ def download_binance(symbol, interval, start_ts, end_ts):
                 }
 
                 response = requests.get(
-                    EXCHANGES["binance"]["kline_url"],
-                    params=params,
-                    proxies=PROXY,
-                    timeout=30
+                    EXCHANGES["binance"]["kline_url"], params=params, proxies=PROXY, timeout=30
                 )
 
                 if response.status_code == 451:
                     # Binance 451 错误通常是地区限制，尝试不同端点
                     print("    451 错误，尝试备用端点...", flush=True)
                     response = requests.get(
-                        "https://api.binance.us/api/v3/klines",
-                        params=params,
-                        timeout=30
+                        "https://api.binance.us/api/v3/klines", params=params, timeout=30
                     )
 
                 response.raise_for_status()
@@ -235,7 +227,7 @@ def download_binance(symbol, interval, start_ts, end_ts):
 
             except Exception as e:
                 if attempt < max_retries - 1:
-                    time.sleep(2 ** attempt)
+                    time.sleep(2**attempt)
                 else:
                     print(f"    失败: {e}", flush=True)
                     return all_candles
@@ -287,19 +279,23 @@ def prepare_crypto_data_streaming(symbol, interval, start_days, force=False):
     for c in candles:
         ts = int(c[0])
         dt = pd.to_datetime(ts, unit="ms")
-        records.append({
-            "timestamp": ts,
-            "open": float(c[1]),
-            "high": float(c[2]),
-            "low": float(c[3]),
-            "close": float(c[4]),
-            "volume": float(c[5]),
-            "quote_volume": float(c[4]) * float(c[5]),
-            "num_trades": int(c[8]) if len(c) > 8 else 0,
-            "taker_buy_volume": float(c[9]) if len(c) > 9 else float(c[5]) * 0.5,
-            "taker_buy_quote_volume": float(c[10]) if len(c) > 10 else float(c[4]) * float(c[5]) * 0.5,
-            "datetime": dt,
-        })
+        records.append(
+            {
+                "timestamp": ts,
+                "open": float(c[1]),
+                "high": float(c[2]),
+                "low": float(c[3]),
+                "close": float(c[4]),
+                "volume": float(c[5]),
+                "quote_volume": float(c[4]) * float(c[5]),
+                "num_trades": int(c[8]) if len(c) > 8 else 0,
+                "taker_buy_volume": float(c[9]) if len(c) > 9 else float(c[5]) * 0.5,
+                "taker_buy_quote_volume": float(c[10])
+                if len(c) > 10
+                else float(c[4]) * float(c[5]) * 0.5,
+                "datetime": dt,
+            }
+        )
 
     df = pd.DataFrame(records)
 
@@ -343,10 +339,14 @@ def prepare_crypto_data(symbols=None, interval=None, start_days=None, force=Fals
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="下载加密货币K线数据")
     parser.add_argument("--symbol", type=str, default=None, help="交易对，如 BTCUSDT")
-    parser.add_argument("--interval", type=str, default="5m", help="K线周期: 1m, 5m, 15m, 1h, 4h, 1d")
+    parser.add_argument(
+        "--interval", type=str, default="5m", help="K线周期: 1m, 5m, 15m, 1h, 4h, 1d"
+    )
     parser.add_argument("--limit", type=int, default=60, help="下载多少天的数据")
     parser.add_argument("--force", action="store_true", help="强制重新下载，即使文件已存在")
     args = parser.parse_args()
 
     symbols = [args.symbol] if args.symbol else DEFAULT_SYMBOLS
-    prepare_crypto_data(symbols=symbols, interval=args.interval, start_days=args.limit, force=args.force)
+    prepare_crypto_data(
+        symbols=symbols, interval=args.interval, start_days=args.limit, force=args.force
+    )

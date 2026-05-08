@@ -21,6 +21,7 @@ __all__ = [
     "GridStrategy",
 ]
 
+
 # Lazy imports to avoid circular dependencies — modules import from base/sub-modules
 def __getattr__(name: str):
     _imports = {
@@ -35,6 +36,7 @@ def __getattr__(name: str):
     }
     if name in _imports:
         import importlib
+
         mod = importlib.import_module(_imports[name])
         cls = getattr(mod, name)
         # Cache in module namespace

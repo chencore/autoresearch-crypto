@@ -37,9 +37,7 @@ def compute_atr(df: dict, period: int) -> np.ndarray:
     return atr
 
 
-def compute_adx(
-    df: dict, period: int = 14
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+def compute_adx(df: dict, period: int = 14) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Compute ADX, +DI, -DI for trend strength and direction.
 
     Args:

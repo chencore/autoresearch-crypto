@@ -263,14 +263,19 @@ class TrendStrategy(BaseStrategy):
         if n_days < self.htf_macd_slow + self.htf_macd_signal:
             return np.zeros(n, dtype=int)
 
-        daily_close = np.array([
-            close[d * bars_per_day + bars_per_day - 1]
-            for d in range(n_days)
-            if d * bars_per_day + bars_per_day - 1 < n
-        ])
+        daily_close = np.array(
+            [
+                close[d * bars_per_day + bars_per_day - 1]
+                for d in range(n_days)
+                if d * bars_per_day + bars_per_day - 1 < n
+            ]
+        )
 
         macd_line, macd_signal, _ = compute_htf_macd(
-            daily_close, self.htf_macd_fast, self.htf_macd_slow, self.htf_macd_signal,
+            daily_close,
+            self.htf_macd_fast,
+            self.htf_macd_slow,
+            self.htf_macd_signal,
         )
 
         htf_trend = np.zeros(n, dtype=int)
@@ -393,7 +398,9 @@ class TrendStrategy(BaseStrategy):
         lower = rolling_mean - self.std_dev * rolling_std
 
         fast_ma = pd.Series(close).rolling(window=self.window, min_periods=self.window).mean()
-        slow_ma = pd.Series(close).rolling(window=self.window * 2, min_periods=self.window * 2).mean()
+        slow_ma = (
+            pd.Series(close).rolling(window=self.window * 2, min_periods=self.window * 2).mean()
+        )
 
         atr = compute_atr(df, self.atr_period)
         rsi = compute_rsi(close, 14)
@@ -445,11 +452,19 @@ class TrendStrategy(BaseStrategy):
         # --- 动态趋势过滤预计算 ---
         trend_direction = np.zeros(n, dtype=int)  # 0=震荡, 1=上升, -1=下降
         if self.use_trend_filter:
-            trend_fast = pd.Series(close).rolling(window=self.trend_window, min_periods=self.trend_window).mean()
-            trend_slow = pd.Series(close).rolling(window=self.trend_window * 2, min_periods=self.trend_window * 2).mean()
+            trend_fast = (
+                pd.Series(close)
+                .rolling(window=self.trend_window, min_periods=self.trend_window)
+                .mean()
+            )
+            trend_slow = (
+                pd.Series(close)
+                .rolling(window=self.trend_window * 2, min_periods=self.trend_window * 2)
+                .mean()
+            )
             for i in range(self.trend_window * 2, n):
                 if trend_fast.iloc[i] > trend_slow.iloc[i]:
-                    trend_direction[i] = 1   # 上升趋势
+                    trend_direction[i] = 1  # 上升趋势
                 elif trend_fast.iloc[i] < trend_slow.iloc[i]:
                     trend_direction[i] = -1  # 下降趋势
 
@@ -457,11 +472,11 @@ class TrendStrategy(BaseStrategy):
         consec_up = np.zeros(n, dtype=int)
         consec_down = np.zeros(n, dtype=int)
         for i in range(1, n):
-            if close[i] > close[i-1]:
-                consec_up[i] = consec_up[i-1] + 1
+            if close[i] > close[i - 1]:
+                consec_up[i] = consec_up[i - 1] + 1
                 consec_down[i] = 0
-            elif close[i] < close[i-1]:
-                consec_down[i] = consec_down[i-1] + 1
+            elif close[i] < close[i - 1]:
+                consec_down[i] = consec_down[i - 1] + 1
                 consec_up[i] = 0
 
         # --- 信号生成主循环 ---
@@ -470,7 +485,7 @@ class TrendStrategy(BaseStrategy):
         entry_price = 0.0
         entry_bar = 0
         highest_after_entry = 0.0
-        lowest_after_entry = float('inf')
+        lowest_after_entry = float("inf")
 
         for i in range(self.window * 2, n):
             price = close[i]
@@ -511,7 +526,7 @@ class TrendStrategy(BaseStrategy):
                     lowest_after_entry = low[i]
 
                 # ATR 追踪止损
-                if lowest_after_entry < float('inf'):
+                if lowest_after_entry < float("inf"):
                     atr_stop = lowest_after_entry + self.atr_multiplier * atr[i]
                     if price > atr_stop:
                         signals[i] = 0
@@ -552,9 +567,9 @@ class TrendStrategy(BaseStrategy):
                         macd_long_ok = macd_line[i] > macd_signal_line[i]
                         macd_short_ok = macd_line[i] < macd_signal_line[i]
                     if self.macd_confirm_mode in ("histogram", "both") and i > 0:
-                        if macd_hist[i] < macd_hist[i-1]:
+                        if macd_hist[i] < macd_hist[i - 1]:
                             macd_long_ok = False
-                        if macd_hist[i] > macd_hist[i-1]:
+                        if macd_hist[i] > macd_hist[i - 1]:
                             macd_short_ok = False
 
                 # RSI/MFI 超买超卖判断
@@ -611,18 +626,18 @@ class TrendStrategy(BaseStrategy):
                 allow_short = enable_short
                 if self.use_trend_filter:
                     td = trend_direction[i]
-                    if td == 1:       # 上升趋势：做多优先，禁止做空
+                    if td == 1:  # 上升趋势：做多优先，禁止做空
                         allow_short = False
-                    elif td == -1:    # 下降趋势：做空优先，禁止做多
+                    elif td == -1:  # 下降趋势：做空优先，禁止做多
                         allow_long = False
 
                 # --- P6: 高级别 MACD 趋势过滤 ---
                 # 策略.md 方法9：日线 MACD 定方向
                 if self.use_htf_macd and htf_trend is not None:
                     if htf_trend[i] == 1:
-                        allow_short = False   # 日线看多，不做空
+                        allow_short = False  # 日线看多，不做空
                     elif htf_trend[i] == -1:
-                        allow_long = False    # 日线看空，不做多
+                        allow_long = False  # 日线看空，不做多
 
                 # --- P7: 多因子共振评分 ---
                 # 策略.md 核心规则：3+ 因子同向信号置信度显著提升
@@ -691,12 +706,22 @@ class TrendStrategy(BaseStrategy):
                         resonance_short_ok = short_score == n_factors
 
                 # 优先级 1: 布林带均值回归
-                if (allow_long and price <= lower_trigger and resonance_long_ok
-                        and not strong_downtrend):
+                if (
+                    allow_long
+                    and price <= lower_trigger
+                    and resonance_long_ok
+                    and not strong_downtrend
+                ):
                     if not self.use_resonance:
                         # 非 P7 模式：保留原始 AND 门
-                        if not (adx_pass and vol_pass and macd_long_ok
-                                and obv_long_ok and spike_pass and vwap_long_ok):
+                        if not (
+                            adx_pass
+                            and vol_pass
+                            and macd_long_ok
+                            and obv_long_ok
+                            and spike_pass
+                            and vwap_long_ok
+                        ):
                             pass  # 跳过
                         elif not (is_oversold and stoch_oversold):
                             pass  # 跳过
@@ -715,11 +740,21 @@ class TrendStrategy(BaseStrategy):
                         highest_after_entry = high[i]
                         continue
 
-                if (allow_short and price >= upper_trigger and resonance_short_ok
-                        and not strong_uptrend):
+                if (
+                    allow_short
+                    and price >= upper_trigger
+                    and resonance_short_ok
+                    and not strong_uptrend
+                ):
                     if not self.use_resonance:
-                        if not (adx_pass and vol_pass and macd_short_ok
-                                and obv_short_ok and spike_pass and vwap_short_ok):
+                        if not (
+                            adx_pass
+                            and vol_pass
+                            and macd_short_ok
+                            and obv_short_ok
+                            and spike_pass
+                            and vwap_short_ok
+                        ):
                             pass
                         elif not (is_overbought and stoch_overbought):
                             pass
@@ -740,7 +775,9 @@ class TrendStrategy(BaseStrategy):
 
                 # 优先级 2: RSI / MACD 背离入场
                 if self.use_rsi_divergence:
-                    if allow_long and self._detect_rsi_divergence(close, rsi, i, self.rsi_divergence_lookback, "bullish"):
+                    if allow_long and self._detect_rsi_divergence(
+                        close, rsi, i, self.rsi_divergence_lookback, "bullish"
+                    ):
                         if not is_downtrend and price <= lower_trigger and not strong_downtrend:
                             signals[i] = 2
                             position = 1
@@ -748,7 +785,9 @@ class TrendStrategy(BaseStrategy):
                             entry_bar = i
                             highest_after_entry = high[i]
                             continue
-                    if allow_short and self._detect_rsi_divergence(close, rsi, i, self.rsi_divergence_lookback, "bearish"):
+                    if allow_short and self._detect_rsi_divergence(
+                        close, rsi, i, self.rsi_divergence_lookback, "bearish"
+                    ):
                         if not is_uptrend and price >= upper_trigger and not strong_uptrend:
                             signals[i] = 3
                             position = -1
@@ -758,7 +797,9 @@ class TrendStrategy(BaseStrategy):
                             continue
 
                 if self.use_macd_divergence and macd_hist is not None:
-                    if allow_long and self._detect_macd_divergence(close, macd_hist, i, self.macd_divergence_lookback, "bullish"):
+                    if allow_long and self._detect_macd_divergence(
+                        close, macd_hist, i, self.macd_divergence_lookback, "bullish"
+                    ):
                         if not is_downtrend and price <= lower_trigger and not strong_downtrend:
                             signals[i] = 2
                             position = 1
@@ -766,7 +807,9 @@ class TrendStrategy(BaseStrategy):
                             entry_bar = i
                             highest_after_entry = high[i]
                             continue
-                    if allow_short and self._detect_macd_divergence(close, macd_hist, i, self.macd_divergence_lookback, "bearish"):
+                    if allow_short and self._detect_macd_divergence(
+                        close, macd_hist, i, self.macd_divergence_lookback, "bearish"
+                    ):
                         if not is_uptrend and price >= upper_trigger and not strong_uptrend:
                             signals[i] = 3
                             position = -1

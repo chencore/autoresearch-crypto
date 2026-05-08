@@ -68,8 +68,13 @@ def make_evaluate_fn(df: pd.DataFrame):
         dd_score = max(0, min(1.0, 1.0 - abs(dd) / 0.50))
         wr_score = max(0, min(1.0, (wr - 0.35) / 0.30))
         trade_score = min(1.0, n_trades / 20.0)
-        score = (ret_score * 0.30 + sharpe_score * 0.20 +
-                 dd_score * 0.20 + wr_score * 0.15 + trade_score * 0.15)
+        score = (
+            ret_score * 0.30
+            + sharpe_score * 0.20
+            + dd_score * 0.20
+            + wr_score * 0.15
+            + trade_score * 0.15
+        )
         return score, sharpe, ret, dd
 
     def evaluate_fn(params: Dict) -> Tuple[float, float, float, float]:
@@ -103,7 +108,8 @@ def make_evaluate_fn(df: pd.DataFrame):
 
         min_start = getattr(strategy, "window", 20) * 2
         return _relaxed_score(
-            signals[min_start:], val_prices[min_start:],
+            signals[min_start:],
+            val_prices[min_start:],
             val_df.iloc[min_start:].reset_index(drop=True),
         )
 
@@ -131,8 +137,10 @@ def main():
     df = df.iloc[-288 * args.days :].reset_index(drop=True)
 
     print(f"Data: {len(df)} bars ({args.days} days)")
-    print(f"Price: {df['close'].iloc[0]:.1f} -> {df['close'].iloc[-1]:.1f} "
-          f"({(df['close'].iloc[-1]/df['close'].iloc[0]-1)*100:+.2f}%)")
+    print(
+        f"Price: {df['close'].iloc[0]:.1f} -> {df['close'].iloc[-1]:.1f} "
+        f"({(df['close'].iloc[-1] / df['close'].iloc[0] - 1) * 100:+.2f}%)"
+    )
 
     # Create agents and engines
     agents = create_default_agents()
@@ -155,8 +163,10 @@ def main():
     for agent in agents:
         score, sharpe, ret, dd = evaluate_fn(agent.params)
         print(f"\n{agent.name} ({agent.style}):")
-        print(f"  Score={score:.4f}  Sharpe={sharpe:.2f}  "
-              f"Return={ret*100:+.2f}%  DD={dd*100:.1f}%")
+        print(
+            f"  Score={score:.4f}  Sharpe={sharpe:.2f}  "
+            f"Return={ret * 100:+.2f}%  DD={dd * 100:.1f}%"
+        )
         print(f"  Params: {json.dumps(agent.params, indent=2, default=str)[:200]}")
 
     print(f"\n总实验数: {len(engine.experiment_logs)}")
@@ -171,17 +181,19 @@ def main():
     out = {
         "timestamp": datetime.now().isoformat(),
         "agents": [
-            {"name": a.name, "style": a.style, "params": a.params,
-             "score": evaluate_fn(a.params)[0]}
+            {
+                "name": a.name,
+                "style": a.style,
+                "params": a.params,
+                "score": evaluate_fn(a.params)[0],
+            }
             for a in agents
         ],
         "n_experiments": len(engine.experiment_logs),
         "n_meta": len(engine.meta_reflections),
         "blind_spots": engine.blind_spots[-5:],
     }
-    out_path = os.path.join(
-        os.path.dirname(__file__), "..", "search_results", "gepa_result.json"
-    )
+    out_path = os.path.join(os.path.dirname(__file__), "..", "search_results", "gepa_result.json")
     os.makedirs(os.path.dirname(out_path), exist_ok=True)
     with open(out_path, "w") as f:
         json.dump(out, f, indent=2, ensure_ascii=False, default=str)

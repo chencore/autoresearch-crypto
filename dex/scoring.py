@@ -13,17 +13,17 @@ from enum import Enum, auto
 from typing import Dict, List, Tuple
 
 
-
 # ---------------------------------------------------------------------------
 # Edge-case flags
 # ---------------------------------------------------------------------------
 
+
 class EdgeFlag(Enum):
     """Markers for problematic evaluation results."""
 
-    OVERFIT = auto()   # Too few trades — likely overfit
-    RISKY = auto()     # Drawdown too large — excessive risk
-    DEAD = auto()      # No improvement for multiple rounds — strategy exhausted
+    OVERFIT = auto()  # Too few trades — likely overfit
+    RISKY = auto()  # Drawdown too large — excessive risk
+    DEAD = auto()  # No improvement for multiple rounds — strategy exhausted
 
 
 @dataclass
@@ -60,6 +60,7 @@ class ScoredResult:
 # ---------------------------------------------------------------------------
 # Risk-adjusted scoring function
 # ---------------------------------------------------------------------------
+
 
 def risk_adjusted_score(
     sharpe: float,
@@ -116,8 +117,12 @@ def risk_adjusted_score(
     # --- Edge-case guards ---
     if total_return <= -0.90:
         return ScoredResult(
-            score=0.0, raw_sharpe=sharpe, total_return=total_return,
-            max_drawdown=max_drawdown, win_rate=win_rate, n_trades=n_trades,
+            score=0.0,
+            raw_sharpe=sharpe,
+            total_return=total_return,
+            max_drawdown=max_drawdown,
+            win_rate=win_rate,
+            n_trades=n_trades,
             flags=[EdgeFlag.RISKY],
         )
 
@@ -178,6 +183,7 @@ def risk_adjusted_score(
 # Dead agent detection
 # ---------------------------------------------------------------------------
 
+
 def detect_dead_agent(
     score_history: List[float],
     dead_threshold: int = 5,
@@ -209,14 +215,14 @@ def detect_dead_agent(
 # ---------------------------------------------------------------------------
 
 REVIVAL_STRATEGIES = [
-    "widen_param_space",    # Expand parameter search bounds by 2×
-    "narrow_param_space",   # Contract around current best
-    "switch_strategy_type", # Pick a different strategy class
-    "switch_timeframe",     # Change from 5m to 15m or 1h
-    "switch_symbol",        # Change from ETH to BTC or SOL
-    "add_indicator",        # Enable a previously-disabled indicator filter
-    "remove_indicator",     # Disable an active indicator filter
-    "invert_hypothesis",    # Try the opposite of the current best hypothesis
+    "widen_param_space",  # Expand parameter search bounds by 2×
+    "narrow_param_space",  # Contract around current best
+    "switch_strategy_type",  # Pick a different strategy class
+    "switch_timeframe",  # Change from 5m to 15m or 1h
+    "switch_symbol",  # Change from ETH to BTC or SOL
+    "add_indicator",  # Enable a previously-disabled indicator filter
+    "remove_indicator",  # Disable an active indicator filter
+    "invert_hypothesis",  # Try the opposite of the current best hypothesis
 ]
 
 

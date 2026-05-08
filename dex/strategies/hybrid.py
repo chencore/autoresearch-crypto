@@ -72,13 +72,20 @@ class HybridStrategy(BaseStrategy):
 
         # --- 均线 ---
         fast_ma = pd.Series(close).rolling(window=self.window, min_periods=self.window).mean()
-        slow_ma = pd.Series(close).rolling(window=self.window * 2, min_periods=self.window * 2).mean()
+        slow_ma = (
+            pd.Series(close).rolling(window=self.window * 2, min_periods=self.window * 2).mean()
+        )
 
         # --- ATR ---
         atr = compute_atr(df, self.atr_period)
 
         # --- 趋势MA ---
-        trend_ma = pd.Series(close).rolling(window=self.trend_ma_period, min_periods=self.trend_ma_period).mean().values
+        trend_ma = (
+            pd.Series(close)
+            .rolling(window=self.trend_ma_period, min_periods=self.trend_ma_period)
+            .mean()
+            .values
+        )
 
         # --- ADX（市场状态判定）---
         adx, _, _ = compute_adx(df, self.adx_period)
@@ -100,7 +107,7 @@ class HybridStrategy(BaseStrategy):
         entry_price = 0.0
         entry_bar = 0
         highest_after_entry = 0.0
-        lowest_after_entry = float('inf')
+        lowest_after_entry = float("inf")
 
         min_idx = max(self.window * 2, self.trend_ma_period, self.adx_period * 2)
 
@@ -134,7 +141,7 @@ class HybridStrategy(BaseStrategy):
             elif position == -1:
                 if low[i] < lowest_after_entry:
                     lowest_after_entry = low[i]
-                if lowest_after_entry < float('inf'):
+                if lowest_after_entry < float("inf"):
                     atr_stop = lowest_after_entry + self.atr_multiplier * atr[i]
                     if price > atr_stop:
                         signals[i] = 0
@@ -163,11 +170,13 @@ class HybridStrategy(BaseStrategy):
                     prev_fast_ma = fast_ma.iloc[i - 1]
 
                     # 做多：上升趋势中，价格从上往下穿越快线（回调入场）
-                    long_cross = (price_above_trend and
-                                  prev_close > prev_fast_ma and
-                                  price <= fast_ma.iloc[i] and
-                                  not np.isnan(fast_ma.iloc[i]) and
-                                  not np.isnan(prev_fast_ma))
+                    long_cross = (
+                        price_above_trend
+                        and prev_close > prev_fast_ma
+                        and price <= fast_ma.iloc[i]
+                        and not np.isnan(fast_ma.iloc[i])
+                        and not np.isnan(prev_fast_ma)
+                    )
                     if long_cross:
                         signals[i] = 2
                         position = 1
@@ -178,11 +187,13 @@ class HybridStrategy(BaseStrategy):
 
                     # 做空：下降趋势中，价格从下往上穿越快线（反弹入场）
                     if self.enable_short:
-                        short_cross = (price_below_trend and
-                                       prev_close < prev_fast_ma and
-                                       price >= fast_ma.iloc[i] and
-                                       not np.isnan(fast_ma.iloc[i]) and
-                                       not np.isnan(prev_fast_ma))
+                        short_cross = (
+                            price_below_trend
+                            and prev_close < prev_fast_ma
+                            and price >= fast_ma.iloc[i]
+                            and not np.isnan(fast_ma.iloc[i])
+                            and not np.isnan(prev_fast_ma)
+                        )
                         if short_cross:
                             signals[i] = 3
                             position = -1

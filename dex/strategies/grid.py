@@ -83,9 +83,12 @@ class GridStrategy(BaseStrategy):
             atr[i] = (atr[i - 1] * (self.atr_period - 1) + tr[i]) / self.atr_period
 
         # Trend filter
-        trend_ma = pd.Series(close).rolling(
-            window=self.trend_ma_period, min_periods=self.trend_ma_period
-        ).mean().values
+        trend_ma = (
+            pd.Series(close)
+            .rolling(window=self.trend_ma_period, min_periods=self.trend_ma_period)
+            .mean()
+            .values
+        )
 
         # Grid state
         base_price = close[0]

@@ -41,10 +41,7 @@ def list_crypto_files(data_dir: Optional[str] = None) -> List[str]:
 
     selected: List[str] = []
     for key, fnames in grouped.items():
-        tagged = [
-            f for f in fnames
-            if len(f.replace(".parquet", "").split("_")) >= 3
-        ]
+        tagged = [f for f in fnames if len(f.replace(".parquet", "").split("_")) >= 3]
         if tagged:
             selected.append(sorted(tagged)[-1])  # largest day count
         else:

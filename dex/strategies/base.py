@@ -153,9 +153,7 @@ class StrategyEvaluator:
                     # Guard: prevent negative capital
                     if capital < 0:
                         capital = 0
-                    trades.append(
-                        {"type": "buy_cover", "step": i, "pnl": float(pnl)}
-                    )
+                    trades.append({"type": "buy_cover", "step": i, "pnl": float(pnl)})
                     shares = 0.0
                     position = 0
 
@@ -190,14 +188,8 @@ class StrategyEvaluator:
                 current_equity = capital
 
             # Guard: clip abnormal equity
-            if (
-                not np.isfinite(current_equity)
-                or current_equity > 1e15
-                or current_equity < 0
-            ):
-                equity.append(
-                    max(0, current_equity) if np.isfinite(current_equity) else 0
-                )
+            if not np.isfinite(current_equity) or current_equity > 1e15 or current_equity < 0:
+                equity.append(max(0, current_equity) if np.isfinite(current_equity) else 0)
                 break
             equity.append(current_equity)
 
@@ -208,9 +200,7 @@ class StrategyEvaluator:
             cost = gross * self.commission
             capital = gross - cost
             pnl = capital - entry_cost_basis
-            trades.append(
-                {"type": "sell_final", "step": len(signals) - 1, "pnl": float(pnl)}
-            )
+            trades.append({"type": "sell_final", "step": len(signals) - 1, "pnl": float(pnl)})
             equity[-1] = capital
         elif position == -1:
             exec_price = prices[-1] * (1 + self.slippage)
@@ -253,12 +243,8 @@ class StrategyEvaluator:
         except (OverflowError, ValueError):
             annualized_return = 0.0
 
-        annualized_vol: float = (
-            np.std(returns) * math.sqrt(288 * 365) if len(returns) > 0 else 0
-        )
-        sharpe: float = (
-            annualized_return / annualized_vol if annualized_vol > 0 else 0
-        )
+        annualized_vol: float = np.std(returns) * math.sqrt(288 * 365) if len(returns) > 0 else 0
+        sharpe: float = annualized_return / annualized_vol if annualized_vol > 0 else 0
 
         peak = equity[0]
         max_drawdown: float = 0.0
@@ -272,9 +258,7 @@ class StrategyEvaluator:
         trade_pnls = [t for t in trades if t.get("pnl") is not None]
         total_trades = len(trade_pnls)
         winning_trades = len([t for t in trade_pnls if t["pnl"] > 0])
-        win_rate: float = (
-            winning_trades / total_trades if total_trades > 0 else 0.5
-        )
+        win_rate: float = winning_trades / total_trades if total_trades > 0 else 0.5
 
         return {
             "total_return": total_return,
@@ -327,9 +311,7 @@ class StrategyEvaluator:
         metrics = self.compute_metrics(equity, trades)
 
         # Guard: invalid metrics
-        if not np.isfinite(metrics["sharpe_ratio"]) or not np.isfinite(
-            metrics["total_return"]
-        ):
+        if not np.isfinite(metrics["sharpe_ratio"]) or not np.isfinite(metrics["total_return"]):
             return 0.0, metrics, trades
 
         # Guard: drawdown exceeds 30%
@@ -349,16 +331,12 @@ class StrategyEvaluator:
 
         # Penalty for large drawdown
         dd_penalty = (
-            max(0, 1 - abs(metrics["max_drawdown"]) / 0.20)
-            if metrics["max_drawdown"] < 0
-            else 1.0
+            max(0, 1 - abs(metrics["max_drawdown"]) / 0.20) if metrics["max_drawdown"] < 0 else 1.0
         )
 
         # Penalty for insufficient trades
         min_trade_penalty = (
-            min(1.0, n_trades / float(EVAL_MIN_TRADES))
-            if n_trades < EVAL_MIN_TRADES
-            else 1.0
+            min(1.0, n_trades / float(EVAL_MIN_TRADES)) if n_trades < EVAL_MIN_TRADES else 1.0
         )
 
         # Clamp metrics to reasonable ranges
@@ -418,9 +396,7 @@ def scalp_evaluate(
 
     metrics = evaluator.compute_metrics(equity, trades)
 
-    if not np.isfinite(metrics["sharpe_ratio"]) or not np.isfinite(
-        metrics["total_return"]
-    ):
+    if not np.isfinite(metrics["sharpe_ratio"]) or not np.isfinite(metrics["total_return"]):
         return 0.0, metrics, trades
     if metrics["max_drawdown"] < -EVAL_MAX_DRAWDOWN:
         return 0.0, metrics, trades
@@ -450,11 +426,7 @@ def scalp_evaluate(
     return_score = max(0, min(1.0, metrics["total_return"] / 0.05))
 
     # Drawdown score (10%)
-    dd_score = (
-        max(0, 1 + metrics["max_drawdown"])
-        if metrics["max_drawdown"] < 0
-        else 1.0
-    )
+    dd_score = max(0, 1 + metrics["max_drawdown"]) if metrics["max_drawdown"] < 0 else 1.0
 
     score = (
         trade_count_score * 0.30
@@ -519,12 +491,8 @@ def analyze_market_regime(
     minus_di = np.zeros(n)
     for i in range(period, n):
         if atr[i] > 0:
-            plus_di[i] = (
-                100 * np.mean(plus_dm[i - period + 1 : i + 1]) / atr[i]
-            )
-            minus_di[i] = (
-                100 * np.mean(minus_dm[i - period + 1 : i + 1]) / atr[i]
-            )
+            plus_di[i] = 100 * np.mean(plus_dm[i - period + 1 : i + 1]) / atr[i]
+            minus_di[i] = 100 * np.mean(minus_dm[i - period + 1 : i + 1]) / atr[i]
 
     dx = np.zeros(n)
     for i in range(period, n):

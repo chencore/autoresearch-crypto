@@ -47,13 +47,15 @@ def resample_ohlcv(df: pd.DataFrame, tf_bars: int) -> pd.DataFrame:
         start = i * tf_bars
         end = min(start + tf_bars, n)
         window = df.iloc[start:end]
-        records.append({
-            "open": window["open"].iloc[0],
-            "high": window["high"].max(),
-            "low": window["low"].min(),
-            "close": window["close"].iloc[-1],
-            "volume": window["volume"].sum(),
-        })
+        records.append(
+            {
+                "open": window["open"].iloc[0],
+                "high": window["high"].max(),
+                "low": window["low"].min(),
+                "close": window["close"].iloc[-1],
+                "volume": window["volume"].sum(),
+            }
+        )
 
     result = pd.DataFrame(records)
     # Map back to original index (last bar of each window)
@@ -137,9 +139,7 @@ class MultiTimeframeTrend:
         details = []
         for tf_name in self.timeframes:
             if tf_name in self._cache:
-                details.append(
-                    f"{tf_name}={self._cache[tf_name][-1]:+d}"
-                )
+                details.append(f"{tf_name}={self._cache[tf_name][-1]:+d}")
 
         label = {1: "BULLISH", -1: "BEARISH", 0: "NEUTRAL"}[last]
         return f"MultiTF: {label} ({', '.join(details)})"

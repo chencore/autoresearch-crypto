@@ -29,14 +29,15 @@ import numpy as np
 # Data structures
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class ExperimentLog:
     """A single experiment record with reflection."""
 
     timestamp: str = field(default_factory=lambda: datetime.now().isoformat())
-    agent: str = ""                     # Agent name (Alpha/Beta/Gamma/Delta)
-    hypothesis: str = ""                # What we believed before running
-    tried: str = ""                     # What parameter change was made
+    agent: str = ""  # Agent name (Alpha/Beta/Gamma/Delta)
+    hypothesis: str = ""  # What we believed before running
+    tried: str = ""  # What parameter change was made
     params_before: Dict[str, Any] = field(default_factory=dict)
     params_after: Dict[str, Any] = field(default_factory=dict)
     score_before: float = 0.0
@@ -47,8 +48,8 @@ class ExperimentLog:
     ret_after: float = 0.0
     dd_before: float = 0.0
     dd_after: float = 0.0
-    result_summary: str = ""           # Human-readable result
-    reflection: str = ""               # Why it worked/failed, what to try next
+    result_summary: str = ""  # Human-readable result
+    reflection: str = ""  # Why it worked/failed, what to try next
     edge_flags: List[str] = field(default_factory=list)  # RISKY / OVERFIT / DEAD
 
 
@@ -56,11 +57,11 @@ class ExperimentLog:
 class Hypothesis:
     """A research hypothesis with proposed verification."""
 
-    text: str                           # The hypothesis statement
-    agent: str                          # Target agent
-    param_changes: Dict[str, Any]       # Concrete parameter changes to test
-    rationale: str                      # Why this should work
-    blind_spot: str = ""               # What market condition we're missing
+    text: str  # The hypothesis statement
+    agent: str  # Target agent
+    param_changes: Dict[str, Any]  # Concrete parameter changes to test
+    rationale: str  # Why this should work
+    blind_spot: str = ""  # What market condition we're missing
 
 
 # ---------------------------------------------------------------------------
@@ -136,6 +137,7 @@ HYPOTHESIS_TEMPLATES = [
 # ---------------------------------------------------------------------------
 # Reflection engine
 # ---------------------------------------------------------------------------
+
 
 class ReflectionEngine:
     """GEPA reflective evolution manager.
@@ -216,48 +218,32 @@ class ReflectionEngine:
 
         # Analyse what happened
         if score_delta > 0.05:
-            reflections.append(
-                f"改进显著 (score +{score_delta:.3f})。参数调整方向正确。"
-            )
+            reflections.append(f"改进显著 (score +{score_delta:.3f})。参数调整方向正确。")
         elif score_delta > 0:
-            reflections.append(
-                f"轻微改善 (score +{score_delta:.3f})。方向对但幅度不够。"
-            )
+            reflections.append(f"轻微改善 (score +{score_delta:.3f})。方向对但幅度不够。")
         elif score_delta > -0.05:
-            reflections.append(
-                f"变化不大 (score {score_delta:+.3f})。该参数可能不是关键因子。"
-            )
+            reflections.append(f"变化不大 (score {score_delta:+.3f})。该参数可能不是关键因子。")
         else:
-            reflections.append(
-                f"明显恶化 (score {score_delta:+.3f})。这个调整方向是错误的。"
-            )
+            reflections.append(f"明显恶化 (score {score_delta:+.3f})。这个调整方向是错误的。")
 
         # Sharpe analysis
         if sharpe_delta > 0.2:
-            reflections.append(
-                f"夏普提升 {sharpe_delta:+.2f}，风险调整收益改善。"
-            )
+            reflections.append(f"夏普提升 {sharpe_delta:+.2f}，风险调整收益改善。")
         if dd_delta < -0.02:  # drawdown got worse (more negative)
             reflections.append(
-                f"注意回撤扩大了 {abs(dd_delta)*100:.1f}%。"
-                f"可能是参数调整增加了尾部风险暴露。"
+                f"注意回撤扩大了 {abs(dd_delta) * 100:.1f}%。可能是参数调整增加了尾部风险暴露。"
             )
 
         # Suggest next step
         if score_delta > 0.03:
             reflections.append(
-                "下一步：继续在这个方向上加大调整幅度，"
-                "或将该参数与其他参数联动优化。"
+                "下一步：继续在这个方向上加大调整幅度，或将该参数与其他参数联动优化。"
             )
         elif ret_delta > 0 and sharpe_delta < 0:
-            reflections.append(
-                "收益提升了但风险也增加了。"
-                "下一步：尝试在保持该参数的同时收紧止损。"
-            )
+            reflections.append("收益提升了但风险也增加了。下一步：尝试在保持该参数的同时收紧止损。")
         else:
             reflections.append(
-                "下一步：回退该参数，尝试调整其他相关参数。"
-                "考虑市场状态是否发生了变化。"
+                "下一步：回退该参数，尝试调整其他相关参数。考虑市场状态是否发生了变化。"
             )
 
         return " ".join(reflections)
@@ -272,7 +258,9 @@ class ReflectionEngine:
         Returns:
             (summary_text, new_hypothesis)
         """
-        recent = self.experiment_logs[-5:] if len(self.experiment_logs) >= 5 else self.experiment_logs
+        recent = (
+            self.experiment_logs[-5:] if len(self.experiment_logs) >= 5 else self.experiment_logs
+        )
         if len(recent) < 3:
             return "Not enough data for meta-reflection.", self.hypotheses[0]
 
@@ -280,12 +268,8 @@ class ReflectionEngine:
         # 1. Which agent improved most?
         agent_deltas: Dict[str, List[float]] = {}
         for log in recent:
-            agent_deltas.setdefault(log.agent, []).append(
-                log.score_after - log.score_before
-            )
-        avg_deltas = {
-            a: sum(d) / len(d) for a, d in agent_deltas.items()
-        }
+            agent_deltas.setdefault(log.agent, []).append(log.score_after - log.score_before)
+        avg_deltas = {a: sum(d) / len(d) for a, d in agent_deltas.items()}
 
         # 2. What kind of changes worked?
         score_improvements = [log.score_after - log.score_before for log in recent]
@@ -296,22 +280,14 @@ class ReflectionEngine:
         all_reflections = " ".join(log.reflection for log in recent)
 
         if "趋势" in all_reflections and "震荡" in all_reflections:
-            blind_spots.append(
-                "缺少市场状态自动检测：无法在趋势和震荡策略间自动切换"
-            )
+            blind_spots.append("缺少市场状态自动检测：无法在趋势和震荡策略间自动切换")
         if "止损" in all_reflections or "回撤" in all_reflections:
-            blind_spots.append(
-                "风险控制在各 Agent 间不统一：需要全局风险预算分配"
-            )
+            blind_spots.append("风险控制在各 Agent 间不统一：需要全局风险预算分配")
         if "volatility" in all_reflections.lower() or "波动" in all_reflections:
-            blind_spots.append(
-                "波动率是核心变量但未建模：应加入 VIX-like 波动率分支"
-            )
+            blind_spots.append("波动率是核心变量但未建模：应加入 VIX-like 波动率分支")
 
         if not blind_spots:
-            blind_spots.append(
-                "当前参数搜索空间可能太窄，建议探索策略类型本身的变化"
-            )
+            blind_spots.append("当前参数搜索空间可能太窄，建议探索策略类型本身的变化")
 
         self.blind_spots.extend(blind_spots)
 
@@ -320,8 +296,7 @@ class ReflectionEngine:
         worst_agent = min(avg_deltas, key=avg_deltas.get)
 
         # Pick a hypothesis template that matches the observed pattern
-        if any("sharpe" in log.reflection.lower() or "夏普" in log.reflection
-               for log in recent):
+        if any("sharpe" in log.reflection.lower() or "夏普" in log.reflection for log in recent):
             new_h = Hypothesis(
                 text=f"风险调整后的收益仍有优化空间，{worst_agent}应向{best_agent}的对冲逻辑学习",
                 agent=worst_agent,
@@ -336,7 +311,7 @@ class ReflectionEngine:
 
         # --- Summary ---
         summary_lines = [
-            f"=== Meta-Reflection (实验 {len(self.experiment_logs)-len(recent)+1}-{len(self.experiment_logs)}) ===",
+            f"=== Meta-Reflection (实验 {len(self.experiment_logs) - len(recent) + 1}-{len(self.experiment_logs)}) ===",
             f"最近 {len(recent)} 次实验：",
             f"  平均 score 变化: {np.mean(score_improvements):+.3f}",
             f"  平均 sharpe 变化: {np.mean(sharpe_improvements):+.2f}",
@@ -399,9 +374,19 @@ class ReflectionEngine:
                 params_after[key] = val
 
         # Ensure discrete params stay int
-        discrete = {"window", "atr_period", "max_hold_bars", "rsi_threshold",
-                     "adx_threshold", "grid_levels", "trend_ma_period",
-                     "rsi_period", "rsi_low", "rsi_high", "ma_period"}
+        discrete = {
+            "window",
+            "atr_period",
+            "max_hold_bars",
+            "rsi_threshold",
+            "adx_threshold",
+            "grid_levels",
+            "trend_ma_period",
+            "rsi_period",
+            "rsi_low",
+            "rsi_high",
+            "ma_period",
+        }
         for k in discrete:
             if k in params_after and isinstance(params_after[k], float):
                 params_after[k] = int(round(params_after[k]))
@@ -429,11 +414,11 @@ class ReflectionEngine:
             dd_after=dd_after,
             result_summary=(
                 f"score: {score_before:.3f} → {score_after:.3f} "
-                f"({score_after-score_before:+.3f}), "
+                f"({score_after - score_before:+.3f}), "
                 f"sharpe: {sharpe_before:.2f} → {sharpe_after:.2f} "
-                f"({sharpe_after-sharpe_before:+.2f}), "
-                f"ret: {ret_before*100:+.2f}% → {ret_after*100:+.2f}%, "
-                f"DD: {dd_before*100:.1f}% → {dd_after*100:.1f}%"
+                f"({sharpe_after - sharpe_before:+.2f}), "
+                f"ret: {ret_before * 100:+.2f}% → {ret_after * 100:+.2f}%, "
+                f"DD: {dd_before * 100:.1f}% → {dd_after * 100:.1f}%"
             ),
         )
 
@@ -450,8 +435,9 @@ class ReflectionEngine:
 # GEPA evolution loop (integrates with EvolutionEngine)
 # ---------------------------------------------------------------------------
 
+
 def gepa_evolve(
-    agents: List[Any],               # List of Agent dataclass instances
+    agents: List[Any],  # List of Agent dataclass instances
     evaluate_fn: Callable,
     engine: ReflectionEngine,
     cycles: int = 10,
@@ -519,17 +505,19 @@ def gepa_evolve(
         # Meta-reflection every 5 cycles
         if cycle % 5 == 0:
             if verbose:
-                print(f"\n  {'='*50}")
+                print(f"\n  {'=' * 50}")
             summary, new_h = engine.meta_reflect()
             if verbose:
                 print(summary)
-                print(f"  {'='*50}")
+                print(f"  {'=' * 50}")
 
     if verbose:
-        print(f"\n{'='*60}")
-        print(f"GEPA 进化完成。共 {len(engine.experiment_logs)} 次实验，"
-              f"{len(engine.meta_reflections)} 次元反思。")
-        print(f"{'='*60}")
+        print(f"\n{'=' * 60}")
+        print(
+            f"GEPA 进化完成。共 {len(engine.experiment_logs)} 次实验，"
+            f"{len(engine.meta_reflections)} 次元反思。"
+        )
+        print(f"{'=' * 60}")
 
     return engine
 
@@ -548,7 +536,7 @@ from dex.scoring import (
 
 def gepa_evolve_v2(
     agents: List[Any],
-    evaluate_fn_raw: Callable,   # (params) -> (score, sharpe, ret, max_dd)
+    evaluate_fn_raw: Callable,  # (params) -> (score, sharpe, ret, max_dd)
     engine: ReflectionEngine,
     cycles: int = 30,
     min_trades: int = 10,
@@ -571,8 +559,10 @@ def gepa_evolve_v2(
     if verbose:
         print("=" * 60)
         print("GEPA V2 反思式进化 (Risk-Adjusted + Edge Guards + Revival)")
-        print(f"Metric: Sharpe x (1-DD)^-1  |  MinTrades={min_trades}  "
-              f"MaxDD={max_dd*100:.0f}%  |  DeadThreshold={dead_threshold}")
+        print(
+            f"Metric: Sharpe x (1-DD)^-1  |  MinTrades={min_trades}  "
+            f"MaxDD={max_dd * 100:.0f}%  |  DeadThreshold={dead_threshold}"
+        )
         print("=" * 60)
 
     agent_states: Dict[str, dict] = {
@@ -602,9 +592,7 @@ def gepa_evolve_v2(
         # --- Edge guard: dead agent check ---
         is_dead = detect_dead_agent(state["score_history"], dead_threshold)
         if is_dead and state["revival_count"] < 3:
-            action, action_params = pick_revival_action(
-                agent.name, state["revival_count"]
-            )
+            action, action_params = pick_revival_action(agent.name, state["revival_count"])
             state["revival_count"] += 1
             if verbose:
                 print(f"  💤 DEAD detected — revival action: {action}")
@@ -614,7 +602,9 @@ def gepa_evolve_v2(
                 scale = action_params.get("param_scale", 2.0)
                 for k in agent.params:
                     if isinstance(agent.params[k], (int, float)):
-                        agent.params[k] = agent.params[k] * (1 + np.random.uniform(-0.5, 0.5) * scale)
+                        agent.params[k] = agent.params[k] * (
+                            1 + np.random.uniform(-0.5, 0.5) * scale
+                        )
             elif action == "add_indicator":
                 pool = action_params.get("indicator_pool", ["use_adx"])
                 key = pool[state["revival_count"] % len(pool)]
@@ -646,7 +636,7 @@ def gepa_evolve_v2(
             edge_flags_str.append("RISKY")
             state["consecutive_rejections"] += 1
             if verbose:
-                print(f"  🔥 RISKY — DD={log.dd_after*100:.1f}% > {max_dd*100:.0f}%")
+                print(f"  🔥 RISKY — DD={log.dd_after * 100:.1f}% > {max_dd * 100:.0f}%")
         if EdgeFlag.OVERFIT in scored.flags:
             edge_flags_str.append("OVERFIT")
             if verbose:
@@ -672,9 +662,11 @@ def gepa_evolve_v2(
             state["consecutive_rejections"] = 0
             if verbose:
                 print(f"  ✓ 接受 (score {log.score_before:.3f}→{log.score_after:.3f})")
-                print(f"     risk-adj score={scored.score:.4f} "
-                      f"sharpe_comp={scored.sharpe_component:.2f} "
-                      f"dd_comp={scored.dd_component:.2f}")
+                print(
+                    f"     risk-adj score={scored.score:.4f} "
+                    f"sharpe_comp={scored.sharpe_component:.2f} "
+                    f"dd_comp={scored.dd_component:.2f}"
+                )
         else:
             state["consecutive_rejections"] += 1
             if verbose:
@@ -688,12 +680,13 @@ def gepa_evolve_v2(
         # --- Meta-reflection every 5 cycles ---
         if cycle % 5 == 0:
             if verbose:
-                print(f"\n  {'='*50}")
+                print(f"\n  {'=' * 50}")
             summary, new_h = engine.meta_reflect()
 
             # Check if all agents are dead → escalate
             dead_count = sum(
-                1 for s in agent_states.values()
+                1
+                for s in agent_states.values()
                 if detect_dead_agent(s["score_history"], dead_threshold)
             )
             if dead_count >= len(agents) * 0.75:
@@ -708,12 +701,14 @@ def gepa_evolve_v2(
 
             if verbose:
                 print(summary)
-                print(f"  {'='*50}")
+                print(f"  {'=' * 50}")
 
     if verbose:
-        print(f"\n{'='*60}")
-        print(f"GEPA V2 完成。{len(engine.experiment_logs)} 实验, "
-              f"{len(engine.meta_reflections)} 元反思")
+        print(f"\n{'=' * 60}")
+        print(
+            f"GEPA V2 完成。{len(engine.experiment_logs)} 实验, "
+            f"{len(engine.meta_reflections)} 元反思"
+        )
         # Summary of agent states
         for name, st in agent_states.items():
             flags = []
@@ -722,8 +717,10 @@ def gepa_evolve_v2(
             if st["reflection_repeats"] >= 3:
                 flags.append("STALE")
             flag_str = f" [{','.join(flags)}]" if flags else ""
-            print(f"  {name}: {len(st['score_history'])} rounds, "
-                  f"{st['revival_count']} revivals{flag_str}")
-        print(f"{'='*60}")
+            print(
+                f"  {name}: {len(st['score_history'])} rounds, "
+                f"{st['revival_count']} revivals{flag_str}"
+            )
+        print(f"{'=' * 60}")
 
     return engine

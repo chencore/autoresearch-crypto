@@ -26,14 +26,15 @@ PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(PROJECT_DIR, "data", "crypto")
 TOKENIZER_DIR = os.path.join(PROJECT_DIR, "tokenizer")
 
-TIME_BUDGET = 600       # 训练/搜索时间预算（秒）
+TIME_BUDGET = 600  # 训练/搜索时间预算（秒）
 INITIAL_CAPITAL = 10000.0
-COMMISSION = 0.0002       # 0.02% 手续费（DEX Maker费率）
-SLIPPAGE = 0.0002        # 0.02% 滑点
+COMMISSION = 0.0002  # 0.02% 手续费（DEX Maker费率）
+SLIPPAGE = 0.0002  # 0.02% 滑点
 
 # ---------------------------------------------------------------------------
 # 数据加载
 # ---------------------------------------------------------------------------
+
 
 def list_crypto_files():
     """列出所有加密货币数据文件。
@@ -73,6 +74,7 @@ def list_crypto_files():
 def load_crypto_data(filepath):
     """加载单个 Parquet 文件"""
     import pyarrow.parquet as pq
+
     table = pq.read_table(filepath)
     return table.to_pandas()
 
@@ -80,6 +82,7 @@ def load_crypto_data(filepath):
 # ---------------------------------------------------------------------------
 # 策略：布林带均值回归
 # ---------------------------------------------------------------------------
+
 
 class TrendStrategy:
     """
@@ -91,32 +94,57 @@ class TrendStrategy:
     4. ATR 追踪止损 + 均线反转止损 + 时间退出
     """
 
-    def __init__(self, window=20, std_dev=2.0,
-                 atr_period=14, atr_multiplier=2.5,
-                 max_hold_bars=48, adx_threshold=25,
-                 entry_zone=1.0, rsi_threshold=30,
-                 take_profit_pct=0.05, stop_loss_pct=0.03,
-                 # P0: ADX 趋势过滤 + 量价确认
-                 use_adx=False, use_volume=False, volume_threshold=1.2,
-                 # P1: MACD 动量确认 + MA 交叉事件
-                 use_macd=False, macd_confirm_mode="direction",
-                 use_ma_cross=False,
-                 # P2: MFI 量价动量 + 随机指标
-                 use_mfi=False, mfi_period=14, mfi_threshold=20,
-                 use_stochastic=False, stoch_period=14, stoch_threshold=20,
-                 # P3: 背离信号
-                 use_rsi_divergence=False, rsi_divergence_lookback=5,
-                 use_macd_divergence=False, macd_divergence_lookback=5,
-                 # P4: 动态多空趋势过滤
-                 use_trend_filter=False, trend_window=50,
-                 # P5: 成交量因子
-                 use_obv_trend=False, obv_ma_period=20,
-                 use_volume_spike=False, volume_spike_threshold=2.0,
-                 use_vwap=False, vwap_period=20,
-                 # P6: 高级别 MACD 趋势确认（策略.md 方法9）
-                 use_htf_macd=False, htf_macd_fast=12, htf_macd_slow=26, htf_macd_signal=9,
-                 # P7: 多因子共振评分（策略.md 核心规则：3+因子同向）
-                 use_resonance=False, resonance_min_score=3):
+    def __init__(
+        self,
+        window=20,
+        std_dev=2.0,
+        atr_period=14,
+        atr_multiplier=2.5,
+        max_hold_bars=48,
+        adx_threshold=25,
+        entry_zone=1.0,
+        rsi_threshold=30,
+        take_profit_pct=0.05,
+        stop_loss_pct=0.03,
+        # P0: ADX 趋势过滤 + 量价确认
+        use_adx=False,
+        use_volume=False,
+        volume_threshold=1.2,
+        # P1: MACD 动量确认 + MA 交叉事件
+        use_macd=False,
+        macd_confirm_mode="direction",
+        use_ma_cross=False,
+        # P2: MFI 量价动量 + 随机指标
+        use_mfi=False,
+        mfi_period=14,
+        mfi_threshold=20,
+        use_stochastic=False,
+        stoch_period=14,
+        stoch_threshold=20,
+        # P3: 背离信号
+        use_rsi_divergence=False,
+        rsi_divergence_lookback=5,
+        use_macd_divergence=False,
+        macd_divergence_lookback=5,
+        # P4: 动态多空趋势过滤
+        use_trend_filter=False,
+        trend_window=50,
+        # P5: 成交量因子
+        use_obv_trend=False,
+        obv_ma_period=20,
+        use_volume_spike=False,
+        volume_spike_threshold=2.0,
+        use_vwap=False,
+        vwap_period=20,
+        # P6: 高级别 MACD 趋势确认（策略.md 方法9）
+        use_htf_macd=False,
+        htf_macd_fast=12,
+        htf_macd_slow=26,
+        htf_macd_signal=9,
+        # P7: 多因子共振评分（策略.md 核心规则：3+因子同向）
+        use_resonance=False,
+        resonance_min_score=3,
+    ):
         self.window = window
         self.std_dev = std_dev
         self.atr_period = atr_period
@@ -179,9 +207,9 @@ class TrendStrategy:
         tr[0] = tr1[0]
 
         atr = np.zeros(len(tr))
-        atr[period-1] = np.mean(tr[:period])
+        atr[period - 1] = np.mean(tr[:period])
         for i in range(period, len(tr)):
-            atr[i] = (atr[i-1] * (period - 1) + tr[i]) / period
+            atr[i] = (atr[i - 1] * (period - 1) + tr[i]) / period
         return atr
 
     def _compute_adx(self, df, period=14):
@@ -194,8 +222,8 @@ class TrendStrategy:
         minus_dm = np.zeros(len(high))
 
         for i in range(1, len(high)):
-            up = high[i] - high[i-1]
-            down = low[i-1] - low[i]
+            up = high[i] - high[i - 1]
+            down = low[i - 1] - low[i]
             plus_dm[i] = up if up > down and up > 0 else 0
             minus_dm[i] = down if down > up and down > 0 else 0
 
@@ -205,8 +233,8 @@ class TrendStrategy:
         minus_di = np.zeros(len(high))
         for i in range(period, len(high)):
             if atr[i] > 0:
-                plus_di[i] = 100 * np.mean(plus_dm[i-period+1:i+1]) / atr[i]
-                minus_di[i] = 100 * np.mean(minus_dm[i-period+1:i+1]) / atr[i]
+                plus_di[i] = 100 * np.mean(plus_dm[i - period + 1 : i + 1]) / atr[i]
+                minus_di[i] = 100 * np.mean(minus_dm[i - period + 1 : i + 1]) / atr[i]
 
         dx = np.zeros(len(high))
         for i in range(period, len(high)):
@@ -215,9 +243,9 @@ class TrendStrategy:
                 dx[i] = 100 * np.abs(plus_di[i] - minus_di[i]) / di_sum
 
         adx = np.zeros(len(high))
-        adx[period*2-1] = np.mean(dx[period:period*2])
+        adx[period * 2 - 1] = np.mean(dx[period : period * 2])
         for i in range(period * 2, len(high)):
-            adx[i] = (adx[i-1] * (period - 1) + dx[i]) / period
+            adx[i] = (adx[i - 1] * (period - 1) + dx[i]) / period
 
         return adx, plus_di, minus_di
 
@@ -229,12 +257,12 @@ class TrendStrategy:
 
         avg_gain = np.zeros(len(close))
         avg_loss = np.zeros(len(close))
-        avg_gain[period] = np.mean(gain[1:period+1])
-        avg_loss[period] = np.mean(loss[1:period+1])
+        avg_gain[period] = np.mean(gain[1 : period + 1])
+        avg_loss[period] = np.mean(loss[1 : period + 1])
 
         for i in range(period + 1, len(close)):
-            avg_gain[i] = (avg_gain[i-1] * (period - 1) + gain[i]) / period
-            avg_loss[i] = (avg_loss[i-1] * (period - 1) + loss[i]) / period
+            avg_gain[i] = (avg_gain[i - 1] * (period - 1) + gain[i]) / period
+            avg_loss[i] = (avg_loss[i - 1] * (period - 1) + loss[i]) / period
 
         rsi = np.full(len(close), 50.0)
         for i in range(period, len(close)):
@@ -251,7 +279,7 @@ class TrendStrategy:
         ema = np.empty_like(series, dtype=float)
         ema[0] = series[0]
         for i in range(1, len(series)):
-            ema[i] = alpha * series[i] + (1 - alpha) * ema[i-1]
+            ema[i] = alpha * series[i] + (1 - alpha) * ema[i - 1]
         return ema
 
     def _compute_macd(self, close, fast=12, slow=26, signal=9):
@@ -280,8 +308,8 @@ class TrendStrategy:
 
         mfi = np.full(len(close), 50.0)
         for i in range(period, len(close)):
-            pos_sum = np.sum(pos_flow[i-period+1:i+1])
-            neg_sum = np.sum(neg_flow[i-period+1:i+1])
+            pos_sum = np.sum(pos_flow[i - period + 1 : i + 1])
+            neg_sum = np.sum(neg_flow[i - period + 1 : i + 1])
             if neg_sum > 0:
                 mfi[i] = 100.0 - 100.0 / (1.0 + pos_sum / neg_sum)
             else:
@@ -296,8 +324,8 @@ class TrendStrategy:
 
         stoch_k = np.full(len(close), 50.0)
         for i in range(period - 1, len(close)):
-            lowest = np.min(low[i-period+1:i+1])
-            highest = np.max(high[i-period+1:i+1])
+            lowest = np.min(low[i - period + 1 : i + 1])
+            highest = np.max(high[i - period + 1 : i + 1])
             if highest > lowest:
                 stoch_k[i] = 100.0 * (close[i] - lowest) / (highest - lowest)
         return stoch_k
@@ -314,11 +342,13 @@ class TrendStrategy:
         if n_days < self.htf_macd_slow + self.htf_macd_signal:
             return np.zeros(n, dtype=int)
 
-        daily_close = np.array([
-            close[d * bars_per_day + bars_per_day - 1]
-            for d in range(n_days)
-            if d * bars_per_day + bars_per_day - 1 < n
-        ])
+        daily_close = np.array(
+            [
+                close[d * bars_per_day + bars_per_day - 1]
+                for d in range(n_days)
+                if d * bars_per_day + bars_per_day - 1 < n
+            ]
+        )
 
         # EMA 计算
         def ema(data, period):
@@ -340,7 +370,7 @@ class TrendStrategy:
             bar_start = d * bars_per_day
             bar_end = min(bar_start + bars_per_day, n)
             if macd_line[d] > signal_line[d]:
-                htf_trend[bar_start:bar_end] = 1   # 日线看多
+                htf_trend[bar_start:bar_end] = 1  # 日线看多
             elif macd_line[d] < signal_line[d]:
                 htf_trend[bar_start:bar_end] = -1  # 日线看空
 
@@ -350,12 +380,12 @@ class TrendStrategy:
         """计算 OBV（能量潮）及其移动平均"""
         obv = np.zeros(len(close))
         for i in range(1, len(close)):
-            if close[i] > close[i-1]:
-                obv[i] = obv[i-1] + volume[i]
-            elif close[i] < close[i-1]:
-                obv[i] = obv[i-1] - volume[i]
+            if close[i] > close[i - 1]:
+                obv[i] = obv[i - 1] + volume[i]
+            elif close[i] < close[i - 1]:
+                obv[i] = obv[i - 1] - volume[i]
             else:
-                obv[i] = obv[i-1]
+                obv[i] = obv[i - 1]
         obv_ma = pd.Series(obv).rolling(window=ma_period, min_periods=ma_period).mean().values
         return obv, obv_ma
 
@@ -367,9 +397,9 @@ class TrendStrategy:
 
         vwap = np.full(len(df), np.nan)
         for i in range(period - 1, len(df)):
-            vol_sum = np.sum(vol[i-period+1:i+1])
+            vol_sum = np.sum(vol[i - period + 1 : i + 1])
             if vol_sum > 0:
-                vwap[i] = np.sum(tp_vol[i-period+1:i+1]) / vol_sum
+                vwap[i] = np.sum(tp_vol[i - period + 1 : i + 1]) / vol_sum
             else:
                 vwap[i] = typical_price[i]
         return vwap
@@ -382,8 +412,8 @@ class TrendStrategy:
         """
         if i < lookback * 2:
             return False
-        price_window = close[i-lookback:i+1]
-        rsi_window = rsi[i-lookback:i+1]
+        price_window = close[i - lookback : i + 1]
+        rsi_window = rsi[i - lookback : i + 1]
         if direction == "bullish":
             price_min_idx = np.argmin(price_window)
             rsi_min_idx = np.argmin(rsi_window)
@@ -403,8 +433,8 @@ class TrendStrategy:
         """
         if i < lookback * 2:
             return False
-        price_window = close[i-lookback:i+1]
-        hist_window = macd_hist[i-lookback:i+1]
+        price_window = close[i - lookback : i + 1]
+        hist_window = macd_hist[i - lookback : i + 1]
         if direction == "bullish":
             price_min_idx = np.argmin(price_window)
             hist_min_idx = np.argmin(hist_window)
@@ -437,7 +467,9 @@ class TrendStrategy:
         lower = rolling_mean - self.std_dev * rolling_std
 
         fast_ma = pd.Series(close).rolling(window=self.window, min_periods=self.window).mean()
-        slow_ma = pd.Series(close).rolling(window=self.window * 2, min_periods=self.window * 2).mean()
+        slow_ma = (
+            pd.Series(close).rolling(window=self.window * 2, min_periods=self.window * 2).mean()
+        )
 
         atr = self._compute_atr(df, self.atr_period)
         rsi = self._compute_rsi(close, 14)
@@ -489,11 +521,19 @@ class TrendStrategy:
         # --- 动态趋势过滤预计算 ---
         trend_direction = np.zeros(n, dtype=int)  # 0=震荡, 1=上升, -1=下降
         if self.use_trend_filter:
-            trend_fast = pd.Series(close).rolling(window=self.trend_window, min_periods=self.trend_window).mean()
-            trend_slow = pd.Series(close).rolling(window=self.trend_window * 2, min_periods=self.trend_window * 2).mean()
+            trend_fast = (
+                pd.Series(close)
+                .rolling(window=self.trend_window, min_periods=self.trend_window)
+                .mean()
+            )
+            trend_slow = (
+                pd.Series(close)
+                .rolling(window=self.trend_window * 2, min_periods=self.trend_window * 2)
+                .mean()
+            )
             for i in range(self.trend_window * 2, n):
                 if trend_fast.iloc[i] > trend_slow.iloc[i]:
-                    trend_direction[i] = 1   # 上升趋势
+                    trend_direction[i] = 1  # 上升趋势
                 elif trend_fast.iloc[i] < trend_slow.iloc[i]:
                     trend_direction[i] = -1  # 下降趋势
 
@@ -501,11 +541,11 @@ class TrendStrategy:
         consec_up = np.zeros(n, dtype=int)
         consec_down = np.zeros(n, dtype=int)
         for i in range(1, n):
-            if close[i] > close[i-1]:
-                consec_up[i] = consec_up[i-1] + 1
+            if close[i] > close[i - 1]:
+                consec_up[i] = consec_up[i - 1] + 1
                 consec_down[i] = 0
-            elif close[i] < close[i-1]:
-                consec_down[i] = consec_down[i-1] + 1
+            elif close[i] < close[i - 1]:
+                consec_down[i] = consec_down[i - 1] + 1
                 consec_up[i] = 0
 
         # --- 信号生成主循环 ---
@@ -514,7 +554,7 @@ class TrendStrategy:
         entry_price = 0.0
         entry_bar = 0
         highest_after_entry = 0.0
-        lowest_after_entry = float('inf')
+        lowest_after_entry = float("inf")
 
         for i in range(self.window * 2, n):
             price = close[i]
@@ -555,7 +595,7 @@ class TrendStrategy:
                     lowest_after_entry = low[i]
 
                 # ATR 追踪止损
-                if lowest_after_entry < float('inf'):
+                if lowest_after_entry < float("inf"):
                     atr_stop = lowest_after_entry + self.atr_multiplier * atr[i]
                     if price > atr_stop:
                         signals[i] = 0
@@ -596,9 +636,9 @@ class TrendStrategy:
                         macd_long_ok = macd_line[i] > macd_signal_line[i]
                         macd_short_ok = macd_line[i] < macd_signal_line[i]
                     if self.macd_confirm_mode in ("histogram", "both") and i > 0:
-                        if macd_hist[i] < macd_hist[i-1]:
+                        if macd_hist[i] < macd_hist[i - 1]:
                             macd_long_ok = False
-                        if macd_hist[i] > macd_hist[i-1]:
+                        if macd_hist[i] > macd_hist[i - 1]:
                             macd_short_ok = False
 
                 # RSI/MFI 超买超卖判断
@@ -655,18 +695,18 @@ class TrendStrategy:
                 allow_short = enable_short
                 if self.use_trend_filter:
                     td = trend_direction[i]
-                    if td == 1:       # 上升趋势：做多优先，禁止做空
+                    if td == 1:  # 上升趋势：做多优先，禁止做空
                         allow_short = False
-                    elif td == -1:    # 下降趋势：做空优先，禁止做多
+                    elif td == -1:  # 下降趋势：做空优先，禁止做多
                         allow_long = False
 
                 # --- P6: 高级别 MACD 趋势过滤 ---
                 # 策略.md 方法9：日线 MACD 定方向
                 if self.use_htf_macd and htf_trend is not None:
                     if htf_trend[i] == 1:
-                        allow_short = False   # 日线看多，不做空
+                        allow_short = False  # 日线看多，不做空
                     elif htf_trend[i] == -1:
-                        allow_long = False    # 日线看空，不做多
+                        allow_long = False  # 日线看空，不做多
 
                 # --- P7: 多因子共振评分 ---
                 # 策略.md 核心规则：3+ 因子同向信号置信度显著提升
@@ -735,12 +775,22 @@ class TrendStrategy:
                         resonance_short_ok = short_score == n_factors
 
                 # 优先级 1: 布林带均值回归
-                if (allow_long and price <= lower_trigger and resonance_long_ok
-                        and not strong_downtrend):
+                if (
+                    allow_long
+                    and price <= lower_trigger
+                    and resonance_long_ok
+                    and not strong_downtrend
+                ):
                     if not self.use_resonance:
                         # 非 P7 模式：保留原始 AND 门
-                        if not (adx_pass and vol_pass and macd_long_ok
-                                and obv_long_ok and spike_pass and vwap_long_ok):
+                        if not (
+                            adx_pass
+                            and vol_pass
+                            and macd_long_ok
+                            and obv_long_ok
+                            and spike_pass
+                            and vwap_long_ok
+                        ):
                             pass  # 跳过
                         elif not (is_oversold and stoch_oversold):
                             pass  # 跳过
@@ -759,11 +809,21 @@ class TrendStrategy:
                         highest_after_entry = high[i]
                         continue
 
-                if (allow_short and price >= upper_trigger and resonance_short_ok
-                        and not strong_uptrend):
+                if (
+                    allow_short
+                    and price >= upper_trigger
+                    and resonance_short_ok
+                    and not strong_uptrend
+                ):
                     if not self.use_resonance:
-                        if not (adx_pass and vol_pass and macd_short_ok
-                                and obv_short_ok and spike_pass and vwap_short_ok):
+                        if not (
+                            adx_pass
+                            and vol_pass
+                            and macd_short_ok
+                            and obv_short_ok
+                            and spike_pass
+                            and vwap_short_ok
+                        ):
                             pass
                         elif not (is_overbought and stoch_overbought):
                             pass
@@ -784,7 +844,9 @@ class TrendStrategy:
 
                 # 优先级 2: RSI / MACD 背离入场
                 if self.use_rsi_divergence:
-                    if allow_long and self._detect_rsi_divergence(close, rsi, i, self.rsi_divergence_lookback, "bullish"):
+                    if allow_long and self._detect_rsi_divergence(
+                        close, rsi, i, self.rsi_divergence_lookback, "bullish"
+                    ):
                         if not is_downtrend and price <= lower_trigger and not strong_downtrend:
                             signals[i] = 2
                             position = 1
@@ -792,7 +854,9 @@ class TrendStrategy:
                             entry_bar = i
                             highest_after_entry = high[i]
                             continue
-                    if allow_short and self._detect_rsi_divergence(close, rsi, i, self.rsi_divergence_lookback, "bearish"):
+                    if allow_short and self._detect_rsi_divergence(
+                        close, rsi, i, self.rsi_divergence_lookback, "bearish"
+                    ):
                         if not is_uptrend and price >= upper_trigger and not strong_uptrend:
                             signals[i] = 3
                             position = -1
@@ -802,7 +866,9 @@ class TrendStrategy:
                             continue
 
                 if self.use_macd_divergence and macd_hist is not None:
-                    if allow_long and self._detect_macd_divergence(close, macd_hist, i, self.macd_divergence_lookback, "bullish"):
+                    if allow_long and self._detect_macd_divergence(
+                        close, macd_hist, i, self.macd_divergence_lookback, "bullish"
+                    ):
                         if not is_downtrend and price <= lower_trigger and not strong_downtrend:
                             signals[i] = 2
                             position = 1
@@ -810,7 +876,9 @@ class TrendStrategy:
                             entry_bar = i
                             highest_after_entry = high[i]
                             continue
-                    if allow_short and self._detect_macd_divergence(close, macd_hist, i, self.macd_divergence_lookback, "bearish"):
+                    if allow_short and self._detect_macd_divergence(
+                        close, macd_hist, i, self.macd_divergence_lookback, "bearish"
+                    ):
                         if not is_uptrend and price >= upper_trigger and not strong_uptrend:
                             signals[i] = 3
                             position = -1
@@ -828,6 +896,7 @@ class TrendStrategy:
 # 剥头皮策略：纯均值回归，高频短线
 # ---------------------------------------------------------------------------
 
+
 class ScalpStrategy:
     """
     高频剥头皮策略。纯均值回归，不要求趋势方向对齐。
@@ -835,16 +904,27 @@ class ScalpStrategy:
     目标：30天 50-200 笔交易，单笔小利（0.3-0.8%）。
     """
 
-    def __init__(self, window=10, std_dev=1.2,
-                 take_profit_pct=0.005, stop_loss_pct=0.003,
-                 max_hold_bars=6,
-                 use_volume_filter=False, volume_threshold=0.8,
-                 rsi_entry_low=30, rsi_entry_high=70,
-                 rsi_extreme_low=20, rsi_extreme_high=80,
-                 use_rsi_entry=False,
-                 use_trend_align=False, trend_ma_period=50,
-                 use_session_filter=False, session_start=13, session_end=21,
-                 rsi_period=14):
+    def __init__(
+        self,
+        window=10,
+        std_dev=1.2,
+        take_profit_pct=0.005,
+        stop_loss_pct=0.003,
+        max_hold_bars=6,
+        use_volume_filter=False,
+        volume_threshold=0.8,
+        rsi_entry_low=30,
+        rsi_entry_high=70,
+        rsi_extreme_low=20,
+        rsi_extreme_high=80,
+        use_rsi_entry=False,
+        use_trend_align=False,
+        trend_ma_period=50,
+        use_session_filter=False,
+        session_start=13,
+        session_end=21,
+        rsi_period=14,
+    ):
         self.window = window
         self.std_dev = std_dev
         self.take_profit_pct = take_profit_pct
@@ -873,8 +953,8 @@ class ScalpStrategy:
         avg_gain[period] = np.mean(gain[:period])
         avg_loss[period] = np.mean(loss[:period])
         for i in range(period + 1, len(close)):
-            avg_gain[i] = (avg_gain[i-1] * (period - 1) + gain[i-1]) / period
-            avg_loss[i] = (avg_loss[i-1] * (period - 1) + loss[i-1]) / period
+            avg_gain[i] = (avg_gain[i - 1] * (period - 1) + gain[i - 1]) / period
+            avg_loss[i] = (avg_loss[i - 1] * (period - 1) + loss[i - 1]) / period
         rs = np.where(avg_loss > 0, avg_gain / avg_loss, 100.0)
         rsi = 100.0 - 100.0 / (1.0 + rs)
         rsi[:period] = 50.0
@@ -886,9 +966,9 @@ class ScalpStrategy:
         tp_vol = typical_price * vol
         vwap = np.full(len(df), np.nan)
         for i in range(period - 1, len(df)):
-            vol_sum = np.sum(vol[i-period+1:i+1])
+            vol_sum = np.sum(vol[i - period + 1 : i + 1])
             if vol_sum > 0:
-                vwap[i] = np.sum(tp_vol[i-period+1:i+1]) / vol_sum
+                vwap[i] = np.sum(tp_vol[i - period + 1 : i + 1]) / vol_sum
             else:
                 vwap[i] = typical_price[i]
         return vwap
@@ -906,8 +986,12 @@ class ScalpStrategy:
         n = len(close)
 
         # 布林带
-        rolling_mean = pd.Series(close).rolling(window=self.window, min_periods=self.window).mean().values
-        rolling_std = pd.Series(close).rolling(window=self.window, min_periods=self.window).std().values
+        rolling_mean = (
+            pd.Series(close).rolling(window=self.window, min_periods=self.window).mean().values
+        )
+        rolling_std = (
+            pd.Series(close).rolling(window=self.window, min_periods=self.window).std().values
+        )
         upper = rolling_mean + self.std_dev * rolling_std
         lower = rolling_mean - self.std_dev * rolling_std
 
@@ -924,7 +1008,12 @@ class ScalpStrategy:
         # 趋势MA（趋势对齐）
         trend_ma = None
         if self.use_trend_align:
-            trend_ma = pd.Series(close).rolling(window=self.trend_ma_period, min_periods=self.trend_ma_period).mean().values
+            trend_ma = (
+                pd.Series(close)
+                .rolling(window=self.trend_ma_period, min_periods=self.trend_ma_period)
+                .mean()
+                .values
+            )
 
         # 时段过滤（UTC小时）
         hours = None
@@ -1019,8 +1108,14 @@ class ScalpStrategy:
                 vol_pass = vol_ratio[i] >= self.volume_threshold
 
             # RSI 入场条件：要求超卖/超买（策略.md 策略9）
-            rsi_long_ok = rsi[i] < self.rsi_entry_low if self.use_rsi_entry else rsi[i] > self.rsi_extreme_low
-            rsi_short_ok = rsi[i] > self.rsi_entry_high if self.use_rsi_entry else rsi[i] < self.rsi_extreme_high
+            rsi_long_ok = (
+                rsi[i] < self.rsi_entry_low if self.use_rsi_entry else rsi[i] > self.rsi_extreme_low
+            )
+            rsi_short_ok = (
+                rsi[i] > self.rsi_entry_high
+                if self.use_rsi_entry
+                else rsi[i] < self.rsi_extreme_high
+            )
 
             # 做多：价格触及下轨 + RSI超卖 + 趋势向上 + 成交量
             if price <= lower[i] and rsi_long_ok and trend_long_ok and vol_pass:
@@ -1045,6 +1140,7 @@ class ScalpStrategy:
 # 纯价格行为策略：无因子约束，布林带均值回归 + ATR/MA/Time退出
 # ---------------------------------------------------------------------------
 
+
 class PureActionStrategy:
     """
     纯价格行为策略。不做任何因子约束，仅依赖价格本身的统计特征。
@@ -1056,11 +1152,19 @@ class PureActionStrategy:
                     设为数值（如50/100/200）则仅在趋势方向交易（方案C）。
     """
 
-    def __init__(self, window=20, std_dev=2.0,
-                 atr_period=14, atr_multiplier=2.0,
-                 max_hold_bars=36, entry_zone=0.0,
-                 enable_short=True, trend_ma_period=None,
-                 adx_threshold=None, adx_period=14):
+    def __init__(
+        self,
+        window=20,
+        std_dev=2.0,
+        atr_period=14,
+        atr_multiplier=2.0,
+        max_hold_bars=36,
+        entry_zone=0.0,
+        enable_short=True,
+        trend_ma_period=None,
+        adx_threshold=None,
+        adx_period=14,
+    ):
         self.window = window
         self.std_dev = std_dev
         self.atr_period = atr_period
@@ -1108,8 +1212,8 @@ class PureActionStrategy:
         minus_di = np.zeros(n)
         for i in range(period, n):
             if atr_adx[i] > 0:
-                plus_di[i] = 100 * np.mean(plus_dm[i - period + 1:i + 1]) / atr_adx[i]
-                minus_di[i] = 100 * np.mean(minus_dm[i - period + 1:i + 1]) / atr_adx[i]
+                plus_di[i] = 100 * np.mean(plus_dm[i - period + 1 : i + 1]) / atr_adx[i]
+                minus_di[i] = 100 * np.mean(minus_dm[i - period + 1 : i + 1]) / atr_adx[i]
 
         dx = np.zeros(n)
         for i in range(period, n):
@@ -1118,7 +1222,7 @@ class PureActionStrategy:
                 dx[i] = 100 * abs(plus_di[i] - minus_di[i]) / di_sum
 
         adx = np.zeros(n)
-        adx[period * 2 - 1] = np.mean(dx[period:period * 2])
+        adx[period * 2 - 1] = np.mean(dx[period : period * 2])
         for i in range(period * 2, n):
             adx[i] = (adx[i - 1] * (period - 1) + dx[i]) / period
 
@@ -1142,7 +1246,9 @@ class PureActionStrategy:
 
         # --- 均线趋势 ---
         fast_ma = pd.Series(close).rolling(window=self.window, min_periods=self.window).mean()
-        slow_ma = pd.Series(close).rolling(window=self.window * 2, min_periods=self.window * 2).mean()
+        slow_ma = (
+            pd.Series(close).rolling(window=self.window * 2, min_periods=self.window * 2).mean()
+        )
 
         # --- ATR ---
         atr = self._compute_atr(df, self.atr_period)
@@ -1150,7 +1256,12 @@ class PureActionStrategy:
         # --- 长期趋势MA（趋势对齐过滤）---
         trend_ma = None
         if self.trend_ma_period is not None:
-            trend_ma = pd.Series(close).rolling(window=self.trend_ma_period, min_periods=self.trend_ma_period).mean().values
+            trend_ma = (
+                pd.Series(close)
+                .rolling(window=self.trend_ma_period, min_periods=self.trend_ma_period)
+                .mean()
+                .values
+            )
 
         # --- ADX 趋势强度（高位时空仓避险）---
         adx = None
@@ -1174,7 +1285,7 @@ class PureActionStrategy:
         entry_price = 0.0
         entry_bar = 0
         highest_after_entry = 0.0
-        lowest_after_entry = float('inf')
+        lowest_after_entry = float("inf")
 
         for i in range(self.window * 2, n):
             price = close[i]
@@ -1206,7 +1317,7 @@ class PureActionStrategy:
             elif position == -1:
                 if low[i] < lowest_after_entry:
                     lowest_after_entry = low[i]
-                if lowest_after_entry < float('inf'):
+                if lowest_after_entry < float("inf"):
                     atr_stop = lowest_after_entry + self.atr_multiplier * atr[i]
                     if price > atr_stop:
                         signals[i] = 0
@@ -1240,9 +1351,9 @@ class PureActionStrategy:
                 if self.trend_ma_period is not None and trend_ma is not None:
                     if i >= self.trend_ma_period and not np.isnan(trend_ma[i]):
                         if price > trend_ma[i]:
-                            allow_short = False   # 上升趋势，不做空
+                            allow_short = False  # 上升趋势，不做空
                         elif price < trend_ma[i]:
-                            allow_long = False    # 下降趋势，不做多
+                            allow_long = False  # 下降趋势，不做多
 
                 # ADX 趋势强度过滤：强趋势时空仓避险
                 if self.adx_threshold is not None and adx is not None:
@@ -1274,6 +1385,7 @@ class PureActionStrategy:
 # 策略：市场状态自适应（ADX 判市，震荡=均值回归，趋势=趋势跟随）
 # ---------------------------------------------------------------------------
 
+
 class HybridStrategy:
     """
     市场状态自适应策略。
@@ -1281,11 +1393,19 @@ class HybridStrategy:
     ADX >  adx_threshold: 趋势市 → 趋势跟随（MA 回调入场）
     """
 
-    def __init__(self, window=20, std_dev=2.0,
-                 atr_period=14, atr_multiplier=2.0,
-                 max_hold_bars=24, entry_zone=0.0,
-                 enable_short=True, trend_ma_period=100,
-                 adx_threshold=25, adx_period=14):
+    def __init__(
+        self,
+        window=20,
+        std_dev=2.0,
+        atr_period=14,
+        atr_multiplier=2.0,
+        max_hold_bars=24,
+        entry_zone=0.0,
+        enable_short=True,
+        trend_ma_period=100,
+        adx_threshold=25,
+        adx_period=14,
+    ):
         self.window = window
         self.std_dev = std_dev
         self.atr_period = atr_period
@@ -1329,15 +1449,15 @@ class HybridStrategy:
         minus_di = np.zeros(n)
         for i in range(period, n):
             if atr_adx[i] > 0:
-                plus_di[i] = 100 * np.mean(plus_dm[i - period + 1:i + 1]) / atr_adx[i]
-                minus_di[i] = 100 * np.mean(minus_dm[i - period + 1:i + 1]) / atr_adx[i]
+                plus_di[i] = 100 * np.mean(plus_dm[i - period + 1 : i + 1]) / atr_adx[i]
+                minus_di[i] = 100 * np.mean(minus_dm[i - period + 1 : i + 1]) / atr_adx[i]
         dx = np.zeros(n)
         for i in range(period, n):
             di_sum = plus_di[i] + minus_di[i]
             if di_sum > 0:
                 dx[i] = 100 * abs(plus_di[i] - minus_di[i]) / di_sum
         adx = np.zeros(n)
-        adx[period * 2 - 1] = np.mean(dx[period:period * 2])
+        adx[period * 2 - 1] = np.mean(dx[period : period * 2])
         for i in range(period * 2, n):
             adx[i] = (adx[i - 1] * (period - 1) + dx[i]) / period
         return adx
@@ -1356,13 +1476,20 @@ class HybridStrategy:
 
         # --- 均线 ---
         fast_ma = pd.Series(close).rolling(window=self.window, min_periods=self.window).mean()
-        slow_ma = pd.Series(close).rolling(window=self.window * 2, min_periods=self.window * 2).mean()
+        slow_ma = (
+            pd.Series(close).rolling(window=self.window * 2, min_periods=self.window * 2).mean()
+        )
 
         # --- ATR ---
         atr = self._compute_atr(df, self.atr_period)
 
         # --- 趋势MA ---
-        trend_ma = pd.Series(close).rolling(window=self.trend_ma_period, min_periods=self.trend_ma_period).mean().values
+        trend_ma = (
+            pd.Series(close)
+            .rolling(window=self.trend_ma_period, min_periods=self.trend_ma_period)
+            .mean()
+            .values
+        )
 
         # --- ADX（市场状态判定）---
         adx = self._compute_adx(df, self.adx_period)
@@ -1384,7 +1511,7 @@ class HybridStrategy:
         entry_price = 0.0
         entry_bar = 0
         highest_after_entry = 0.0
-        lowest_after_entry = float('inf')
+        lowest_after_entry = float("inf")
 
         min_idx = max(self.window * 2, self.trend_ma_period, self.adx_period * 2)
 
@@ -1418,7 +1545,7 @@ class HybridStrategy:
             elif position == -1:
                 if low[i] < lowest_after_entry:
                     lowest_after_entry = low[i]
-                if lowest_after_entry < float('inf'):
+                if lowest_after_entry < float("inf"):
                     atr_stop = lowest_after_entry + self.atr_multiplier * atr[i]
                     if price > atr_stop:
                         signals[i] = 0
@@ -1447,11 +1574,13 @@ class HybridStrategy:
                     prev_fast_ma = fast_ma.iloc[i - 1]
 
                     # 做多：上升趋势中，价格从上往下穿越快线（回调入场）
-                    long_cross = (price_above_trend and
-                                  prev_close > prev_fast_ma and
-                                  price <= fast_ma.iloc[i] and
-                                  not np.isnan(fast_ma.iloc[i]) and
-                                  not np.isnan(prev_fast_ma))
+                    long_cross = (
+                        price_above_trend
+                        and prev_close > prev_fast_ma
+                        and price <= fast_ma.iloc[i]
+                        and not np.isnan(fast_ma.iloc[i])
+                        and not np.isnan(prev_fast_ma)
+                    )
                     if long_cross:
                         signals[i] = 2
                         position = 1
@@ -1462,11 +1591,13 @@ class HybridStrategy:
 
                     # 做空：下降趋势中，价格从下往上穿越快线（反弹入场）
                     if self.enable_short:
-                        short_cross = (price_below_trend and
-                                       prev_close < prev_fast_ma and
-                                       price >= fast_ma.iloc[i] and
-                                       not np.isnan(fast_ma.iloc[i]) and
-                                       not np.isnan(prev_fast_ma))
+                        short_cross = (
+                            price_below_trend
+                            and prev_close < prev_fast_ma
+                            and price >= fast_ma.iloc[i]
+                            and not np.isnan(fast_ma.iloc[i])
+                            and not np.isnan(prev_fast_ma)
+                        )
                         if short_cross:
                             signals[i] = 3
                             position = -1
@@ -1520,6 +1651,7 @@ class HybridStrategy:
 # 策略：纯趋势跟随（EMA 定方向，EMA 回调入场）
 # ---------------------------------------------------------------------------
 
+
 def _ema(series, window):
     alpha = 2 / (window + 1)
     ema = np.zeros(len(series), dtype=np.float64)
@@ -1538,10 +1670,17 @@ class TrendFollowStrategy:
     出场：ATR 追踪止损 + 均线反转 + 时间退出。
     """
 
-    def __init__(self, long_ma_period=100, pull_ma_period=20,
-                 atr_period=14, atr_multiplier=2.0,
-                 max_hold_bars=24, entry_zone=0.002,
-                 enable_short=True, volume_threshold=None):
+    def __init__(
+        self,
+        long_ma_period=100,
+        pull_ma_period=20,
+        atr_period=14,
+        atr_multiplier=2.0,
+        max_hold_bars=24,
+        entry_zone=0.002,
+        enable_short=True,
+        volume_threshold=None,
+    ):
         self.long_ma_period = long_ma_period
         self.pull_ma_period = pull_ma_period
         self.atr_period = atr_period
@@ -1588,7 +1727,7 @@ class TrendFollowStrategy:
         entry_price = 0.0
         entry_bar = 0
         highest_after_entry = 0.0
-        lowest_after_entry = float('inf')
+        lowest_after_entry = float("inf")
 
         min_idx = max(self.long_ma_period, self.pull_ma_period, self.atr_period)
 
@@ -1622,7 +1761,7 @@ class TrendFollowStrategy:
             elif position == -1:
                 if low[i] < lowest_after_entry:
                     lowest_after_entry = low[i]
-                if lowest_after_entry < float('inf'):
+                if lowest_after_entry < float("inf"):
                     atr_stop = lowest_after_entry + self.atr_multiplier * atr[i]
                     if price > atr_stop:
                         signals[i] = 0
@@ -1650,9 +1789,11 @@ class TrendFollowStrategy:
                 price_below_long = price < long_ma[i]
 
                 # 做多：上升趋势中，价格回调到短 EMA 附近
-                long_pullback = (price_above_long and
-                                 price <= pull_ma[i] * (1 + self.entry_zone) and
-                                 not np.isnan(pull_ma[i]))
+                long_pullback = (
+                    price_above_long
+                    and price <= pull_ma[i] * (1 + self.entry_zone)
+                    and not np.isnan(pull_ma[i])
+                )
                 if long_pullback:
                     signals[i] = 2
                     position = 1
@@ -1663,9 +1804,11 @@ class TrendFollowStrategy:
 
                 # 做空：下降趋势中，价格反弹到短 EMA 附近
                 if self.enable_short:
-                    short_bounce = (price_below_long and
-                                    price >= pull_ma[i] * (1 - self.entry_zone) and
-                                    not np.isnan(pull_ma[i]))
+                    short_bounce = (
+                        price_below_long
+                        and price >= pull_ma[i] * (1 - self.entry_zone)
+                        and not np.isnan(pull_ma[i])
+                    )
                     if short_bounce:
                         signals[i] = 3
                         position = -1
@@ -1681,6 +1824,7 @@ class TrendFollowStrategy:
 # 策略：混合均值回归 + 动量（Q-RSI 思想适配 5m）
 # ---------------------------------------------------------------------------
 
+
 class HybridMeanRevMomentumStrategy:
     """
     混合均值回归 + 动量策略。
@@ -1692,11 +1836,20 @@ class HybridMeanRevMomentumStrategy:
     3. 出场：ATR 追踪止损 + 均线反转 + 时间退出
     """
 
-    def __init__(self, rsi_period=14, rsi_low=25, rsi_high=75,
-                 ma_period=20, atr_period=14, atr_multiplier=2.0,
-                 max_hold_bars=24, enable_short=True,
-                 take_profit_pct=0.03, stop_loss_pct=0.02,
-                 ema_tolerance=0.005):
+    def __init__(
+        self,
+        rsi_period=14,
+        rsi_low=25,
+        rsi_high=75,
+        ma_period=20,
+        atr_period=14,
+        atr_multiplier=2.0,
+        max_hold_bars=24,
+        enable_short=True,
+        take_profit_pct=0.03,
+        stop_loss_pct=0.02,
+        ema_tolerance=0.005,
+    ):
         self.rsi_period = rsi_period
         self.rsi_low = rsi_low
         self.rsi_high = rsi_high
@@ -1721,8 +1874,8 @@ class HybridMeanRevMomentumStrategy:
         avg_gain = np.zeros(n, dtype=np.float32)
         avg_loss = np.zeros(n, dtype=np.float32)
         if n > period:
-            avg_gain[period] = np.mean(gains[1:period + 1])
-            avg_loss[period] = np.mean(losses[1:period + 1])
+            avg_gain[period] = np.mean(gains[1 : period + 1])
+            avg_loss[period] = np.mean(losses[1 : period + 1])
             for i in range(period + 1, n):
                 avg_gain[i] = (avg_gain[i - 1] * (period - 1) + gains[i]) / period
                 avg_loss[i] = (avg_loss[i - 1] * (period - 1) + losses[i]) / period
@@ -1772,7 +1925,7 @@ class HybridMeanRevMomentumStrategy:
         entry_price = 0.0
         entry_bar = 0
         highest_after_entry = 0.0
-        lowest_after_entry = float('inf')
+        lowest_after_entry = float("inf")
 
         min_idx = max(self.rsi_period, self.ma_period, self.atr_period)
 
@@ -1806,7 +1959,7 @@ class HybridMeanRevMomentumStrategy:
             elif position == -1:
                 if low[i] < lowest_after_entry:
                     lowest_after_entry = low[i]
-                if lowest_after_entry < float('inf'):
+                if lowest_after_entry < float("inf"):
                     atr_stop = lowest_after_entry + self.atr_multiplier * atr[i]
                     if price > atr_stop:
                         signals[i] = 0
@@ -1828,9 +1981,11 @@ class HybridMeanRevMomentumStrategy:
                 prev_rsi = rsi[i - 1]
 
                 # 做多：RSI 从超卖区回升 + 价格在短期均线附近（宽松 EMA 容差）
-                long_cross = (prev_rsi < self.rsi_low and
-                              rsi[i] >= self.rsi_low and
-                              price > ema_fast[i] * (1 - self.ema_tolerance))
+                long_cross = (
+                    prev_rsi < self.rsi_low
+                    and rsi[i] >= self.rsi_low
+                    and price > ema_fast[i] * (1 - self.ema_tolerance)
+                )
                 if long_cross:
                     signals[i] = 2
                     position = 1
@@ -1840,10 +1995,12 @@ class HybridMeanRevMomentumStrategy:
                     continue
 
                 # 做空：RSI 从超买区回落 + 价格在短期均线附近（宽松 EMA 容差）
-                short_cross = (self.enable_short and
-                               prev_rsi > self.rsi_high and
-                               rsi[i] <= self.rsi_high and
-                               price < ema_fast[i] * (1 + self.ema_tolerance))
+                short_cross = (
+                    self.enable_short
+                    and prev_rsi > self.rsi_high
+                    and rsi[i] <= self.rsi_high
+                    and price < ema_fast[i] * (1 + self.ema_tolerance)
+                )
                 if short_cross:
                     signals[i] = 3
                     position = -1
@@ -1859,6 +2016,7 @@ class HybridMeanRevMomentumStrategy:
 # 策略：市场状态自适应混合（ADX 判市，震荡=RSI均值回归，趋势=EMA趋势跟随）
 # ---------------------------------------------------------------------------
 
+
 class AdaptiveHybridStrategy:
     """
     市场状态自适应混合策略。
@@ -1867,13 +2025,26 @@ class AdaptiveHybridStrategy:
     - 趋势市（ADX >  adx_threshold）：EMA 回调趋势跟随
     """
 
-    def __init__(self, rsi_period=14, rsi_low=30, rsi_high=70, ma_period=20,
-                 trend_long_ma=100, trend_pull_ma=20,
-                 adx_period=14, adx_threshold=25,
-                 atr_period=14, atr_multiplier=2.0,
-                 max_hold_bars=24, enable_short=True,
-                 take_profit_pct=0.03, stop_loss_pct=0.02,
-                 ema_tolerance=0.0, use_volume_filter=True, volume_threshold=0.5):
+    def __init__(
+        self,
+        rsi_period=14,
+        rsi_low=30,
+        rsi_high=70,
+        ma_period=20,
+        trend_long_ma=100,
+        trend_pull_ma=20,
+        adx_period=14,
+        adx_threshold=25,
+        atr_period=14,
+        atr_multiplier=2.0,
+        max_hold_bars=24,
+        enable_short=True,
+        take_profit_pct=0.03,
+        stop_loss_pct=0.02,
+        ema_tolerance=0.0,
+        use_volume_filter=True,
+        volume_threshold=0.5,
+    ):
         self.rsi_period = rsi_period
         self.rsi_low = rsi_low
         self.rsi_high = rsi_high
@@ -1892,8 +2063,9 @@ class AdaptiveHybridStrategy:
         self.use_volume_filter = use_volume_filter
         self.volume_threshold = volume_threshold
         # 兼容实盘脚本所需的属性
-        self.window = max(rsi_period, ma_period, adx_period * 2,
-                          trend_long_ma, trend_pull_ma, atr_period)
+        self.window = max(
+            rsi_period, ma_period, adx_period * 2, trend_long_ma, trend_pull_ma, atr_period
+        )
         self.std_dev = 2.0
 
     def _compute_rsi(self, close, period):
@@ -1905,8 +2077,8 @@ class AdaptiveHybridStrategy:
         avg_gain = np.zeros(n, dtype=np.float32)
         avg_loss = np.zeros(n, dtype=np.float32)
         if n > period:
-            avg_gain[period] = np.mean(gains[1:period + 1])
-            avg_loss[period] = np.mean(losses[1:period + 1])
+            avg_gain[period] = np.mean(gains[1 : period + 1])
+            avg_loss[period] = np.mean(losses[1 : period + 1])
             for i in range(period + 1, n):
                 avg_gain[i] = (avg_gain[i - 1] * (period - 1) + gains[i]) / period
                 avg_loss[i] = (avg_loss[i - 1] * (period - 1) + losses[i]) / period
@@ -1936,15 +2108,15 @@ class AdaptiveHybridStrategy:
         minus_di = np.zeros(n)
         for i in range(period, n):
             if atr_adx[i] > 0:
-                plus_di[i] = 100 * np.mean(plus_dm[i - period + 1:i + 1]) / atr_adx[i]
-                minus_di[i] = 100 * np.mean(minus_dm[i - period + 1:i + 1]) / atr_adx[i]
+                plus_di[i] = 100 * np.mean(plus_dm[i - period + 1 : i + 1]) / atr_adx[i]
+                minus_di[i] = 100 * np.mean(minus_dm[i - period + 1 : i + 1]) / atr_adx[i]
         dx = np.zeros(n)
         for i in range(period, n):
             di_sum = plus_di[i] + minus_di[i]
             if di_sum > 0:
                 dx[i] = 100 * abs(plus_di[i] - minus_di[i]) / di_sum
         adx = np.zeros(n)
-        adx[period * 2 - 1] = np.mean(dx[period:period * 2])
+        adx[period * 2 - 1] = np.mean(dx[period : period * 2])
         for i in range(period * 2, n):
             adx[i] = (adx[i - 1] * (period - 1) + dx[i]) / period
         return adx
@@ -2000,17 +2172,23 @@ class AdaptiveHybridStrategy:
         entry_price = 0.0
         entry_bar = 0
         highest_after_entry = 0.0
-        lowest_after_entry = float('inf')
+        lowest_after_entry = float("inf")
 
-        min_idx = max(self.rsi_period, self.ma_period, self.adx_period * 2,
-                      self.trend_long_ma, self.trend_pull_ma, self.atr_period)
+        min_idx = max(
+            self.rsi_period,
+            self.ma_period,
+            self.adx_period * 2,
+            self.trend_long_ma,
+            self.trend_pull_ma,
+            self.atr_period,
+        )
 
         for i in range(min_idx, n):
             price = close[i]
 
             is_uptrend = ema_fast[i] > ema_slow[i]
             is_downtrend = ema_fast[i] < ema_slow[i]
-            vol_ok = (vol_ratio is None or vol_ratio[i] >= self.volume_threshold)
+            vol_ok = vol_ratio is None or vol_ratio[i] >= self.volume_threshold
 
             # === 持仓管理 ===
             if position == 1:
@@ -2060,7 +2238,7 @@ class AdaptiveHybridStrategy:
                     position = 0
                     continue
 
-                if lowest_after_entry < float('inf'):
+                if lowest_after_entry < float("inf"):
                     atr_stop = lowest_after_entry + self.atr_multiplier * atr[i]
                     if price > atr_stop:
                         signals[i] = 0
@@ -2085,10 +2263,12 @@ class AdaptiveHybridStrategy:
                 if regime_trending:
                     # 强趋势市：只顺势交易，用长期EMA过滤（带容差）
                     if is_uptrend:
-                        long_cross = (prev_rsi < self.rsi_low and
-                                      rsi[i] >= self.rsi_low and
-                                      price > trend_long[i] * (1 - self.ema_tolerance) and
-                                      vol_ok)
+                        long_cross = (
+                            prev_rsi < self.rsi_low
+                            and rsi[i] >= self.rsi_low
+                            and price > trend_long[i] * (1 - self.ema_tolerance)
+                            and vol_ok
+                        )
                         if long_cross:
                             signals[i] = 2
                             position = 1
@@ -2097,10 +2277,12 @@ class AdaptiveHybridStrategy:
                             highest_after_entry = high[i]
                             continue
                     elif is_downtrend and self.enable_short:
-                        short_cross = (prev_rsi > self.rsi_high and
-                                       rsi[i] <= self.rsi_high and
-                                       price < trend_long[i] * (1 + self.ema_tolerance) and
-                                       vol_ok)
+                        short_cross = (
+                            prev_rsi > self.rsi_high
+                            and rsi[i] <= self.rsi_high
+                            and price < trend_long[i] * (1 + self.ema_tolerance)
+                            and vol_ok
+                        )
                         if short_cross:
                             signals[i] = 3
                             position = -1
@@ -2110,7 +2292,7 @@ class AdaptiveHybridStrategy:
                             continue
                 else:
                     # 震荡市：RSI 双向均值回归（带成交量确认）
-                    long_cross = (prev_rsi < self.rsi_low and rsi[i] >= self.rsi_low)
+                    long_cross = prev_rsi < self.rsi_low and rsi[i] >= self.rsi_low
                     if long_cross and vol_ok:
                         signals[i] = 2
                         position = 1
@@ -2119,7 +2301,12 @@ class AdaptiveHybridStrategy:
                         highest_after_entry = high[i]
                         continue
 
-                    if self.enable_short and prev_rsi > self.rsi_high and rsi[i] <= self.rsi_high and vol_ok:
+                    if (
+                        self.enable_short
+                        and prev_rsi > self.rsi_high
+                        and rsi[i] <= self.rsi_high
+                        and vol_ok
+                    ):
                         signals[i] = 3
                         position = -1
                         entry_price = price
@@ -2134,6 +2321,7 @@ class AdaptiveHybridStrategy:
 # 策略：市场状态动态选择器（震荡市=RSI均值回归，趋势市=EMA趋势跟随）
 # ---------------------------------------------------------------------------
 
+
 class RegimeStrategy:
     """
     基于实时ADX动态切换子策略：
@@ -2141,8 +2329,9 @@ class RegimeStrategy:
     - ADX >  adx_threshold (趋势市): TrendFollowStrategy (EMA趋势跟随回调)
     """
 
-    def __init__(self, ranging_params=None, trending_params=None,
-                 enable_short=True, adx_threshold=25):
+    def __init__(
+        self, ranging_params=None, trending_params=None, enable_short=True, adx_threshold=25
+    ):
         self.adx_threshold = adx_threshold
         self.enable_short = enable_short
 
@@ -2213,8 +2402,8 @@ class RegimeStrategy:
         minus_di = np.zeros(n)
         for i in range(period, n):
             if atr_val[i] > 0:
-                plus_di[i] = 100 * np.mean(plus_dm[i - period + 1:i + 1]) / atr_val[i]
-                minus_di[i] = 100 * np.mean(minus_dm[i - period + 1:i + 1]) / atr_val[i]
+                plus_di[i] = 100 * np.mean(plus_dm[i - period + 1 : i + 1]) / atr_val[i]
+                minus_di[i] = 100 * np.mean(minus_dm[i - period + 1 : i + 1]) / atr_val[i]
 
         dx = np.zeros(n)
         for i in range(period, n):
@@ -2223,7 +2412,7 @@ class RegimeStrategy:
                 dx[i] = 100 * abs(plus_di[i] - minus_di[i]) / di_sum
 
         adx = np.zeros(n)
-        adx[period * 2 - 1] = np.mean(dx[period:period * 2])
+        adx[period * 2 - 1] = np.mean(dx[period : period * 2])
         for i in range(period * 2, n):
             adx[i] = (adx[i - 1] * (period - 1) + dx[i]) / period
 
@@ -2247,6 +2436,7 @@ class RegimeStrategy:
 # ---------------------------------------------------------------------------
 # 评估器
 # ---------------------------------------------------------------------------
+
 
 class StrategyEvaluator:
     """策略绩效评估器"""
@@ -2416,8 +2606,18 @@ class StrategyEvaluator:
 
         # 防护：权益曲线出现 NaN/Inf 则直接返回零分
         if len(equity) == 0 or not np.all(np.isfinite(equity)):
-            return 0.0, {"total_return": 0, "annualized_return": 0, "annualized_vol": 0,
-                          "sharpe_ratio": 0, "max_drawdown": -0.99, "win_rate": 0}, []
+            return (
+                0.0,
+                {
+                    "total_return": 0,
+                    "annualized_return": 0,
+                    "annualized_vol": 0,
+                    "sharpe_ratio": 0,
+                    "max_drawdown": -0.99,
+                    "win_rate": 0,
+                },
+                [],
+            )
 
         metrics = self.compute_metrics(equity, trades)
 
@@ -2441,7 +2641,9 @@ class StrategyEvaluator:
         n_trades = len(trade_pnls)
 
         # 回撤评分：线性评分，-20%回撤得0分，0回撤得1分（单一惩罚）
-        dd_score = max(0, 1 + metrics["max_drawdown"] / 0.20) if metrics["max_drawdown"] < 0 else 1.0
+        dd_score = (
+            max(0, 1 + metrics["max_drawdown"] / 0.20) if metrics["max_drawdown"] < 0 else 1.0
+        )
 
         # 最低交易量门槛：少于10笔交易小幅惩罚
         min_trade_penalty = min(1.0, n_trades / 10.0) if n_trades < 10 else 1.0
@@ -2452,12 +2654,12 @@ class StrategyEvaluator:
         win_rate_clamped = max(0, min(1.0, metrics["win_rate"]))
 
         score = (
-            sharpe_clamped * 0.35 +               # 夏普权重：质量优先
-            return_clamped * 0.20 +               # 收益权重
-            win_rate_clamped * 0.15 +             # 胜率权重
-            dd_score * 0.20 +                     # 回撤权重（单一路径）
-            min(1.0, n_trades / 20.0) * 0.15 +    # 交易次数权重提高，20笔满分
-            min_trade_penalty * 0.05              # 最低交易惩罚
+            sharpe_clamped * 0.35  # 夏普权重：质量优先
+            + return_clamped * 0.20  # 收益权重
+            + win_rate_clamped * 0.15  # 胜率权重
+            + dd_score * 0.20  # 回撤权重（单一路径）
+            + min(1.0, n_trades / 20.0) * 0.15  # 交易次数权重提高，20笔满分
+            + min_trade_penalty * 0.05  # 最低交易惩罚
         )
 
         return score, metrics, trades
@@ -2468,8 +2670,18 @@ def scalp_evaluate(signals, prices, evaluator, min_trades=50):
     equity, trades = evaluator.simulate(signals, prices)
 
     if len(equity) == 0 or not np.all(np.isfinite(equity)):
-        return 0.0, {"total_return": 0, "annualized_return": 0, "annualized_vol": 0,
-                      "sharpe_ratio": 0, "max_drawdown": -0.99, "win_rate": 0}, []
+        return (
+            0.0,
+            {
+                "total_return": 0,
+                "annualized_return": 0,
+                "annualized_vol": 0,
+                "sharpe_ratio": 0,
+                "max_drawdown": -0.99,
+                "win_rate": 0,
+            },
+            [],
+        )
 
     metrics = evaluator.compute_metrics(equity, trades)
 
@@ -2506,11 +2718,11 @@ def scalp_evaluate(signals, prices, evaluator, min_trades=50):
     dd_score = max(0, 1 + metrics["max_drawdown"]) if metrics["max_drawdown"] < 0 else 1.0
 
     score = (
-        trade_count_score * 0.30 +
-        consistency_score * 0.25 +
-        win_rate_score * 0.20 +
-        return_score * 0.15 +
-        dd_score * 0.10
+        trade_count_score * 0.30
+        + consistency_score * 0.25
+        + win_rate_score * 0.20
+        + return_score * 0.15
+        + dd_score * 0.10
     )
 
     return score, metrics, trades
@@ -2519,6 +2731,7 @@ def scalp_evaluate(signals, prices, evaluator, min_trades=50):
 # ---------------------------------------------------------------------------
 # 参数搜索
 # ---------------------------------------------------------------------------
+
 
 def grid_search(df, time_budget=TIME_BUDGET):
     """
@@ -2573,27 +2786,34 @@ def grid_search(df, time_budget=TIME_BUDGET):
                                 break
 
                             strategy = TrendStrategy(
-                                window=window, std_dev=std_dev,
-                                atr_multiplier=atr_mult, max_hold_bars=max_hold,
-                                rsi_threshold=rsi_th, entry_zone=ez
+                                window=window,
+                                std_dev=std_dev,
+                                atr_multiplier=atr_mult,
+                                max_hold_bars=max_hold,
+                                rsi_threshold=rsi_th,
+                                entry_zone=ez,
                             )
                             signals = strategy.generate_signals(val_df, enable_short=True)
                             prices = val_df["close"].values
 
-                            valid_signals = signals[window*2:]
-                            valid_prices = prices[window*2:]
-                            valid_df = val_df.iloc[window*2:].reset_index(drop=True)
+                            valid_signals = signals[window * 2 :]
+                            valid_prices = prices[window * 2 :]
+                            valid_df = val_df.iloc[window * 2 :].reset_index(drop=True)
 
                             if len(valid_signals) < 50:
                                 continue
 
-                            score, metrics, trades = evaluator.evaluate(valid_signals, valid_prices, valid_df)
+                            score, metrics, trades = evaluator.evaluate(
+                                valid_signals, valid_prices, valid_df
+                            )
                             n_trades = len([t for t in trades if t.get("pnl") is not None])
 
                             tried += 1
                             if tried % 50 == 0 or score > best_score:
-                                print(f"  [{tried}/{total_combos}] w={window} std={std_dev} atr={atr_mult} hold={max_hold} rsi={rsi_th} ez={ez:.1f} | "
-                                      f"评分={score:.4f} | 收益={metrics['total_return']*100:.2f}% | 夏普={metrics['sharpe_ratio']:.2f} | DD={metrics['max_drawdown']*100:.1f}% | 交易={n_trades}")
+                                print(
+                                    f"  [{tried}/{total_combos}] w={window} std={std_dev} atr={atr_mult} hold={max_hold} rsi={rsi_th} ez={ez:.1f} | "
+                                    f"评分={score:.4f} | 收益={metrics['total_return'] * 100:.2f}% | 夏普={metrics['sharpe_ratio']:.2f} | DD={metrics['max_drawdown'] * 100:.1f}% | 交易={n_trades}"
+                                )
 
                             if score > best_score:
                                 best_score = score
@@ -2610,10 +2830,12 @@ def grid_search(df, time_budget=TIME_BUDGET):
     stage1_time = time.time() - t_start
     print(f"\nStage 1 完成: {tried}/{total_combos} 组合, 耗时 {stage1_time:.1f}s")
     if best_params:
-        ez = best_params.get('entry_zone', 0.0)
-        print(f"  最优核心参数: w={best_params['window']} std={best_params['std_dev']} "
-              f"atr={best_params['atr_multiplier']} hold={best_params['max_hold_bars']} rsi={best_params['rsi_threshold']} ez={ez:.1f}")
-        print(f"  评分={best_score:.4f} 收益={best_metrics['total_return']*100:.2f}%")
+        ez = best_params.get("entry_zone", 0.0)
+        print(
+            f"  最优核心参数: w={best_params['window']} std={best_params['std_dev']} "
+            f"atr={best_params['atr_multiplier']} hold={best_params['max_hold_bars']} rsi={best_params['rsi_threshold']} ez={ez:.1f}"
+        )
+        print(f"  评分={best_score:.4f} 收益={best_metrics['total_return'] * 100:.2f}%")
 
     # ======================================================================
     # Stage 2: 指标组合搜索（固定核心参数）
@@ -2659,7 +2881,14 @@ def grid_search(df, time_budget=TIME_BUDGET):
         {"use_adx": True, "adx_threshold": 25, "use_macd": True, "macd_confirm_mode": "direction"},
         {"use_adx": True, "adx_threshold": 25, "use_macd": True, "macd_confirm_mode": "both"},
         # P0+P1: ADX + Volume + MACD
-        {"use_adx": True, "adx_threshold": 25, "use_volume": True, "volume_threshold": 1.2, "use_macd": True, "macd_confirm_mode": "direction"},
+        {
+            "use_adx": True,
+            "adx_threshold": 25,
+            "use_volume": True,
+            "volume_threshold": 1.2,
+            "use_macd": True,
+            "macd_confirm_mode": "direction",
+        },
         # P2: MFI
         {"use_mfi": True, "mfi_threshold": 20},
         {"use_mfi": True, "mfi_threshold": 25},
@@ -2680,16 +2909,45 @@ def grid_search(df, time_budget=TIME_BUDGET):
         {"use_macd_divergence": True, "macd_divergence_lookback": 5},
         {"use_macd_divergence": True, "macd_divergence_lookback": 8},
         # P3: RSI + MACD 背离
-        {"use_rsi_divergence": True, "rsi_divergence_lookback": 5, "use_macd_divergence": True, "macd_divergence_lookback": 5},
+        {
+            "use_rsi_divergence": True,
+            "rsi_divergence_lookback": 5,
+            "use_macd_divergence": True,
+            "macd_divergence_lookback": 5,
+        },
         # P1+P3: MACD 方向 + RSI 背离
-        {"use_macd": True, "macd_confirm_mode": "direction", "use_rsi_divergence": True, "rsi_divergence_lookback": 5},
+        {
+            "use_macd": True,
+            "macd_confirm_mode": "direction",
+            "use_rsi_divergence": True,
+            "rsi_divergence_lookback": 5,
+        },
         # 全量组合
-        {"use_adx": True, "adx_threshold": 25, "use_volume": True, "volume_threshold": 1.2,
-         "use_macd": True, "macd_confirm_mode": "direction"},
-        {"use_adx": True, "adx_threshold": 25, "use_volume": True, "volume_threshold": 1.2,
-         "use_macd": True, "macd_confirm_mode": "direction", "use_ma_cross": True},
-        {"use_adx": True, "adx_threshold": 25, "use_mfi": True, "mfi_threshold": 25,
-         "use_macd": True, "macd_confirm_mode": "direction"},
+        {
+            "use_adx": True,
+            "adx_threshold": 25,
+            "use_volume": True,
+            "volume_threshold": 1.2,
+            "use_macd": True,
+            "macd_confirm_mode": "direction",
+        },
+        {
+            "use_adx": True,
+            "adx_threshold": 25,
+            "use_volume": True,
+            "volume_threshold": 1.2,
+            "use_macd": True,
+            "macd_confirm_mode": "direction",
+            "use_ma_cross": True,
+        },
+        {
+            "use_adx": True,
+            "adx_threshold": 25,
+            "use_mfi": True,
+            "mfi_threshold": 25,
+            "use_macd": True,
+            "macd_confirm_mode": "direction",
+        },
         # P5: OBV 趋势
         {"use_obv_trend": True, "obv_ma_period": 15},
         {"use_obv_trend": True, "obv_ma_period": 20},
@@ -2706,19 +2964,43 @@ def grid_search(df, time_budget=TIME_BUDGET):
         {"use_obv_trend": True, "obv_ma_period": 20, "use_trend_filter": True, "trend_window": 50},
         {"use_obv_trend": True, "obv_ma_period": 20, "use_trend_filter": True, "trend_window": 25},
         # P5: Volume Spike + 趋势过滤
-        {"use_volume_spike": True, "volume_spike_threshold": 1.5, "use_trend_filter": True, "trend_window": 50},
+        {
+            "use_volume_spike": True,
+            "volume_spike_threshold": 1.5,
+            "use_trend_filter": True,
+            "trend_window": 50,
+        },
         # P5: VWAP + 趋势过滤
         {"use_vwap": True, "vwap_period": 20, "use_trend_filter": True, "trend_window": 50},
         # P5: OBV + Volume Spike
-        {"use_obv_trend": True, "obv_ma_period": 20, "use_volume_spike": True, "volume_spike_threshold": 1.5},
+        {
+            "use_obv_trend": True,
+            "obv_ma_period": 20,
+            "use_volume_spike": True,
+            "volume_spike_threshold": 1.5,
+        },
         # P5: OBV + VWAP
         {"use_obv_trend": True, "obv_ma_period": 20, "use_vwap": True, "vwap_period": 20},
         # P5: 全部成交量因子
-        {"use_obv_trend": True, "obv_ma_period": 20, "use_volume_spike": True, "volume_spike_threshold": 1.5,
-         "use_vwap": True, "vwap_period": 20},
+        {
+            "use_obv_trend": True,
+            "obv_ma_period": 20,
+            "use_volume_spike": True,
+            "volume_spike_threshold": 1.5,
+            "use_vwap": True,
+            "vwap_period": 20,
+        },
         # P5 + P4: 全部成交量 + 趋势过滤
-        {"use_obv_trend": True, "obv_ma_period": 20, "use_volume_spike": True, "volume_spike_threshold": 1.5,
-         "use_vwap": True, "vwap_period": 20, "use_trend_filter": True, "trend_window": 50},
+        {
+            "use_obv_trend": True,
+            "obv_ma_period": 20,
+            "use_volume_spike": True,
+            "volume_spike_threshold": 1.5,
+            "use_vwap": True,
+            "vwap_period": 20,
+            "use_trend_filter": True,
+            "trend_window": 50,
+        },
         # P5 + P0: OBV + Volume
         {"use_obv_trend": True, "obv_ma_period": 20, "use_volume": True, "volume_threshold": 1.0},
         # P5 + P0: VWAP + Volume
@@ -2728,27 +3010,87 @@ def grid_search(df, time_budget=TIME_BUDGET):
         {"use_htf_macd": True, "use_trend_filter": True, "trend_window": 50},
         {"use_htf_macd": True, "use_volume": True, "volume_threshold": 1.0},
         {"use_htf_macd": True, "use_obv_trend": True, "obv_ma_period": 20},
-        {"use_htf_macd": True, "use_trend_filter": True, "trend_window": 50,
-         "use_volume": True, "volume_threshold": 1.0},
+        {
+            "use_htf_macd": True,
+            "use_trend_filter": True,
+            "trend_window": 50,
+            "use_volume": True,
+            "volume_threshold": 1.0,
+        },
         {"use_htf_macd": True, "use_trend_filter": True, "trend_window": 25},
         # P7: 多因子共振评分（策略.md 核心规则，需搭配实际因子）
-        {"use_resonance": True, "resonance_min_score": 2, "use_macd": True, "macd_confirm_mode": "direction"},
-        {"use_resonance": True, "resonance_min_score": 2, "use_volume": True, "volume_threshold": 1.0},
-        {"use_resonance": True, "resonance_min_score": 2, "use_obv_trend": True, "obv_ma_period": 20},
-        {"use_resonance": True, "resonance_min_score": 3, "use_macd": True, "macd_confirm_mode": "direction",
-         "use_volume": True, "volume_threshold": 1.0},
-        {"use_resonance": True, "resonance_min_score": 3, "use_macd": True, "macd_confirm_mode": "direction",
-         "use_obv_trend": True, "obv_ma_period": 20},
-        {"use_resonance": True, "resonance_min_score": 3, "use_volume": True, "volume_threshold": 1.0,
-         "use_obv_trend": True, "obv_ma_period": 20},
+        {
+            "use_resonance": True,
+            "resonance_min_score": 2,
+            "use_macd": True,
+            "macd_confirm_mode": "direction",
+        },
+        {
+            "use_resonance": True,
+            "resonance_min_score": 2,
+            "use_volume": True,
+            "volume_threshold": 1.0,
+        },
+        {
+            "use_resonance": True,
+            "resonance_min_score": 2,
+            "use_obv_trend": True,
+            "obv_ma_period": 20,
+        },
+        {
+            "use_resonance": True,
+            "resonance_min_score": 3,
+            "use_macd": True,
+            "macd_confirm_mode": "direction",
+            "use_volume": True,
+            "volume_threshold": 1.0,
+        },
+        {
+            "use_resonance": True,
+            "resonance_min_score": 3,
+            "use_macd": True,
+            "macd_confirm_mode": "direction",
+            "use_obv_trend": True,
+            "obv_ma_period": 20,
+        },
+        {
+            "use_resonance": True,
+            "resonance_min_score": 3,
+            "use_volume": True,
+            "volume_threshold": 1.0,
+            "use_obv_trend": True,
+            "obv_ma_period": 20,
+        },
         {"use_resonance": True, "resonance_min_score": 2, "use_htf_macd": True},
-        {"use_resonance": True, "resonance_min_score": 2, "use_htf_macd": True,
-         "use_trend_filter": True, "trend_window": 50},
-        {"use_resonance": True, "resonance_min_score": 3, "use_macd": True, "macd_confirm_mode": "direction",
-         "use_volume": True, "volume_threshold": 1.0, "use_obv_trend": True, "obv_ma_period": 20},
-        {"use_resonance": True, "resonance_min_score": 4, "use_macd": True, "macd_confirm_mode": "direction",
-         "use_volume": True, "volume_threshold": 1.0, "use_obv_trend": True, "obv_ma_period": 20,
-         "use_adx": True, "adx_threshold": 25},
+        {
+            "use_resonance": True,
+            "resonance_min_score": 2,
+            "use_htf_macd": True,
+            "use_trend_filter": True,
+            "trend_window": 50,
+        },
+        {
+            "use_resonance": True,
+            "resonance_min_score": 3,
+            "use_macd": True,
+            "macd_confirm_mode": "direction",
+            "use_volume": True,
+            "volume_threshold": 1.0,
+            "use_obv_trend": True,
+            "obv_ma_period": 20,
+        },
+        {
+            "use_resonance": True,
+            "resonance_min_score": 4,
+            "use_macd": True,
+            "macd_confirm_mode": "direction",
+            "use_volume": True,
+            "volume_threshold": 1.0,
+            "use_obv_trend": True,
+            "obv_ma_period": 20,
+            "use_adx": True,
+            "adx_threshold": 25,
+        },
         # P6 + P5 组合
         {"use_htf_macd": True, "use_resonance": True, "resonance_min_score": 3},
     ]
@@ -2774,9 +3116,9 @@ def grid_search(df, time_budget=TIME_BUDGET):
         prices = val_df["close"].values
 
         window = best_params["window"]
-        valid_signals = signals[window*2:]
-        valid_prices = prices[window*2:]
-        valid_df = val_df.iloc[window*2:].reset_index(drop=True)
+        valid_signals = signals[window * 2 :]
+        valid_prices = prices[window * 2 :]
+        valid_df = val_df.iloc[window * 2 :].reset_index(drop=True)
 
         if len(valid_signals) < 50:
             continue
@@ -2795,11 +3137,15 @@ def grid_search(df, time_budget=TIME_BUDGET):
             best_score = score
             best_params = merged.copy()
             best_metrics = metrics
-            print(f"  [{stage2_tried}/{len(indicator_combos)}] {desc:40s} | "
-                  f"评分={score:.4f} | 收益={metrics['total_return']*100:.2f}% | 夏普={metrics['sharpe_ratio']:.2f} | DD={metrics['max_drawdown']*100:.1f}% | 交易={n_trades} <<< NEW BEST")
+            print(
+                f"  [{stage2_tried}/{len(indicator_combos)}] {desc:40s} | "
+                f"评分={score:.4f} | 收益={metrics['total_return'] * 100:.2f}% | 夏普={metrics['sharpe_ratio']:.2f} | DD={metrics['max_drawdown'] * 100:.1f}% | 交易={n_trades} <<< NEW BEST"
+            )
         elif stage2_tried % 10 == 0:
-            print(f"  [{stage2_tried}/{len(indicator_combos)}] {desc:40s} | "
-                  f"评分={score:.4f} | 收益={metrics['total_return']*100:.2f}% | 交易={n_trades}")
+            print(
+                f"  [{stage2_tried}/{len(indicator_combos)}] {desc:40s} | "
+                f"评分={score:.4f} | 收益={metrics['total_return'] * 100:.2f}% | 交易={n_trades}"
+            )
 
     stage2_time = time.time() - t2_start
     print(f"\nStage 2 完成: {stage2_tried}/{len(indicator_combos)} 组合, 耗时 {stage2_time:.1f}s")
@@ -2807,7 +3153,21 @@ def grid_search(df, time_budget=TIME_BUDGET):
     # 输出活跃指标信息
     active = {k: v for k, v in best_params.items() if k.startswith("use_") and v is True}
     if active:
-        indicator_str = ", ".join(f"{k}={v}" for k, v in best_params.items() if k.startswith("use_") or k in ("adx_threshold", "volume_threshold", "macd_confirm_mode", "mfi_threshold", "mfi_period", "stoch_threshold", "stoch_period"))
+        indicator_str = ", ".join(
+            f"{k}={v}"
+            for k, v in best_params.items()
+            if k.startswith("use_")
+            or k
+            in (
+                "adx_threshold",
+                "volume_threshold",
+                "macd_confirm_mode",
+                "mfi_threshold",
+                "mfi_period",
+                "stoch_threshold",
+                "stoch_period",
+            )
+        )
         print(f"  活跃指标: {indicator_str}")
     else:
         print("  无额外指标（纯均线交叉策略）")
@@ -2819,6 +3179,7 @@ def grid_search(df, time_budget=TIME_BUDGET):
 # ---------------------------------------------------------------------------
 # 高频剥头皮参数搜索
 # ---------------------------------------------------------------------------
+
 
 def scalp_grid_search(df, time_budget=TIME_BUDGET):
     """
@@ -2868,12 +3229,19 @@ def scalp_grid_search(df, time_budget=TIME_BUDGET):
                                 break
                             tried += 1
 
-                            strategy = ScalpStrategy(window=w, std_dev=sd,
-                                                      take_profit_pct=tp, stop_loss_pct=sl,
-                                                      max_hold_bars=hold, rsi_period=rsi_p)
+                            strategy = ScalpStrategy(
+                                window=w,
+                                std_dev=sd,
+                                take_profit_pct=tp,
+                                stop_loss_pct=sl,
+                                max_hold_bars=hold,
+                                rsi_period=rsi_p,
+                            )
                             try:
                                 signals = strategy.generate_signals(val_df, enable_short=True)
-                                score, metrics, trades = scalp_evaluate(signals, val_prices, evaluator)
+                                score, metrics, trades = scalp_evaluate(
+                                    signals, val_prices, evaluator
+                                )
                             except Exception:
                                 score = 0
                                 metrics = {}
@@ -2889,18 +3257,27 @@ def scalp_grid_search(df, time_budget=TIME_BUDGET):
                             is_best = score > best_s1_score
                             if is_best:
                                 best_s1_score = score
-                                best_s1_params = {"window": w, "std_dev": sd, "take_profit_pct": tp,
-                                                  "stop_loss_pct": sl, "max_hold_bars": hold,
-                                                  "rsi_period": rsi_p}
-                                best_s1_desc = f"w={w} std={sd} tp={tp} sl={sl} hold={hold} rsi={rsi_p}"
+                                best_s1_params = {
+                                    "window": w,
+                                    "std_dev": sd,
+                                    "take_profit_pct": tp,
+                                    "stop_loss_pct": sl,
+                                    "max_hold_bars": hold,
+                                    "rsi_period": rsi_p,
+                                }
+                                best_s1_desc = (
+                                    f"w={w} std={sd} tp={tp} sl={sl} hold={hold} rsi={rsi_p}"
+                                )
 
                             if tried % 100 == 0 or is_best:
                                 desc = f"w={w} std={sd} tp={tp:.3f} sl={sl:.3f} hold={hold} rsi={rsi_p}"
                                 best_tag = " <<< NEW BEST" if is_best else ""
-                                print(f"  [{tried}/{total_combos}] {desc:55s} | "
-                                      f"score={score:.4f} | ret={ret:+.2f}% | "
-                                      f"sharpe={sharpe:.2f} | DD={dd:+.1f}% | "
-                                      f"WR={wr:.0f}% | trades={n_trades}{best_tag}")
+                                print(
+                                    f"  [{tried}/{total_combos}] {desc:55s} | "
+                                    f"score={score:.4f} | ret={ret:+.2f}% | "
+                                    f"sharpe={sharpe:.2f} | DD={dd:+.1f}% | "
+                                    f"WR={wr:.0f}% | trades={n_trades}{best_tag}"
+                                )
                         else:
                             continue
                         break
@@ -2930,44 +3307,102 @@ def scalp_grid_search(df, time_budget=TIME_BUDGET):
         {"use_volume_filter": True, "volume_threshold": 1.2},
         {"rsi_extreme_low": 25, "rsi_extreme_high": 75},
         {"rsi_extreme_low": 30, "rsi_extreme_high": 70},
-        {"use_volume_filter": True, "volume_threshold": 0.8,
-         "rsi_extreme_low": 25, "rsi_extreme_high": 75},
-        {"use_volume_filter": True, "volume_threshold": 1.0,
-         "rsi_extreme_low": 30, "rsi_extreme_high": 70},
+        {
+            "use_volume_filter": True,
+            "volume_threshold": 0.8,
+            "rsi_extreme_low": 25,
+            "rsi_extreme_high": 75,
+        },
+        {
+            "use_volume_filter": True,
+            "volume_threshold": 1.0,
+            "rsi_extreme_low": 30,
+            "rsi_extreme_high": 70,
+        },
         # RSI 入场要求（策略2.md 策略9：RSI<30做多 / RSI>70做空）
         {"use_rsi_entry": True, "rsi_entry_low": 30, "rsi_entry_high": 70},
         {"use_rsi_entry": True, "rsi_entry_low": 35, "rsi_entry_high": 65},
         {"use_rsi_entry": True, "rsi_entry_low": 40, "rsi_entry_high": 60},
-        {"use_rsi_entry": True, "rsi_entry_low": 30, "rsi_entry_high": 70,
-         "use_volume_filter": True, "volume_threshold": 0.8},
-        {"use_rsi_entry": True, "rsi_entry_low": 35, "rsi_entry_high": 65,
-         "use_volume_filter": True, "volume_threshold": 1.0},
+        {
+            "use_rsi_entry": True,
+            "rsi_entry_low": 30,
+            "rsi_entry_high": 70,
+            "use_volume_filter": True,
+            "volume_threshold": 0.8,
+        },
+        {
+            "use_rsi_entry": True,
+            "rsi_entry_low": 35,
+            "rsi_entry_high": 65,
+            "use_volume_filter": True,
+            "volume_threshold": 1.0,
+        },
         # 趋势对齐（策略2.md 策略7：趋势方向上的均值回归）
         {"use_trend_align": True, "trend_ma_period": 50},
         {"use_trend_align": True, "trend_ma_period": 100},
-        {"use_trend_align": True, "trend_ma_period": 50,
-         "use_volume_filter": True, "volume_threshold": 0.8},
-        {"use_trend_align": True, "trend_ma_period": 100,
-         "use_volume_filter": True, "volume_threshold": 0.8},
+        {
+            "use_trend_align": True,
+            "trend_ma_period": 50,
+            "use_volume_filter": True,
+            "volume_threshold": 0.8,
+        },
+        {
+            "use_trend_align": True,
+            "trend_ma_period": 100,
+            "use_volume_filter": True,
+            "volume_threshold": 0.8,
+        },
         # 趋势对齐 + RSI 入场
-        {"use_trend_align": True, "trend_ma_period": 50,
-         "use_rsi_entry": True, "rsi_entry_low": 35, "rsi_entry_high": 65},
-        {"use_trend_align": True, "trend_ma_period": 100,
-         "use_rsi_entry": True, "rsi_entry_low": 35, "rsi_entry_high": 65},
+        {
+            "use_trend_align": True,
+            "trend_ma_period": 50,
+            "use_rsi_entry": True,
+            "rsi_entry_low": 35,
+            "rsi_entry_high": 65,
+        },
+        {
+            "use_trend_align": True,
+            "trend_ma_period": 100,
+            "use_rsi_entry": True,
+            "rsi_entry_low": 35,
+            "rsi_entry_high": 65,
+        },
         # 时段过滤（策略2.md：欧美开盘时段胜率提升15%）
         {"use_session_filter": True, "session_start": 13, "session_end": 21},
         {"use_session_filter": True, "session_start": 13, "session_end": 23},
         {"use_session_filter": True, "session_start": 8, "session_end": 22},
-        {"use_session_filter": True, "session_start": 13, "session_end": 21,
-         "use_trend_align": True, "trend_ma_period": 50},
-        {"use_session_filter": True, "session_start": 13, "session_end": 21,
-         "use_trend_align": True, "trend_ma_period": 100},
+        {
+            "use_session_filter": True,
+            "session_start": 13,
+            "session_end": 21,
+            "use_trend_align": True,
+            "trend_ma_period": 50,
+        },
+        {
+            "use_session_filter": True,
+            "session_start": 13,
+            "session_end": 21,
+            "use_trend_align": True,
+            "trend_ma_period": 100,
+        },
         # 趋势对齐 + RSI + 时段（三重过滤）
-        {"use_trend_align": True, "trend_ma_period": 50,
-         "use_rsi_entry": True, "rsi_entry_low": 35, "rsi_entry_high": 65,
-         "use_session_filter": True, "session_start": 13, "session_end": 21},
-        {"use_trend_align": True, "trend_ma_period": 100,
-         "use_session_filter": True, "session_start": 13, "session_end": 21},
+        {
+            "use_trend_align": True,
+            "trend_ma_period": 50,
+            "use_rsi_entry": True,
+            "rsi_entry_low": 35,
+            "rsi_entry_high": 65,
+            "use_session_filter": True,
+            "session_start": 13,
+            "session_end": 21,
+        },
+        {
+            "use_trend_align": True,
+            "trend_ma_period": 100,
+            "use_session_filter": True,
+            "session_start": 13,
+            "session_end": 21,
+        },
     ]
 
     print(f"\nStage 2: 过滤器搜索 ({len(stage2_combos)} 种)")
@@ -3002,9 +3437,11 @@ def scalp_grid_search(df, time_budget=TIME_BUDGET):
         if (idx + 1) % 2 == 0 or is_best:
             combo_str = str(combo)[:40] if combo else "无过滤器"
             best_tag = " <<< NEW BEST" if is_best else ""
-            print(f"  [{idx+1}/{len(stage2_combos)}] {combo_str:40s} | "
-                  f"score={score:.4f} | ret={ret:+.2f}% | "
-                  f"WR={wr:.0f}% | trades={n_trades}{best_tag}")
+            print(
+                f"  [{idx + 1}/{len(stage2_combos)}] {combo_str:40s} | "
+                f"score={score:.4f} | ret={ret:+.2f}% | "
+                f"WR={wr:.0f}% | trades={n_trades}{best_tag}"
+            )
 
     print("\nStage 2 完成")
     print(f"  活跃指标: {best_s2_desc}")
@@ -3015,6 +3452,7 @@ def scalp_grid_search(df, time_budget=TIME_BUDGET):
 # ---------------------------------------------------------------------------
 # 纯价格行为参数搜索（无因子约束）
 # ---------------------------------------------------------------------------
+
 
 def pure_grid_search(df, time_budget=TIME_BUDGET):
     """
@@ -3065,18 +3503,21 @@ def pure_grid_search(df, time_budget=TIME_BUDGET):
                             tried += 1
 
                             strategy = PureActionStrategy(
-                                window=window, std_dev=std_dev,
-                                atr_period=atr_p, atr_multiplier=atr_m,
-                                max_hold_bars=max_hold, entry_zone=ez,
+                                window=window,
+                                std_dev=std_dev,
+                                atr_period=atr_p,
+                                atr_multiplier=atr_m,
+                                max_hold_bars=max_hold,
+                                entry_zone=ez,
                                 enable_short=True,
                             )
 
                             try:
                                 signals = strategy.generate_signals(val_df)
                                 score, metrics, trades = evaluator.evaluate(
-                                    signals[window * 2:],
-                                    val_prices[window * 2:],
-                                    val_df.iloc[window * 2:].reset_index(drop=True),
+                                    signals[window * 2 :],
+                                    val_prices[window * 2 :],
+                                    val_df.iloc[window * 2 :].reset_index(drop=True),
                                 )
                             except Exception:
                                 score = 0.0
@@ -3089,9 +3530,12 @@ def pure_grid_search(df, time_budget=TIME_BUDGET):
                             if is_best:
                                 best_score = score
                                 best_params = {
-                                    "window": window, "std_dev": std_dev,
-                                    "atr_period": atr_p, "atr_multiplier": atr_m,
-                                    "max_hold_bars": max_hold, "entry_zone": ez,
+                                    "window": window,
+                                    "std_dev": std_dev,
+                                    "atr_period": atr_p,
+                                    "atr_multiplier": atr_m,
+                                    "max_hold_bars": max_hold,
+                                    "entry_zone": ez,
                                     "enable_short": True,
                                 }
                                 best_metrics = metrics
@@ -3103,10 +3547,12 @@ def pure_grid_search(df, time_budget=TIME_BUDGET):
                                 sharpe = metrics.get("sharpe_ratio", 0)
                                 dd = metrics.get("max_drawdown", 0) * 100
                                 wr = metrics.get("win_rate", 0) * 100
-                                print(f"  [{tried}/{total_combos}] {desc:60s} | "
-                                      f"score={score:.4f} | ret={ret:+.2f}% | "
-                                      f"sharpe={sharpe:.2f} | DD={dd:+.1f}% | "
-                                      f"WR={wr:.0f}% | trades={n_trades}{best_tag}")
+                                print(
+                                    f"  [{tried}/{total_combos}] {desc:60s} | "
+                                    f"score={score:.4f} | ret={ret:+.2f}% | "
+                                    f"sharpe={sharpe:.2f} | DD={dd:+.1f}% | "
+                                    f"WR={wr:.0f}% | trades={n_trades}{best_tag}"
+                                )
 
                     if time.time() - t_start > time_budget * 0.9:
                         break
@@ -3115,14 +3561,16 @@ def pure_grid_search(df, time_budget=TIME_BUDGET):
     print(f"\n完成: {tried}/{total_combos} 组合, 耗时 {elapsed:.1f}s")
 
     if best_params:
-        print(f"最优参数: w={best_params['window']} std={best_params['std_dev']} "
-              f"atr_p={best_params['atr_period']} atr_m={best_params['atr_multiplier']} "
-              f"hold={best_params['max_hold_bars']} ez={best_params['entry_zone']}")
+        print(
+            f"最优参数: w={best_params['window']} std={best_params['std_dev']} "
+            f"atr_p={best_params['atr_period']} atr_m={best_params['atr_multiplier']} "
+            f"hold={best_params['max_hold_bars']} ez={best_params['entry_zone']}"
+        )
         print(f"最优评分: {best_score:.4f}")
-        print(f"收益率:   {best_metrics['total_return']*100:.2f}%")
+        print(f"收益率:   {best_metrics['total_return'] * 100:.2f}%")
         print(f"夏普比率: {best_metrics['sharpe_ratio']:.4f}")
-        print(f"最大回撤: {best_metrics['max_drawdown']*100:.2f}%")
-        print(f"胜率:     {best_metrics['win_rate']*100:.1f}%")
+        print(f"最大回撤: {best_metrics['max_drawdown'] * 100:.2f}%")
+        print(f"胜率:     {best_metrics['win_rate'] * 100:.1f}%")
 
     return best_params, best_score, best_metrics
 
@@ -3130,6 +3578,7 @@ def pure_grid_search(df, time_budget=TIME_BUDGET):
 # ---------------------------------------------------------------------------
 # Walk-Forward 验证搜索（纯价格行为，跨时间窗口稳健性验证）
 # ---------------------------------------------------------------------------
+
 
 def walk_forward_pure_search(df, time_budget=TIME_BUDGET, n_windows=5):
     """
@@ -3178,8 +3627,8 @@ def walk_forward_pure_search(df, time_budget=TIME_BUDGET, n_windows=5):
         val_df = df.iloc[val_start:val_end].reset_index(drop=True)
         val_prices = val_df["close"].values.astype(float)
 
-        print(f"{'─'*60}")
-        print(f"窗口 {w_idx+1}/{n_windows}: 训练 [{0}:{train_end}] 验证 [{val_start}:{val_end}]")
+        print(f"{'─' * 60}")
+        print(f"窗口 {w_idx + 1}/{n_windows}: 训练 [{0}:{train_end}] 验证 [{val_start}:{val_end}]")
         print(f"  训练集: {len(train_df)} 条, 验证集: {len(val_df)} 条")
 
         # 在训练集上搜索最优参数
@@ -3201,9 +3650,12 @@ def walk_forward_pure_search(df, time_budget=TIME_BUDGET, n_windows=5):
                                 tried += 1
 
                                 strategy = PureActionStrategy(
-                                    window=window, std_dev=std_dev,
-                                    atr_period=atr_p, atr_multiplier=atr_m,
-                                    max_hold_bars=max_hold, entry_zone=ez,
+                                    window=window,
+                                    std_dev=std_dev,
+                                    atr_period=atr_p,
+                                    atr_multiplier=atr_m,
+                                    max_hold_bars=max_hold,
+                                    entry_zone=ez,
                                     enable_short=True,
                                 )
 
@@ -3222,10 +3674,15 @@ def walk_forward_pure_search(df, time_budget=TIME_BUDGET, n_windows=5):
 
                                 if score > best_score:
                                     best_score = score
-                                    best_params = {"window": window, "std_dev": std_dev,
-                                                   "atr_period": atr_p, "atr_multiplier": atr_m,
-                                                   "max_hold_bars": max_hold, "entry_zone": ez,
-                                                   "enable_short": True}
+                                    best_params = {
+                                        "window": window,
+                                        "std_dev": std_dev,
+                                        "atr_period": atr_p,
+                                        "atr_multiplier": atr_m,
+                                        "max_hold_bars": max_hold,
+                                        "entry_zone": ez,
+                                        "enable_short": True,
+                                    }
                                     best_metrics = metrics
 
                             if time.time() - t_w_start > per_window_budget:
@@ -3235,18 +3692,24 @@ def walk_forward_pure_search(df, time_budget=TIME_BUDGET, n_windows=5):
 
         if best_params:
             n_trades = len([t for t in (best_metrics and trades or []) if t.get("pnl") is not None])
-            print(f"  窗口最优: w={best_params['window']} std={best_params['std_dev']} "
-                  f"atr_p={best_params['atr_period']} atr_m={best_params['atr_multiplier']} "
-                  f"hold={best_params['max_hold_bars']} ez={best_params['entry_zone']}")
-            print(f"  验证评分={best_score:.4f} | 收益={best_metrics['total_return']*100:+.2f}% | "
-                  f"夏普={best_metrics['sharpe_ratio']:.2f} | DD={best_metrics['max_drawdown']*100:+.1f}% | "
-                  f"交易={n_trades} | 耗时={w_time:.1f}s")
-            window_champions.append({
-                "window": w_idx,
-                "params": best_params,
-                "score": best_score,
-                "metrics": best_metrics,
-            })
+            print(
+                f"  窗口最优: w={best_params['window']} std={best_params['std_dev']} "
+                f"atr_p={best_params['atr_period']} atr_m={best_params['atr_multiplier']} "
+                f"hold={best_params['max_hold_bars']} ez={best_params['entry_zone']}"
+            )
+            print(
+                f"  验证评分={best_score:.4f} | 收益={best_metrics['total_return'] * 100:+.2f}% | "
+                f"夏普={best_metrics['sharpe_ratio']:.2f} | DD={best_metrics['max_drawdown'] * 100:+.1f}% | "
+                f"交易={n_trades} | 耗时={w_time:.1f}s"
+            )
+            window_champions.append(
+                {
+                    "window": w_idx,
+                    "params": best_params,
+                    "score": best_score,
+                    "metrics": best_metrics,
+                }
+            )
 
             # 用此窗口最优参数评估所有其他窗口的验证集
             p_key = f"w{best_params['window']}_s{best_params['std_dev']}_ap{best_params['atr_period']}_am{best_params['atr_multiplier']}_h{best_params['max_hold_bars']}_ez{best_params['entry_zone']}"
@@ -3259,15 +3722,15 @@ def walk_forward_pure_search(df, time_budget=TIME_BUDGET, n_windows=5):
             print(f"  未找到有效参数 (耗时 {w_time:.1f}s)")
 
         if time.time() - t_total_start > time_budget * 0.95:
-            print(f"\n总时间预算即将耗尽，提前结束（完成 {w_idx+1}/{n_windows} 窗口）")
+            print(f"\n总时间预算即将耗尽，提前结束（完成 {w_idx + 1}/{n_windows} 窗口）")
             break
 
     # =========================================================================
     # 跨窗口分析：找出最稳健的参数
     # =========================================================================
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print("跨窗口稳健性分析")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
 
     if not all_cross_scores:
         print("未找到任何有效参数")
@@ -3285,38 +3748,46 @@ def walk_forward_pure_search(df, time_budget=TIME_BUDGET, n_windows=5):
         # 稳健性评分 = 平均分 * (1 - 变异系数) 鼓励稳定表现
         cv = np.std(scores) / (avg_score + 0.001)
         robustness = avg_score * (1.0 - min(cv, 0.5))
-        ranked.append({
-            "key": p_key,
-            "params": data["params"],
-            "avg_score": avg_score,
-            "min_score": min_score,
-            "robustness": robustness,
-            "avg_return": avg_return,
-            "n_windows": n_wins,
-            "scores": scores,
-        })
+        ranked.append(
+            {
+                "key": p_key,
+                "params": data["params"],
+                "avg_score": avg_score,
+                "min_score": min_score,
+                "robustness": robustness,
+                "avg_return": avg_return,
+                "n_windows": n_wins,
+                "scores": scores,
+            }
+        )
 
     ranked.sort(key=lambda x: x["robustness"], reverse=True)
 
-    print(f"{'参数':55s} {'窗口数':>5s} {'平均分':>8s} {'最低分':>8s} {'稳健分':>8s} {'均收益':>8s}")
+    print(
+        f"{'参数':55s} {'窗口数':>5s} {'平均分':>8s} {'最低分':>8s} {'稳健分':>8s} {'均收益':>8s}"
+    )
     print("-" * 95)
     for r in ranked[:10]:
-        print(f"{r['key']:55s} {r['n_windows']:>5d} {r['avg_score']:>8.4f} {r['min_score']:>8.4f} {r['robustness']:>8.4f} {r['avg_return']*100:>+7.2f}%")
+        print(
+            f"{r['key']:55s} {r['n_windows']:>5d} {r['avg_score']:>8.4f} {r['min_score']:>8.4f} {r['robustness']:>8.4f} {r['avg_return'] * 100:>+7.2f}%"
+        )
 
     # 选取最优
     champion = ranked[0]
     champion_params = champion["params"]
 
-    print(f"\n稳健冠军参数: w={champion_params['window']} std={champion_params['std_dev']} "
-          f"atr_p={champion_params['atr_period']} atr_m={champion_params['atr_multiplier']} "
-          f"hold={champion_params['max_hold_bars']} ez={champion_params['entry_zone']}")
+    print(
+        f"\n稳健冠军参数: w={champion_params['window']} std={champion_params['std_dev']} "
+        f"atr_p={champion_params['atr_period']} atr_m={champion_params['atr_multiplier']} "
+        f"hold={champion_params['max_hold_bars']} ez={champion_params['entry_zone']}"
+    )
     print(f"跨窗口平均评分: {champion['avg_score']:.4f} (最低: {champion['min_score']:.4f})")
-    print(f"跨窗口平均收益: {champion['avg_return']*100:+.2f}%")
+    print(f"跨窗口平均收益: {champion['avg_return'] * 100:+.2f}%")
 
     # 最终在全部数据上评估冠军参数
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print("冠军参数全量数据评估")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
 
     final_strategy = PureActionStrategy(**champion_params)
     final_signals = final_strategy.generate_signals(df)
@@ -3328,9 +3799,11 @@ def walk_forward_pure_search(df, time_budget=TIME_BUDGET, n_windows=5):
     )
 
     n_trades = len([t for t in final_trades if t.get("pnl") is not None])
-    print(f"全量数据: score={final_score:.4f} | ret={final_metrics['total_return']*100:+.2f}% | "
-          f"sharpe={final_metrics['sharpe_ratio']:.2f} | DD={final_metrics['max_drawdown']*100:+.1f}% | "
-          f"WR={final_metrics['win_rate']*100:.1f}% | trades={n_trades}")
+    print(
+        f"全量数据: score={final_score:.4f} | ret={final_metrics['total_return'] * 100:+.2f}% | "
+        f"sharpe={final_metrics['sharpe_ratio']:.2f} | DD={final_metrics['max_drawdown'] * 100:+.1f}% | "
+        f"WR={final_metrics['win_rate'] * 100:.1f}% | trades={n_trades}"
+    )
 
     elapsed = time.time() - t_total_start
     print(f"\nWalk-Forward 搜索完成, 总耗时 {elapsed:.1f}s")
@@ -3341,6 +3814,7 @@ def walk_forward_pure_search(df, time_budget=TIME_BUDGET, n_windows=5):
 # ---------------------------------------------------------------------------
 # Walk-Forward 验证搜索（趋势对齐方案C）
 # ---------------------------------------------------------------------------
+
 
 def walk_forward_trend_search(df, time_budget=TIME_BUDGET, n_windows=5):
     """
@@ -3385,8 +3859,8 @@ def walk_forward_trend_search(df, time_budget=TIME_BUDGET, n_windows=5):
         val_df = df.iloc[val_start:val_end].reset_index(drop=True)
         val_prices = val_df["close"].values.astype(float)
 
-        print(f"{'─'*60}")
-        print(f"窗口 {w_idx+1}/{n_windows}: 训练 [{0}:{train_end}] 验证 [{val_start}:{val_end}]")
+        print(f"{'─' * 60}")
+        print(f"窗口 {w_idx + 1}/{n_windows}: 训练 [{0}:{train_end}] 验证 [{val_start}:{val_end}]")
 
         best_score = -float("inf")
         best_params = None
@@ -3406,17 +3880,22 @@ def walk_forward_trend_search(df, time_budget=TIME_BUDGET, n_windows=5):
                                     tried += 1
 
                                     strategy = PureActionStrategy(
-                                        window=window, std_dev=std_dev,
-                                        atr_period=atr_p, atr_multiplier=atr_m,
-                                        max_hold_bars=max_hold, entry_zone=ez,
-                                        enable_short=True, trend_ma_period=trend_ma,
+                                        window=window,
+                                        std_dev=std_dev,
+                                        atr_period=atr_p,
+                                        atr_multiplier=atr_m,
+                                        max_hold_bars=max_hold,
+                                        entry_zone=ez,
+                                        enable_short=True,
+                                        trend_ma_period=trend_ma,
                                     )
 
                                     try:
                                         signals = strategy.generate_signals(val_df)
                                         w2 = window * 2
                                         score, metrics, trades = evaluator.evaluate(
-                                            signals[w2:], val_prices[w2:],
+                                            signals[w2:],
+                                            val_prices[w2:],
                                             val_df.iloc[w2:].reset_index(drop=True),
                                         )
                                     except Exception:
@@ -3427,10 +3906,14 @@ def walk_forward_trend_search(df, time_budget=TIME_BUDGET, n_windows=5):
                                     if score > best_score:
                                         best_score = score
                                         best_params = {
-                                            "window": window, "std_dev": std_dev,
-                                            "atr_period": atr_p, "atr_multiplier": atr_m,
-                                            "max_hold_bars": max_hold, "entry_zone": ez,
-                                            "enable_short": True, "trend_ma_period": trend_ma,
+                                            "window": window,
+                                            "std_dev": std_dev,
+                                            "atr_period": atr_p,
+                                            "atr_multiplier": atr_m,
+                                            "max_hold_bars": max_hold,
+                                            "entry_zone": ez,
+                                            "enable_short": True,
+                                            "trend_ma_period": trend_ma,
                                         }
                                         best_metrics = metrics
 
@@ -3441,20 +3924,32 @@ def walk_forward_trend_search(df, time_budget=TIME_BUDGET, n_windows=5):
 
         if best_params and best_metrics:
             n_trades = len([t for t in trades if t.get("pnl") is not None])
-            print(f"  窗口最优: w={best_params['window']} std={best_params['std_dev']} "
-                  f"atr_p={best_params['atr_period']} atr_m={best_params['atr_multiplier']} "
-                  f"hold={best_params['max_hold_bars']} ez={best_params['entry_zone']} "
-                  f"trend_ma={best_params['trend_ma_period']}")
-            print(f"  验证评分={best_score:.4f} | 收益={best_metrics['total_return']*100:+.2f}% | "
-                  f"夏普={best_metrics['sharpe_ratio']:.2f} | DD={best_metrics['max_drawdown']*100:+.1f}% | "
-                  f"交易={n_trades} | 耗时={w_time:.1f}s")
-            window_champions.append({"window": w_idx, "params": best_params,
-                                     "score": best_score, "metrics": best_metrics})
+            print(
+                f"  窗口最优: w={best_params['window']} std={best_params['std_dev']} "
+                f"atr_p={best_params['atr_period']} atr_m={best_params['atr_multiplier']} "
+                f"hold={best_params['max_hold_bars']} ez={best_params['entry_zone']} "
+                f"trend_ma={best_params['trend_ma_period']}"
+            )
+            print(
+                f"  验证评分={best_score:.4f} | 收益={best_metrics['total_return'] * 100:+.2f}% | "
+                f"夏普={best_metrics['sharpe_ratio']:.2f} | DD={best_metrics['max_drawdown'] * 100:+.1f}% | "
+                f"交易={n_trades} | 耗时={w_time:.1f}s"
+            )
+            window_champions.append(
+                {
+                    "window": w_idx,
+                    "params": best_params,
+                    "score": best_score,
+                    "metrics": best_metrics,
+                }
+            )
 
-            p_key = (f"w{best_params['window']}_s{best_params['std_dev']}"
-                     f"_ap{best_params['atr_period']}_am{best_params['atr_multiplier']}"
-                     f"_h{best_params['max_hold_bars']}_ez{best_params['entry_zone']}"
-                     f"_t{best_params['trend_ma_period']}")
+            p_key = (
+                f"w{best_params['window']}_s{best_params['std_dev']}"
+                f"_ap{best_params['atr_period']}_am{best_params['atr_multiplier']}"
+                f"_h{best_params['max_hold_bars']}_ez{best_params['entry_zone']}"
+                f"_t{best_params['trend_ma_period']}"
+            )
             if p_key not in all_cross_scores:
                 all_cross_scores[p_key] = {"params": best_params, "scores": [], "returns": []}
             all_cross_scores[p_key]["scores"].append(best_score)
@@ -3463,13 +3958,13 @@ def walk_forward_trend_search(df, time_budget=TIME_BUDGET, n_windows=5):
             print(f"  未找到有效参数 (耗时 {w_time:.1f}s)")
 
         if time.time() - t_total_start > time_budget * 0.95:
-            print(f"\n总时间预算即将耗尽，提前结束（完成 {w_idx+1}/{n_windows} 窗口）")
+            print(f"\n总时间预算即将耗尽，提前结束（完成 {w_idx + 1}/{n_windows} 窗口）")
             break
 
     # 跨窗口分析
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print("跨窗口稳健性分析")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
 
     if not all_cross_scores:
         print("未找到任何有效参数")
@@ -3484,44 +3979,57 @@ def walk_forward_trend_search(df, time_budget=TIME_BUDGET, n_windows=5):
         avg_return = np.mean(returns)
         cv = np.std(scores) / (avg_score + 0.001)
         robustness = avg_score * (1.0 - min(cv, 0.5))
-        ranked.append({
-            "key": p_key, "params": data["params"],
-            "avg_score": avg_score, "min_score": min_score,
-            "robustness": robustness, "avg_return": avg_return,
-            "n_windows": len(scores), "scores": scores,
-        })
+        ranked.append(
+            {
+                "key": p_key,
+                "params": data["params"],
+                "avg_score": avg_score,
+                "min_score": min_score,
+                "robustness": robustness,
+                "avg_return": avg_return,
+                "n_windows": len(scores),
+                "scores": scores,
+            }
+        )
 
     ranked.sort(key=lambda x: x["robustness"], reverse=True)
 
     print(f"{'参数':70s} {'窗口':>5s} {'平均分':>8s} {'最低分':>8s} {'稳健分':>8s} {'均收益':>8s}")
     print("-" * 110)
     for r in ranked[:10]:
-        print(f"{r['key']:70s} {r['n_windows']:>5d} {r['avg_score']:>8.4f} {r['min_score']:>8.4f} {r['robustness']:>8.4f} {r['avg_return']*100:>+7.2f}%")
+        print(
+            f"{r['key']:70s} {r['n_windows']:>5d} {r['avg_score']:>8.4f} {r['min_score']:>8.4f} {r['robustness']:>8.4f} {r['avg_return'] * 100:>+7.2f}%"
+        )
 
     champion = ranked[0]
     cp = champion["params"]
-    print(f"\n稳健冠军: w={cp['window']} std={cp['std_dev']} atr_p={cp['atr_period']} "
-          f"atr_m={cp['atr_multiplier']} hold={cp['max_hold_bars']} ez={cp['entry_zone']} "
-          f"trend_ma={cp['trend_ma_period']}")
+    print(
+        f"\n稳健冠军: w={cp['window']} std={cp['std_dev']} atr_p={cp['atr_period']} "
+        f"atr_m={cp['atr_multiplier']} hold={cp['max_hold_bars']} ez={cp['entry_zone']} "
+        f"trend_ma={cp['trend_ma_period']}"
+    )
     print(f"跨窗口平均评分: {champion['avg_score']:.4f} (最低: {champion['min_score']:.4f})")
-    print(f"跨窗口平均收益: {champion['avg_return']*100:+.2f}%")
+    print(f"跨窗口平均收益: {champion['avg_return'] * 100:+.2f}%")
 
     # 全量数据评估
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print("冠军参数全量数据评估")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
 
     final_strategy = PureActionStrategy(**cp)
     final_signals = final_strategy.generate_signals(df)
     w2 = cp["window"] * 2
     final_score, final_metrics, final_trades = evaluator.evaluate(
-        final_signals[w2:], df["close"].values[w2:],
+        final_signals[w2:],
+        df["close"].values[w2:],
         df.iloc[w2:].reset_index(drop=True),
     )
     n_trades = len([t for t in final_trades if t.get("pnl") is not None])
-    print(f"全量数据: score={final_score:.4f} | ret={final_metrics['total_return']*100:+.2f}% | "
-          f"sharpe={final_metrics['sharpe_ratio']:.2f} | DD={final_metrics['max_drawdown']*100:+.1f}% | "
-          f"WR={final_metrics['win_rate']*100:.1f}% | trades={n_trades}")
+    print(
+        f"全量数据: score={final_score:.4f} | ret={final_metrics['total_return'] * 100:+.2f}% | "
+        f"sharpe={final_metrics['sharpe_ratio']:.2f} | DD={final_metrics['max_drawdown'] * 100:+.1f}% | "
+        f"WR={final_metrics['win_rate'] * 100:.1f}% | trades={n_trades}"
+    )
 
     elapsed = time.time() - t_total_start
     print(f"\nWalk-Forward 搜索完成, 总耗时 {elapsed:.1f}s")
@@ -3532,6 +4040,7 @@ def walk_forward_trend_search(df, time_budget=TIME_BUDGET, n_windows=5):
 # ---------------------------------------------------------------------------
 # Walk-Forward 验证搜索（ADX 趋势强度过滤 + 趋势对齐）
 # ---------------------------------------------------------------------------
+
 
 def walk_forward_adx_search(df, time_budget=TIME_BUDGET, n_windows=5):
     """
@@ -3578,8 +4087,8 @@ def walk_forward_adx_search(df, time_budget=TIME_BUDGET, n_windows=5):
         val_df = df.iloc[val_start:val_end].reset_index(drop=True)
         val_prices = val_df["close"].values.astype(float)
 
-        print(f"{'─'*60}")
-        print(f"窗口 {w_idx+1}/{n_windows}: 训练 [{0}:{train_end}] 验证 [{val_start}:{val_end}]")
+        print(f"{'─' * 60}")
+        print(f"窗口 {w_idx + 1}/{n_windows}: 训练 [{0}:{train_end}] 验证 [{val_start}:{val_end}]")
 
         best_score = -float("inf")
         best_params = None
@@ -3601,9 +4110,12 @@ def walk_forward_adx_search(df, time_budget=TIME_BUDGET, n_windows=5):
                                             tried += 1
 
                                             strategy = PureActionStrategy(
-                                                window=window, std_dev=std_dev,
-                                                atr_period=atr_p, atr_multiplier=atr_m,
-                                                max_hold_bars=max_hold, entry_zone=ez,
+                                                window=window,
+                                                std_dev=std_dev,
+                                                atr_period=atr_p,
+                                                atr_multiplier=atr_m,
+                                                max_hold_bars=max_hold,
+                                                entry_zone=ez,
                                                 enable_short=True,
                                                 trend_ma_period=trend_ma,
                                                 adx_threshold=adx_th,
@@ -3614,7 +4126,8 @@ def walk_forward_adx_search(df, time_budget=TIME_BUDGET, n_windows=5):
                                                 signals = strategy.generate_signals(val_df)
                                                 w2 = window * 2
                                                 score, metrics, trades = evaluator.evaluate(
-                                                    signals[w2:], val_prices[w2:],
+                                                    signals[w2:],
+                                                    val_prices[w2:],
                                                     val_df.iloc[w2:].reset_index(drop=True),
                                                 )
                                             except Exception:
@@ -3625,9 +4138,12 @@ def walk_forward_adx_search(df, time_budget=TIME_BUDGET, n_windows=5):
                                             if score > best_score:
                                                 best_score = score
                                                 best_params = {
-                                                    "window": window, "std_dev": std_dev,
-                                                    "atr_period": atr_p, "atr_multiplier": atr_m,
-                                                    "max_hold_bars": max_hold, "entry_zone": ez,
+                                                    "window": window,
+                                                    "std_dev": std_dev,
+                                                    "atr_period": atr_p,
+                                                    "atr_multiplier": atr_m,
+                                                    "max_hold_bars": max_hold,
+                                                    "entry_zone": ez,
                                                     "enable_short": True,
                                                     "trend_ma_period": trend_ma,
                                                     "adx_threshold": adx_th,
@@ -3640,22 +4156,34 @@ def walk_forward_adx_search(df, time_budget=TIME_BUDGET, n_windows=5):
         if best_params and best_metrics:
             trades_list = best_metrics and trades or []
             n_trades = len([t for t in trades_list if t.get("pnl") is not None])
-            print(f"  窗口最优: w={best_params['window']} std={best_params['std_dev']} "
-                  f"atr_p={best_params['atr_period']} atr_m={best_params['atr_multiplier']} "
-                  f"hold={best_params['max_hold_bars']} ez={best_params['entry_zone']} "
-                  f"trend_ma={best_params['trend_ma_period']} "
-                  f"adx_th={best_params['adx_threshold']} adx_p={best_params['adx_period']}")
-            print(f"  验证评分={best_score:.4f} | 收益={best_metrics['total_return']*100:+.2f}% | "
-                  f"夏普={best_metrics['sharpe_ratio']:.2f} | DD={best_metrics['max_drawdown']*100:+.1f}% | "
-                  f"交易={n_trades} | 耗时={w_time:.1f}s")
-            window_champions.append({"window": w_idx, "params": best_params,
-                                     "score": best_score, "metrics": best_metrics})
+            print(
+                f"  窗口最优: w={best_params['window']} std={best_params['std_dev']} "
+                f"atr_p={best_params['atr_period']} atr_m={best_params['atr_multiplier']} "
+                f"hold={best_params['max_hold_bars']} ez={best_params['entry_zone']} "
+                f"trend_ma={best_params['trend_ma_period']} "
+                f"adx_th={best_params['adx_threshold']} adx_p={best_params['adx_period']}"
+            )
+            print(
+                f"  验证评分={best_score:.4f} | 收益={best_metrics['total_return'] * 100:+.2f}% | "
+                f"夏普={best_metrics['sharpe_ratio']:.2f} | DD={best_metrics['max_drawdown'] * 100:+.1f}% | "
+                f"交易={n_trades} | 耗时={w_time:.1f}s"
+            )
+            window_champions.append(
+                {
+                    "window": w_idx,
+                    "params": best_params,
+                    "score": best_score,
+                    "metrics": best_metrics,
+                }
+            )
 
-            p_key = (f"w{best_params['window']}_s{best_params['std_dev']}"
-                     f"_ap{best_params['atr_period']}_am{best_params['atr_multiplier']}"
-                     f"_h{best_params['max_hold_bars']}_ez{best_params['entry_zone']}"
-                     f"_t{best_params['trend_ma_period']}"
-                     f"_adx{best_params['adx_threshold']}")
+            p_key = (
+                f"w{best_params['window']}_s{best_params['std_dev']}"
+                f"_ap{best_params['atr_period']}_am{best_params['atr_multiplier']}"
+                f"_h{best_params['max_hold_bars']}_ez{best_params['entry_zone']}"
+                f"_t{best_params['trend_ma_period']}"
+                f"_adx{best_params['adx_threshold']}"
+            )
             if p_key not in all_cross_scores:
                 all_cross_scores[p_key] = {"params": best_params, "scores": [], "returns": []}
             all_cross_scores[p_key]["scores"].append(best_score)
@@ -3664,13 +4192,13 @@ def walk_forward_adx_search(df, time_budget=TIME_BUDGET, n_windows=5):
             print(f"  未找到有效参数 (耗时 {w_time:.1f}s)")
 
         if time.time() - t_total_start > time_budget * 0.95:
-            print(f"\n总时间预算即将耗尽，提前结束（完成 {w_idx+1}/{n_windows} 窗口）")
+            print(f"\n总时间预算即将耗尽，提前结束（完成 {w_idx + 1}/{n_windows} 窗口）")
             break
 
     # 跨窗口分析
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print("跨窗口稳健性分析")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
 
     if not all_cross_scores:
         print("未找到任何有效参数")
@@ -3685,44 +4213,57 @@ def walk_forward_adx_search(df, time_budget=TIME_BUDGET, n_windows=5):
         avg_return = np.mean(returns)
         cv = np.std(scores) / (avg_score + 0.001)
         robustness = avg_score * (1.0 - min(cv, 0.5))
-        ranked.append({
-            "key": p_key, "params": data["params"],
-            "avg_score": avg_score, "min_score": min_score,
-            "robustness": robustness, "avg_return": avg_return,
-            "n_windows": len(scores), "scores": scores,
-        })
+        ranked.append(
+            {
+                "key": p_key,
+                "params": data["params"],
+                "avg_score": avg_score,
+                "min_score": min_score,
+                "robustness": robustness,
+                "avg_return": avg_return,
+                "n_windows": len(scores),
+                "scores": scores,
+            }
+        )
 
     ranked.sort(key=lambda x: x["robustness"], reverse=True)
 
     print(f"{'参数':80s} {'窗口':>5s} {'平均分':>8s} {'最低分':>8s} {'稳健分':>8s} {'均收益':>8s}")
     print("-" * 120)
     for r in ranked[:15]:
-        print(f"{r['key']:80s} {r['n_windows']:>5d} {r['avg_score']:>8.4f} {r['min_score']:>8.4f} {r['robustness']:>8.4f} {r['avg_return']*100:>+7.2f}%")
+        print(
+            f"{r['key']:80s} {r['n_windows']:>5d} {r['avg_score']:>8.4f} {r['min_score']:>8.4f} {r['robustness']:>8.4f} {r['avg_return'] * 100:>+7.2f}%"
+        )
 
     champion = ranked[0]
     cp = champion["params"]
-    print(f"\n稳健冠军: w={cp['window']} std={cp['std_dev']} atr_p={cp['atr_period']} "
-          f"atr_m={cp['atr_multiplier']} hold={cp['max_hold_bars']} ez={cp['entry_zone']} "
-          f"trend_ma={cp['trend_ma_period']} adx_th={cp['adx_threshold']} adx_p={cp['adx_period']}")
+    print(
+        f"\n稳健冠军: w={cp['window']} std={cp['std_dev']} atr_p={cp['atr_period']} "
+        f"atr_m={cp['atr_multiplier']} hold={cp['max_hold_bars']} ez={cp['entry_zone']} "
+        f"trend_ma={cp['trend_ma_period']} adx_th={cp['adx_threshold']} adx_p={cp['adx_period']}"
+    )
     print(f"跨窗口平均评分: {champion['avg_score']:.4f} (最低: {champion['min_score']:.4f})")
-    print(f"跨窗口平均收益: {champion['avg_return']*100:+.2f}%")
+    print(f"跨窗口平均收益: {champion['avg_return'] * 100:+.2f}%")
 
     # 全量数据评估
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print("冠军参数全量数据评估")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
 
     final_strategy = PureActionStrategy(**cp)
     final_signals = final_strategy.generate_signals(df)
     w2 = cp["window"] * 2
     final_score, final_metrics, final_trades = evaluator.evaluate(
-        final_signals[w2:], df["close"].values[w2:],
+        final_signals[w2:],
+        df["close"].values[w2:],
         df.iloc[w2:].reset_index(drop=True),
     )
     n_trades = len([t for t in final_trades if t.get("pnl") is not None])
-    print(f"全量数据: score={final_score:.4f} | ret={final_metrics['total_return']*100:+.2f}% | "
-          f"sharpe={final_metrics['sharpe_ratio']:.2f} | DD={final_metrics['max_drawdown']*100:+.1f}% | "
-          f"WR={final_metrics['win_rate']*100:.1f}% | trades={n_trades}")
+    print(
+        f"全量数据: score={final_score:.4f} | ret={final_metrics['total_return'] * 100:+.2f}% | "
+        f"sharpe={final_metrics['sharpe_ratio']:.2f} | DD={final_metrics['max_drawdown'] * 100:+.1f}% | "
+        f"WR={final_metrics['win_rate'] * 100:.1f}% | trades={n_trades}"
+    )
 
     elapsed = time.time() - t_total_start
     print(f"\nWalk-Forward 搜索完成, 总耗时 {elapsed:.1f}s")
@@ -3733,6 +4274,7 @@ def walk_forward_adx_search(df, time_budget=TIME_BUDGET, n_windows=5):
 # ---------------------------------------------------------------------------
 # Walk-Forward 验证搜索（市场状态自适应：震荡=均值回归，趋势=趋势跟随）
 # ---------------------------------------------------------------------------
+
 
 def walk_forward_hybrid_search(df, time_budget=TIME_BUDGET, n_windows=5):
     """
@@ -3779,8 +4321,8 @@ def walk_forward_hybrid_search(df, time_budget=TIME_BUDGET, n_windows=5):
         val_df = df.iloc[val_start:val_end].reset_index(drop=True)
         val_prices = val_df["close"].values.astype(float)
 
-        print(f"{'─'*60}")
-        print(f"窗口 {w_idx+1}/{n_windows}: 训练 [{0}:{train_end}] 验证 [{val_start}:{val_end}]")
+        print(f"{'─' * 60}")
+        print(f"窗口 {w_idx + 1}/{n_windows}: 训练 [{0}:{train_end}] 验证 [{val_start}:{val_end}]")
 
         best_score = -float("inf")
         best_params = None
@@ -3802,9 +4344,12 @@ def walk_forward_hybrid_search(df, time_budget=TIME_BUDGET, n_windows=5):
                                             tried += 1
 
                                             strategy = HybridStrategy(
-                                                window=window, std_dev=std_dev,
-                                                atr_period=atr_p, atr_multiplier=atr_m,
-                                                max_hold_bars=max_hold, entry_zone=ez,
+                                                window=window,
+                                                std_dev=std_dev,
+                                                atr_period=atr_p,
+                                                atr_multiplier=atr_m,
+                                                max_hold_bars=max_hold,
+                                                entry_zone=ez,
                                                 enable_short=True,
                                                 trend_ma_period=trend_ma,
                                                 adx_threshold=adx_th,
@@ -3815,7 +4360,8 @@ def walk_forward_hybrid_search(df, time_budget=TIME_BUDGET, n_windows=5):
                                                 signals = strategy.generate_signals(val_df)
                                                 w2 = window * 2
                                                 score, metrics, trades = evaluator.evaluate(
-                                                    signals[w2:], val_prices[w2:],
+                                                    signals[w2:],
+                                                    val_prices[w2:],
                                                     val_df.iloc[w2:].reset_index(drop=True),
                                                 )
                                             except Exception:
@@ -3826,9 +4372,12 @@ def walk_forward_hybrid_search(df, time_budget=TIME_BUDGET, n_windows=5):
                                             if score > best_score:
                                                 best_score = score
                                                 best_params = {
-                                                    "window": window, "std_dev": std_dev,
-                                                    "atr_period": atr_p, "atr_multiplier": atr_m,
-                                                    "max_hold_bars": max_hold, "entry_zone": ez,
+                                                    "window": window,
+                                                    "std_dev": std_dev,
+                                                    "atr_period": atr_p,
+                                                    "atr_multiplier": atr_m,
+                                                    "max_hold_bars": max_hold,
+                                                    "entry_zone": ez,
                                                     "enable_short": True,
                                                     "trend_ma_period": trend_ma,
                                                     "adx_threshold": adx_th,
@@ -3841,22 +4390,34 @@ def walk_forward_hybrid_search(df, time_budget=TIME_BUDGET, n_windows=5):
         if best_params and best_metrics:
             trades_list = best_metrics and trades or []
             n_trades = len([t for t in trades_list if t.get("pnl") is not None])
-            print(f"  窗口最优: w={best_params['window']} std={best_params['std_dev']} "
-                  f"atr_p={best_params['atr_period']} atr_m={best_params['atr_multiplier']} "
-                  f"hold={best_params['max_hold_bars']} ez={best_params['entry_zone']} "
-                  f"trend_ma={best_params['trend_ma_period']} "
-                  f"adx_th={best_params['adx_threshold']}")
-            print(f"  验证评分={best_score:.4f} | 收益={best_metrics['total_return']*100:+.2f}% | "
-                  f"夏普={best_metrics['sharpe_ratio']:.2f} | DD={best_metrics['max_drawdown']*100:+.1f}% | "
-                  f"交易={n_trades} | 耗时={w_time:.1f}s")
-            window_champions.append({"window": w_idx, "params": best_params,
-                                     "score": best_score, "metrics": best_metrics})
+            print(
+                f"  窗口最优: w={best_params['window']} std={best_params['std_dev']} "
+                f"atr_p={best_params['atr_period']} atr_m={best_params['atr_multiplier']} "
+                f"hold={best_params['max_hold_bars']} ez={best_params['entry_zone']} "
+                f"trend_ma={best_params['trend_ma_period']} "
+                f"adx_th={best_params['adx_threshold']}"
+            )
+            print(
+                f"  验证评分={best_score:.4f} | 收益={best_metrics['total_return'] * 100:+.2f}% | "
+                f"夏普={best_metrics['sharpe_ratio']:.2f} | DD={best_metrics['max_drawdown'] * 100:+.1f}% | "
+                f"交易={n_trades} | 耗时={w_time:.1f}s"
+            )
+            window_champions.append(
+                {
+                    "window": w_idx,
+                    "params": best_params,
+                    "score": best_score,
+                    "metrics": best_metrics,
+                }
+            )
 
-            p_key = (f"w{best_params['window']}_s{best_params['std_dev']}"
-                     f"_ap{best_params['atr_period']}_am{best_params['atr_multiplier']}"
-                     f"_h{best_params['max_hold_bars']}_ez{best_params['entry_zone']}"
-                     f"_t{best_params['trend_ma_period']}"
-                     f"_adx{best_params['adx_threshold']}")
+            p_key = (
+                f"w{best_params['window']}_s{best_params['std_dev']}"
+                f"_ap{best_params['atr_period']}_am{best_params['atr_multiplier']}"
+                f"_h{best_params['max_hold_bars']}_ez{best_params['entry_zone']}"
+                f"_t{best_params['trend_ma_period']}"
+                f"_adx{best_params['adx_threshold']}"
+            )
             if p_key not in all_cross_scores:
                 all_cross_scores[p_key] = {"params": best_params, "scores": [], "returns": []}
             all_cross_scores[p_key]["scores"].append(best_score)
@@ -3865,13 +4426,13 @@ def walk_forward_hybrid_search(df, time_budget=TIME_BUDGET, n_windows=5):
             print(f"  未找到有效参数 (耗时 {w_time:.1f}s)")
 
         if time.time() - t_total_start > time_budget * 0.95:
-            print(f"\n总时间预算即将耗尽，提前结束（完成 {w_idx+1}/{n_windows} 窗口）")
+            print(f"\n总时间预算即将耗尽，提前结束（完成 {w_idx + 1}/{n_windows} 窗口）")
             break
 
     # 跨窗口分析
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print("跨窗口稳健性分析")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
 
     if not all_cross_scores:
         print("未找到任何有效参数")
@@ -3886,44 +4447,57 @@ def walk_forward_hybrid_search(df, time_budget=TIME_BUDGET, n_windows=5):
         avg_return = np.mean(returns)
         cv = np.std(scores) / (avg_score + 0.001)
         robustness = avg_score * (1.0 - min(cv, 0.5))
-        ranked.append({
-            "key": p_key, "params": data["params"],
-            "avg_score": avg_score, "min_score": min_score,
-            "robustness": robustness, "avg_return": avg_return,
-            "n_windows": len(scores), "scores": scores,
-        })
+        ranked.append(
+            {
+                "key": p_key,
+                "params": data["params"],
+                "avg_score": avg_score,
+                "min_score": min_score,
+                "robustness": robustness,
+                "avg_return": avg_return,
+                "n_windows": len(scores),
+                "scores": scores,
+            }
+        )
 
     ranked.sort(key=lambda x: x["robustness"], reverse=True)
 
     print(f"{'参数':80s} {'窗口':>5s} {'平均分':>8s} {'最低分':>8s} {'稳健分':>8s} {'均收益':>8s}")
     print("-" * 120)
     for r in ranked[:15]:
-        print(f"{r['key']:80s} {r['n_windows']:>5d} {r['avg_score']:>8.4f} {r['min_score']:>8.4f} {r['robustness']:>8.4f} {r['avg_return']*100:>+7.2f}%")
+        print(
+            f"{r['key']:80s} {r['n_windows']:>5d} {r['avg_score']:>8.4f} {r['min_score']:>8.4f} {r['robustness']:>8.4f} {r['avg_return'] * 100:>+7.2f}%"
+        )
 
     champion = ranked[0]
     cp = champion["params"]
-    print(f"\n稳健冠军: w={cp['window']} std={cp['std_dev']} atr_p={cp['atr_period']} "
-          f"atr_m={cp['atr_multiplier']} hold={cp['max_hold_bars']} ez={cp['entry_zone']} "
-          f"trend_ma={cp['trend_ma_period']} adx_th={cp['adx_threshold']}")
+    print(
+        f"\n稳健冠军: w={cp['window']} std={cp['std_dev']} atr_p={cp['atr_period']} "
+        f"atr_m={cp['atr_multiplier']} hold={cp['max_hold_bars']} ez={cp['entry_zone']} "
+        f"trend_ma={cp['trend_ma_period']} adx_th={cp['adx_threshold']}"
+    )
     print(f"跨窗口平均评分: {champion['avg_score']:.4f} (最低: {champion['min_score']:.4f})")
-    print(f"跨窗口平均收益: {champion['avg_return']*100:+.2f}%")
+    print(f"跨窗口平均收益: {champion['avg_return'] * 100:+.2f}%")
 
     # 全量数据评估
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print("冠军参数全量数据评估")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
 
     final_strategy = HybridStrategy(**cp)
     final_signals = final_strategy.generate_signals(df)
     w2 = cp["window"] * 2
     final_score, final_metrics, final_trades = evaluator.evaluate(
-        final_signals[w2:], df["close"].values[w2:],
+        final_signals[w2:],
+        df["close"].values[w2:],
         df.iloc[w2:].reset_index(drop=True),
     )
     n_trades = len([t for t in final_trades if t.get("pnl") is not None])
-    print(f"全量数据: score={final_score:.4f} | ret={final_metrics['total_return']*100:+.2f}% | "
-          f"sharpe={final_metrics['sharpe_ratio']:.2f} | DD={final_metrics['max_drawdown']*100:+.1f}% | "
-          f"WR={final_metrics['win_rate']*100:.1f}% | trades={n_trades}")
+    print(
+        f"全量数据: score={final_score:.4f} | ret={final_metrics['total_return'] * 100:+.2f}% | "
+        f"sharpe={final_metrics['sharpe_ratio']:.2f} | DD={final_metrics['max_drawdown'] * 100:+.1f}% | "
+        f"WR={final_metrics['win_rate'] * 100:.1f}% | trades={n_trades}"
+    )
 
     elapsed = time.time() - t_total_start
     print(f"\nWalk-Forward 搜索完成, 总耗时 {elapsed:.1f}s")
@@ -3934,6 +4508,7 @@ def walk_forward_hybrid_search(df, time_budget=TIME_BUDGET, n_windows=5):
 # ---------------------------------------------------------------------------
 # Walk-Forward 验证搜索（纯趋势跟随）
 # ---------------------------------------------------------------------------
+
 
 def walk_forward_trendfollow_search(df, time_budget=TIME_BUDGET, n_windows=5):
     """
@@ -3977,8 +4552,8 @@ def walk_forward_trendfollow_search(df, time_budget=TIME_BUDGET, n_windows=5):
         val_df = df.iloc[val_start:val_end].reset_index(drop=True)
         val_prices = val_df["close"].values.astype(float)
 
-        print(f"{'─'*60}")
-        print(f"窗口 {w_idx+1}/{n_windows}: 训练 [{0}:{train_end}] 验证 [{val_start}:{val_end}]")
+        print(f"{'─' * 60}")
+        print(f"窗口 {w_idx + 1}/{n_windows}: 训练 [{0}:{train_end}] 验证 [{val_start}:{val_end}]")
 
         best_score = -float("inf")
         best_params = None
@@ -4010,7 +4585,8 @@ def walk_forward_trendfollow_search(df, time_budget=TIME_BUDGET, n_windows=5):
                                     signals = strategy.generate_signals(val_df)
                                     w2 = pull_ma * 2
                                     score, metrics, trades = evaluator.evaluate(
-                                        signals[w2:], val_prices[w2:],
+                                        signals[w2:],
+                                        val_prices[w2:],
                                         val_df.iloc[w2:].reset_index(drop=True),
                                     )
                                 except Exception:
@@ -4036,18 +4612,30 @@ def walk_forward_trendfollow_search(df, time_budget=TIME_BUDGET, n_windows=5):
         if best_params and best_metrics:
             trades_list = best_metrics and trades or []
             n_trades = len([t for t in trades_list if t.get("pnl") is not None])
-            print(f"  窗口最优: long={best_params['long_ma_period']} pull={best_params['pull_ma_period']} "
-                  f"atr_p={best_params['atr_period']} atr_m={best_params['atr_multiplier']} "
-                  f"hold={best_params['max_hold_bars']} ez={best_params['entry_zone']}")
-            print(f"  验证评分={best_score:.4f} | 收益={best_metrics['total_return']*100:+.2f}% | "
-                  f"夏普={best_metrics['sharpe_ratio']:.2f} | DD={best_metrics['max_drawdown']*100:+.1f}% | "
-                  f"交易={n_trades} | 耗时={w_time:.1f}s")
-            window_champions.append({"window": w_idx, "params": best_params,
-                                     "score": best_score, "metrics": best_metrics})
+            print(
+                f"  窗口最优: long={best_params['long_ma_period']} pull={best_params['pull_ma_period']} "
+                f"atr_p={best_params['atr_period']} atr_m={best_params['atr_multiplier']} "
+                f"hold={best_params['max_hold_bars']} ez={best_params['entry_zone']}"
+            )
+            print(
+                f"  验证评分={best_score:.4f} | 收益={best_metrics['total_return'] * 100:+.2f}% | "
+                f"夏普={best_metrics['sharpe_ratio']:.2f} | DD={best_metrics['max_drawdown'] * 100:+.1f}% | "
+                f"交易={n_trades} | 耗时={w_time:.1f}s"
+            )
+            window_champions.append(
+                {
+                    "window": w_idx,
+                    "params": best_params,
+                    "score": best_score,
+                    "metrics": best_metrics,
+                }
+            )
 
-            p_key = (f"L{best_params['long_ma_period']}_P{best_params['pull_ma_period']}"
-                     f"_ap{best_params['atr_period']}_am{best_params['atr_multiplier']}"
-                     f"_h{best_params['max_hold_bars']}_ez{best_params['entry_zone']}")
+            p_key = (
+                f"L{best_params['long_ma_period']}_P{best_params['pull_ma_period']}"
+                f"_ap{best_params['atr_period']}_am{best_params['atr_multiplier']}"
+                f"_h{best_params['max_hold_bars']}_ez{best_params['entry_zone']}"
+            )
             if p_key not in all_cross_scores:
                 all_cross_scores[p_key] = {"params": best_params, "scores": [], "returns": []}
             all_cross_scores[p_key]["scores"].append(best_score)
@@ -4056,13 +4644,13 @@ def walk_forward_trendfollow_search(df, time_budget=TIME_BUDGET, n_windows=5):
             print(f"  未找到有效参数 (耗时 {w_time:.1f}s)")
 
         if time.time() - t_total_start > time_budget * 0.95:
-            print(f"\n总时间预算即将耗尽，提前结束（完成 {w_idx+1}/{n_windows} 窗口）")
+            print(f"\n总时间预算即将耗尽，提前结束（完成 {w_idx + 1}/{n_windows} 窗口）")
             break
 
     # 跨窗口分析
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print("跨窗口稳健性分析")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
 
     if not all_cross_scores:
         print("未找到任何有效参数")
@@ -4077,44 +4665,57 @@ def walk_forward_trendfollow_search(df, time_budget=TIME_BUDGET, n_windows=5):
         avg_return = np.mean(returns)
         cv = np.std(scores) / (avg_score + 0.001)
         robustness = avg_score * (1.0 - min(cv, 0.5))
-        ranked.append({
-            "key": p_key, "params": data["params"],
-            "avg_score": avg_score, "min_score": min_score,
-            "robustness": robustness, "avg_return": avg_return,
-            "n_windows": len(scores), "scores": scores,
-        })
+        ranked.append(
+            {
+                "key": p_key,
+                "params": data["params"],
+                "avg_score": avg_score,
+                "min_score": min_score,
+                "robustness": robustness,
+                "avg_return": avg_return,
+                "n_windows": len(scores),
+                "scores": scores,
+            }
+        )
 
     ranked.sort(key=lambda x: x["robustness"], reverse=True)
 
     print(f"{'参数':55s} {'窗口':>5s} {'平均分':>8s} {'最低分':>8s} {'稳健分':>8s} {'均收益':>8s}")
     print("-" * 95)
     for r in ranked[:15]:
-        print(f"{r['key']:55s} {r['n_windows']:>5d} {r['avg_score']:>8.4f} {r['min_score']:>8.4f} {r['robustness']:>8.4f} {r['avg_return']*100:>+7.2f}%")
+        print(
+            f"{r['key']:55s} {r['n_windows']:>5d} {r['avg_score']:>8.4f} {r['min_score']:>8.4f} {r['robustness']:>8.4f} {r['avg_return'] * 100:>+7.2f}%"
+        )
 
     champion = ranked[0]
     cp = champion["params"]
-    print(f"\n稳健冠军: long={cp['long_ma_period']} pull={cp['pull_ma_period']} "
-          f"atr_p={cp['atr_period']} atr_m={cp['atr_multiplier']} "
-          f"hold={cp['max_hold_bars']} ez={cp['entry_zone']}")
+    print(
+        f"\n稳健冠军: long={cp['long_ma_period']} pull={cp['pull_ma_period']} "
+        f"atr_p={cp['atr_period']} atr_m={cp['atr_multiplier']} "
+        f"hold={cp['max_hold_bars']} ez={cp['entry_zone']}"
+    )
     print(f"跨窗口平均评分: {champion['avg_score']:.4f} (最低: {champion['min_score']:.4f})")
-    print(f"跨窗口平均收益: {champion['avg_return']*100:+.2f}%")
+    print(f"跨窗口平均收益: {champion['avg_return'] * 100:+.2f}%")
 
     # 全量数据评估
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print("冠军参数全量数据评估")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
 
     final_strategy = TrendFollowStrategy(**cp)
     final_signals = final_strategy.generate_signals(df)
     w2 = cp["pull_ma_period"] * 2
     final_score, final_metrics, final_trades = evaluator.evaluate(
-        final_signals[w2:], df["close"].values[w2:],
+        final_signals[w2:],
+        df["close"].values[w2:],
         df.iloc[w2:].reset_index(drop=True),
     )
     n_trades = len([t for t in final_trades if t.get("pnl") is not None])
-    print(f"全量数据: score={final_score:.4f} | ret={final_metrics['total_return']*100:+.2f}% | "
-          f"sharpe={final_metrics['sharpe_ratio']:.2f} | DD={final_metrics['max_drawdown']*100:+.1f}% | "
-          f"WR={final_metrics['win_rate']*100:.1f}% | trades={n_trades}")
+    print(
+        f"全量数据: score={final_score:.4f} | ret={final_metrics['total_return'] * 100:+.2f}% | "
+        f"sharpe={final_metrics['sharpe_ratio']:.2f} | DD={final_metrics['max_drawdown'] * 100:+.1f}% | "
+        f"WR={final_metrics['win_rate'] * 100:.1f}% | trades={n_trades}"
+    )
 
     elapsed = time.time() - t_total_start
     print(f"\nWalk-Forward 搜索完成, 总耗时 {elapsed:.1f}s")
@@ -4125,6 +4726,7 @@ def walk_forward_trendfollow_search(df, time_budget=TIME_BUDGET, n_windows=5):
 # ---------------------------------------------------------------------------
 # Walk-Forward 验证搜索（混合均值回归 + 动量）
 # ---------------------------------------------------------------------------
+
 
 def walk_forward_hybrid_mm_search(df, time_budget=TIME_BUDGET, n_windows=5):
     """
@@ -4170,8 +4772,8 @@ def walk_forward_hybrid_mm_search(df, time_budget=TIME_BUDGET, n_windows=5):
         val_df = df.iloc[val_start:val_end].reset_index(drop=True)
         val_prices = val_df["close"].values.astype(float)
 
-        print(f"{'─'*60}")
-        print(f"窗口 {w_idx+1}/{n_windows}: 训练 [{0}:{train_end}] 验证 [{val_start}:{val_end}]")
+        print(f"{'─' * 60}")
+        print(f"窗口 {w_idx + 1}/{n_windows}: 训练 [{0}:{train_end}] 验证 [{val_start}:{val_end}]")
 
         best_score = -float("inf")
         best_params = None
@@ -4192,17 +4794,23 @@ def walk_forward_hybrid_mm_search(df, time_budget=TIME_BUDGET, n_windows=5):
                                         tried += 1
 
                                         strategy = HybridMeanRevMomentumStrategy(
-                                            rsi_period=rsi_p, rsi_low=rsi_l, rsi_high=rsi_h,
-                                            ma_period=ma_p, atr_period=atr_p,
-                                            atr_multiplier=atr_m, max_hold_bars=max_hold,
-                                            enable_short=True, ema_tolerance=etol,
+                                            rsi_period=rsi_p,
+                                            rsi_low=rsi_l,
+                                            rsi_high=rsi_h,
+                                            ma_period=ma_p,
+                                            atr_period=atr_p,
+                                            atr_multiplier=atr_m,
+                                            max_hold_bars=max_hold,
+                                            enable_short=True,
+                                            ema_tolerance=etol,
                                         )
 
                                     try:
                                         signals = strategy.generate_signals(val_df)
                                         min_idx = max(rsi_p, ma_p, atr_p)
                                         score, metrics, trades = evaluator.evaluate(
-                                            signals[min_idx:], val_prices[min_idx:],
+                                            signals[min_idx:],
+                                            val_prices[min_idx:],
                                             val_df.iloc[min_idx:].reset_index(drop=True),
                                         )
                                     except Exception:
@@ -4213,10 +4821,14 @@ def walk_forward_hybrid_mm_search(df, time_budget=TIME_BUDGET, n_windows=5):
                                     if score > best_score:
                                         best_score = score
                                         best_params = {
-                                            "rsi_period": rsi_p, "rsi_low": rsi_l,
-                                            "rsi_high": rsi_h, "ma_period": ma_p,
-                                            "atr_period": atr_p, "atr_multiplier": atr_m,
-                                            "max_hold_bars": max_hold, "enable_short": True,
+                                            "rsi_period": rsi_p,
+                                            "rsi_low": rsi_l,
+                                            "rsi_high": rsi_h,
+                                            "ma_period": ma_p,
+                                            "atr_period": atr_p,
+                                            "atr_multiplier": atr_m,
+                                            "max_hold_bars": max_hold,
+                                            "enable_short": True,
                                             "ema_tolerance": etol,
                                         }
                                         best_metrics = metrics
@@ -4226,18 +4838,30 @@ def walk_forward_hybrid_mm_search(df, time_budget=TIME_BUDGET, n_windows=5):
         if best_params and best_metrics:
             trades_list = best_metrics and trades or []
             n_trades = len([t for t in trades_list if t.get("pnl") is not None])
-            print(f"  窗口最优: rsi_low={best_params['rsi_low']} rsi_high={best_params['rsi_high']} "
-                  f"ma={best_params['ma_period']} atr_p={best_params['atr_period']} "
-                  f"atr_m={best_params['atr_multiplier']} hold={best_params['max_hold_bars']}")
-            print(f"  验证评分={best_score:.4f} | 收益={best_metrics['total_return']*100:+.2f}% | "
-                  f"夏普={best_metrics['sharpe_ratio']:.2f} | DD={best_metrics['max_drawdown']*100:+.1f}% | "
-                  f"交易={n_trades} | 耗时={w_time:.1f}s")
-            window_champions.append({"window": w_idx, "params": best_params,
-                                     "score": best_score, "metrics": best_metrics})
+            print(
+                f"  窗口最优: rsi_low={best_params['rsi_low']} rsi_high={best_params['rsi_high']} "
+                f"ma={best_params['ma_period']} atr_p={best_params['atr_period']} "
+                f"atr_m={best_params['atr_multiplier']} hold={best_params['max_hold_bars']}"
+            )
+            print(
+                f"  验证评分={best_score:.4f} | 收益={best_metrics['total_return'] * 100:+.2f}% | "
+                f"夏普={best_metrics['sharpe_ratio']:.2f} | DD={best_metrics['max_drawdown'] * 100:+.1f}% | "
+                f"交易={n_trades} | 耗时={w_time:.1f}s"
+            )
+            window_champions.append(
+                {
+                    "window": w_idx,
+                    "params": best_params,
+                    "score": best_score,
+                    "metrics": best_metrics,
+                }
+            )
 
-            p_key = (f"rsiL{best_params['rsi_low']}_rsiH{best_params['rsi_high']}"
-                     f"_ma{best_params['ma_period']}_ap{best_params['atr_period']}"
-                     f"_am{best_params['atr_multiplier']}_h{best_params['max_hold_bars']}")
+            p_key = (
+                f"rsiL{best_params['rsi_low']}_rsiH{best_params['rsi_high']}"
+                f"_ma{best_params['ma_period']}_ap{best_params['atr_period']}"
+                f"_am{best_params['atr_multiplier']}_h{best_params['max_hold_bars']}"
+            )
             if p_key not in all_cross_scores:
                 all_cross_scores[p_key] = {"params": best_params, "scores": [], "returns": []}
             all_cross_scores[p_key]["scores"].append(best_score)
@@ -4246,13 +4870,13 @@ def walk_forward_hybrid_mm_search(df, time_budget=TIME_BUDGET, n_windows=5):
             print(f"  未找到有效参数 (耗时 {w_time:.1f}s)")
 
         if time.time() - t_total_start > time_budget * 0.95:
-            print(f"\n总时间预算即将耗尽，提前结束（完成 {w_idx+1}/{n_windows} 窗口）")
+            print(f"\n总时间预算即将耗尽，提前结束（完成 {w_idx + 1}/{n_windows} 窗口）")
             break
 
     # 跨窗口分析
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print("跨窗口稳健性分析")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
 
     if not all_cross_scores:
         print("未找到任何有效参数")
@@ -4267,43 +4891,56 @@ def walk_forward_hybrid_mm_search(df, time_budget=TIME_BUDGET, n_windows=5):
         avg_return = np.mean(returns)
         cv = np.std(scores) / (avg_score + 0.001)
         robustness = avg_score * (1.0 - min(cv, 0.5))
-        ranked.append({
-            "key": p_key, "params": data["params"],
-            "avg_score": avg_score, "min_score": min_score,
-            "robustness": robustness, "avg_return": avg_return,
-            "n_windows": len(scores), "scores": scores,
-        })
+        ranked.append(
+            {
+                "key": p_key,
+                "params": data["params"],
+                "avg_score": avg_score,
+                "min_score": min_score,
+                "robustness": robustness,
+                "avg_return": avg_return,
+                "n_windows": len(scores),
+                "scores": scores,
+            }
+        )
 
     ranked.sort(key=lambda x: x["robustness"], reverse=True)
 
     print(f"{'参数':55s} {'窗口':>5s} {'平均分':>8s} {'最低分':>8s} {'稳健分':>8s} {'均收益':>8s}")
     print("-" * 95)
     for r in ranked[:15]:
-        print(f"{r['key']:55s} {r['n_windows']:>5d} {r['avg_score']:>8.4f} {r['min_score']:>8.4f} {r['robustness']:>8.4f} {r['avg_return']*100:>+7.2f}%")
+        print(
+            f"{r['key']:55s} {r['n_windows']:>5d} {r['avg_score']:>8.4f} {r['min_score']:>8.4f} {r['robustness']:>8.4f} {r['avg_return'] * 100:>+7.2f}%"
+        )
 
     champion = ranked[0]
     cp = champion["params"]
-    print(f"\n稳健冠军: rsi_low={cp['rsi_low']} rsi_high={cp['rsi_high']} ma={cp['ma_period']} "
-          f"atr_p={cp['atr_period']} atr_m={cp['atr_multiplier']} hold={cp['max_hold_bars']}")
+    print(
+        f"\n稳健冠军: rsi_low={cp['rsi_low']} rsi_high={cp['rsi_high']} ma={cp['ma_period']} "
+        f"atr_p={cp['atr_period']} atr_m={cp['atr_multiplier']} hold={cp['max_hold_bars']}"
+    )
     print(f"跨窗口平均评分: {champion['avg_score']:.4f} (最低: {champion['min_score']:.4f})")
-    print(f"跨窗口平均收益: {champion['avg_return']*100:+.2f}%")
+    print(f"跨窗口平均收益: {champion['avg_return'] * 100:+.2f}%")
 
     # 全量数据评估
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print("冠军参数全量数据评估")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
 
     final_strategy = HybridMeanRevMomentumStrategy(**cp)
     final_signals = final_strategy.generate_signals(df)
     min_idx = max(cp["rsi_period"], cp["ma_period"], cp["atr_period"])
     final_score, final_metrics, final_trades = evaluator.evaluate(
-        final_signals[min_idx:], df["close"].values[min_idx:],
+        final_signals[min_idx:],
+        df["close"].values[min_idx:],
         df.iloc[min_idx:].reset_index(drop=True),
     )
     n_trades = len([t for t in final_trades if t.get("pnl") is not None])
-    print(f"全量数据: score={final_score:.4f} | ret={final_metrics['total_return']*100:+.2f}% | "
-          f"sharpe={final_metrics['sharpe_ratio']:.2f} | DD={final_metrics['max_drawdown']*100:+.1f}% | "
-          f"WR={final_metrics['win_rate']*100:.1f}% | trades={n_trades}")
+    print(
+        f"全量数据: score={final_score:.4f} | ret={final_metrics['total_return'] * 100:+.2f}% | "
+        f"sharpe={final_metrics['sharpe_ratio']:.2f} | DD={final_metrics['max_drawdown'] * 100:+.1f}% | "
+        f"WR={final_metrics['win_rate'] * 100:.1f}% | trades={n_trades}"
+    )
 
     elapsed = time.time() - t_total_start
     print(f"\nWalk-Forward 搜索完成, 总耗时 {elapsed:.1f}s")
@@ -4314,6 +4951,7 @@ def walk_forward_hybrid_mm_search(df, time_budget=TIME_BUDGET, n_windows=5):
 # ---------------------------------------------------------------------------
 # 趋势分析模块
 # ---------------------------------------------------------------------------
+
 
 def analyze_market_regime(df):
     """
@@ -4373,7 +5011,7 @@ def analyze_market_regime(df):
             dx[i] = 100 * abs(plus_di[i] - minus_di[i]) / di_sum
 
     adx = np.zeros(n)
-    adx[period * 2 - 1] = np.mean(dx[period:period * 2])
+    adx[period * 2 - 1] = np.mean(dx[period : period * 2])
     for i in range(period * 2, n):
         adx[i] = (adx[i - 1] * (period - 1) + dx[i]) / period
 
@@ -4384,7 +5022,11 @@ def analyze_market_regime(df):
 
     # 波动率（最近7天年化）
     returns = np.diff(close) / close[:-1]
-    vol = np.std(returns[-288 * 7:]) * np.sqrt(288 * 365) if len(returns) >= 288 * 7 else np.std(returns) * np.sqrt(288 * 365)
+    vol = (
+        np.std(returns[-288 * 7 :]) * np.sqrt(288 * 365)
+        if len(returns) >= 288 * 7
+        else np.std(returns) * np.sqrt(288 * 365)
+    )
 
     # 趋势判定
     if adx_val > 25:
@@ -4417,6 +5059,7 @@ def analyze_market_regime(df):
 # ---------------------------------------------------------------------------
 # 直接全量搜索（市场状态自适应混合，非Walk-Forward）
 # ---------------------------------------------------------------------------
+
 
 def direct_adaptive_search(df, time_budget=TIME_BUDGET):
     """
@@ -4473,7 +5116,8 @@ def direct_adaptive_search(df, time_budget=TIME_BUDGET):
                                                 tried += 1
 
                                                 strategy = AdaptiveHybridStrategy(
-                                                    rsi_low=rsi_l, rsi_high=rsi_h,
+                                                    rsi_low=rsi_l,
+                                                    rsi_high=rsi_h,
                                                     ma_period=ma_p,
                                                     trend_long_ma=trend_long,
                                                     trend_pull_ma=trend_pull,
@@ -4488,10 +5132,17 @@ def direct_adaptive_search(df, time_budget=TIME_BUDGET):
 
                                             try:
                                                 signals = strategy.generate_signals(df)
-                                                min_idx = max(14, ma_p, adx_p * 2,
-                                                              trend_long, trend_pull, atr_p)
+                                                min_idx = max(
+                                                    14,
+                                                    ma_p,
+                                                    adx_p * 2,
+                                                    trend_long,
+                                                    trend_pull,
+                                                    atr_p,
+                                                )
                                                 score, metrics, trades = evaluator.evaluate(
-                                                    signals[min_idx:], prices[min_idx:],
+                                                    signals[min_idx:],
+                                                    prices[min_idx:],
                                                     df.iloc[min_idx:].reset_index(drop=True),
                                                 )
                                             except Exception:
@@ -4503,7 +5154,8 @@ def direct_adaptive_search(df, time_budget=TIME_BUDGET):
                                                 best_score = score
                                                 best_params = {
                                                     "rsi_period": 14,
-                                                    "rsi_low": rsi_l, "rsi_high": rsi_h,
+                                                    "rsi_low": rsi_l,
+                                                    "rsi_high": rsi_h,
                                                     "ma_period": ma_p,
                                                     "trend_long_ma": trend_long,
                                                     "trend_pull_ma": trend_pull,
@@ -4522,14 +5174,18 @@ def direct_adaptive_search(df, time_budget=TIME_BUDGET):
     n_trades = len([t for t in best_trades if t.get("pnl") is not None])
     print(f"搜索完成, 尝试 {tried}/{total_combos} 组参数, 耗时 {elapsed:.1f}s")
     if best_params and best_metrics:
-        print(f"最优参数: rsiL={best_params['rsi_low']} rsiH={best_params['rsi_high']} "
-              f"ma={best_params['ma_period']} trendL={best_params['trend_long_ma']} "
-              f"adx_th={best_params['adx_threshold']} atr_p={best_params['atr_period']} "
-              f"atr_m={best_params['atr_multiplier']} hold={best_params['max_hold_bars']} "
-              f"tol={best_params.get('ema_tolerance', 0):.3f}")
-        print(f"全量评分={best_score:.4f} | 收益={best_metrics['total_return']*100:+.2f}% | "
-              f"夏普={best_metrics['sharpe_ratio']:.2f} | DD={best_metrics['max_drawdown']*100:.1f}% | "
-              f"交易={n_trades}")
+        print(
+            f"最优参数: rsiL={best_params['rsi_low']} rsiH={best_params['rsi_high']} "
+            f"ma={best_params['ma_period']} trendL={best_params['trend_long_ma']} "
+            f"adx_th={best_params['adx_threshold']} atr_p={best_params['atr_period']} "
+            f"atr_m={best_params['atr_multiplier']} hold={best_params['max_hold_bars']} "
+            f"tol={best_params.get('ema_tolerance', 0):.3f}"
+        )
+        print(
+            f"全量评分={best_score:.4f} | 收益={best_metrics['total_return'] * 100:+.2f}% | "
+            f"夏普={best_metrics['sharpe_ratio']:.2f} | DD={best_metrics['max_drawdown'] * 100:.1f}% | "
+            f"交易={n_trades}"
+        )
     else:
         print("未找到有效参数")
 
@@ -4539,6 +5195,7 @@ def direct_adaptive_search(df, time_budget=TIME_BUDGET):
 # ---------------------------------------------------------------------------
 # 直接全量搜索（趋势跟随，非Walk-Forward）
 # ---------------------------------------------------------------------------
+
 
 def direct_trendfollow_search(df, time_budget=TIME_BUDGET):
     """
@@ -4595,7 +5252,8 @@ def direct_trendfollow_search(df, time_budget=TIME_BUDGET):
                                 signals = strategy.generate_signals(df)
                                 min_idx = max(long_p, pull_p, atr_p)
                                 score, metrics, trades = evaluator.evaluate(
-                                    signals[min_idx:], prices[min_idx:],
+                                    signals[min_idx:],
+                                    prices[min_idx:],
                                     df.iloc[min_idx:].reset_index(drop=True),
                                 )
                             except Exception:
@@ -4619,12 +5277,16 @@ def direct_trendfollow_search(df, time_budget=TIME_BUDGET):
 
     n_trades = len([t for t in best_trades if t.get("pnl") is not None])
     if best_params and best_metrics:
-        print(f"    最优: long={best_params['long_ma_period']} pull={best_params['pull_ma_period']} "
-              f"atr_p={best_params['atr_period']} atr_m={best_params['atr_multiplier']} "
-              f"hold={best_params['max_hold_bars']} zone={best_params['entry_zone']}")
-        print(f"    评分={best_score:.4f} | 收益={best_metrics['total_return']*100:+.2f}% | "
-              f"夏普={best_metrics['sharpe_ratio']:.2f} | DD={best_metrics['max_drawdown']*100:.1f}% | "
-              f"交易={n_trades}")
+        print(
+            f"    最优: long={best_params['long_ma_period']} pull={best_params['pull_ma_period']} "
+            f"atr_p={best_params['atr_period']} atr_m={best_params['atr_multiplier']} "
+            f"hold={best_params['max_hold_bars']} zone={best_params['entry_zone']}"
+        )
+        print(
+            f"    评分={best_score:.4f} | 收益={best_metrics['total_return'] * 100:+.2f}% | "
+            f"夏普={best_metrics['sharpe_ratio']:.2f} | DD={best_metrics['max_drawdown'] * 100:.1f}% | "
+            f"交易={n_trades}"
+        )
     else:
         print("    未找到有效参数")
 
@@ -4634,6 +5296,7 @@ def direct_trendfollow_search(df, time_budget=TIME_BUDGET):
 # ---------------------------------------------------------------------------
 # 直接全量搜索（混合均值回归+动量，非Walk-Forward）
 # ---------------------------------------------------------------------------
+
 
 def direct_hybrid_mm_search(df, time_budget=TIME_BUDGET):
     """
@@ -4695,7 +5358,8 @@ def direct_hybrid_mm_search(df, time_budget=TIME_BUDGET):
                                     signals = strategy.generate_signals(df)
                                     min_idx = max(14, ma_p, atr_p)
                                     score, metrics, trades = evaluator.evaluate(
-                                        signals[min_idx:], prices[min_idx:],
+                                        signals[min_idx:],
+                                        prices[min_idx:],
                                         df.iloc[min_idx:].reset_index(drop=True),
                                     )
                                 except Exception:
@@ -4721,13 +5385,17 @@ def direct_hybrid_mm_search(df, time_budget=TIME_BUDGET):
 
     n_trades = len([t for t in best_trades if t.get("pnl") is not None])
     if best_params and best_metrics:
-        print(f"    最优: rsiL={best_params['rsi_low']} rsiH={best_params['rsi_high']} "
-              f"ma={best_params['ma_period']} atr_p={best_params['atr_period']} "
-              f"atr_m={best_params['atr_multiplier']} hold={best_params['max_hold_bars']} "
-              f"tolerance={best_params.get('ema_tolerance', 0):.3f}")
-        print(f"    评分={best_score:.4f} | 收益={best_metrics['total_return']*100:+.2f}% | "
-              f"夏普={best_metrics['sharpe_ratio']:.2f} | DD={best_metrics['max_drawdown']*100:.1f}% | "
-              f"交易={n_trades}")
+        print(
+            f"    最优: rsiL={best_params['rsi_low']} rsiH={best_params['rsi_high']} "
+            f"ma={best_params['ma_period']} atr_p={best_params['atr_period']} "
+            f"atr_m={best_params['atr_multiplier']} hold={best_params['max_hold_bars']} "
+            f"tolerance={best_params.get('ema_tolerance', 0):.3f}"
+        )
+        print(
+            f"    评分={best_score:.4f} | 收益={best_metrics['total_return'] * 100:+.2f}% | "
+            f"夏普={best_metrics['sharpe_ratio']:.2f} | DD={best_metrics['max_drawdown'] * 100:.1f}% | "
+            f"交易={n_trades}"
+        )
     else:
         print("    未找到有效参数")
 
@@ -4738,6 +5406,7 @@ def direct_hybrid_mm_search(df, time_budget=TIME_BUDGET):
 # 智能搜索（趋势感知 + 多策略竞争）
 # ---------------------------------------------------------------------------
 
+
 def smart_search(df, time_budget=TIME_BUDGET):
     """
     智能搜索：先分析市场趋势，然后根据趋势给不同策略分配时间预算，
@@ -4746,18 +5415,20 @@ def smart_search(df, time_budget=TIME_BUDGET):
     n = len(df)
     prices = df["close"].values.astype(float)
 
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
     print("智能策略搜索 (趋势感知 + 多策略竞争)")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
     print(f"数据: {n} 条K线")
 
     # 1. 趋势分析
     regime, regime_info = analyze_market_regime(df)
     print("\n市场状态分析:")
     print(f"  判定结果: {regime}")
-    print(f"  ADX={regime_info['adx']:.1f} | EMA趋势: {regime_info['ema50_vs_ema200']} | "
-          f"价格偏离EMA200={regime_info['price_vs_ema200_pct']:+.2f}% | "
-          f"年化波动率={regime_info['volatility_annualized']*100:.1f}%")
+    print(
+        f"  ADX={regime_info['adx']:.1f} | EMA趋势: {regime_info['ema50_vs_ema200']} | "
+        f"价格偏离EMA200={regime_info['price_vs_ema200_pct']:+.2f}% | "
+        f"年化波动率={regime_info['volatility_annualized'] * 100:.1f}%"
+    )
 
     # 2. 策略池配置（名称, 搜索函数, 时间预算权重）
     if "uptrend" in regime:
@@ -4786,9 +5457,9 @@ def smart_search(df, time_budget=TIME_BUDGET):
         ]
 
     # 3. 多策略竞争搜索
-    print(f"\n{'─'*60}")
+    print(f"\n{'─' * 60}")
     print("策略竞争")
-    print(f"{'─'*60}")
+    print(f"{'─' * 60}")
 
     best_overall_name = None
     best_overall_params = None
@@ -4808,33 +5479,35 @@ def smart_search(df, time_budget=TIME_BUDGET):
             best_overall_metrics = metrics
 
     # 4. 汇总输出
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print("策略竞争结果汇总")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
     print(f"{'策略':<15} {'评分':>8} {'收益':>8} {'夏普':>8} {'回撤':>8} {'交易数':>8}")
     print("-" * 60)
     for name, params, score, metrics in results:
         if metrics:
-            ret = metrics.get('total_return', 0) * 100
-            sharpe = metrics.get('sharpe_ratio', 0)
-            dd = metrics.get('max_drawdown', 0) * 100
-            trades = len([t for t in metrics.get('trades', []) if t.get("pnl") is not None])
+            ret = metrics.get("total_return", 0) * 100
+            sharpe = metrics.get("sharpe_ratio", 0)
+            dd = metrics.get("max_drawdown", 0) * 100
+            trades = len([t for t in metrics.get("trades", []) if t.get("pnl") is not None])
             print(f"{name:<15} {score:>8.4f} {ret:>+7.2f}% {sharpe:>8.2f} {dd:>+7.1f}% {trades:>8}")
         else:
             print(f"{name:<15} {score:>8.4f} {'N/A':>8} {'N/A':>8} {'N/A':>8} {'N/A':>8}")
 
     print(f"\n最佳策略: {best_overall_name}")
     if best_overall_metrics:
-        print(f"全量回测: 评分={best_overall_score:.4f} | "
-              f"收益={best_overall_metrics['total_return']*100:+.2f}% | "
-              f"夏普={best_overall_metrics['sharpe_ratio']:.2f} | "
-              f"DD={best_overall_metrics['max_drawdown']*100:.1f}% | "
-              f"WR={best_overall_metrics['win_rate']*100:.1f}%")
+        print(
+            f"全量回测: 评分={best_overall_score:.4f} | "
+            f"收益={best_overall_metrics['total_return'] * 100:+.2f}% | "
+            f"夏普={best_overall_metrics['sharpe_ratio']:.2f} | "
+            f"DD={best_overall_metrics['max_drawdown'] * 100:.1f}% | "
+            f"WR={best_overall_metrics['win_rate'] * 100:.1f}%"
+        )
 
     # 5. 最终全量评估（使用最佳参数）
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print("冠军参数全量数据评估")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
 
     strategy_cls = None
     if best_overall_name == "trendfollow":
@@ -4846,6 +5519,7 @@ def smart_search(df, time_budget=TIME_BUDGET):
 
     if strategy_cls and best_overall_params:
         import inspect
+
         sig = inspect.signature(strategy_cls.__init__)
         valid_keys = set(sig.parameters.keys()) - {"self"}
         filtered_params = {k: v for k, v in best_overall_params.items() if k in valid_keys}
@@ -4853,30 +5527,39 @@ def smart_search(df, time_budget=TIME_BUDGET):
         final_signals = final_strategy.generate_signals(df)
 
         if best_overall_name == "trendfollow":
-            min_idx = max(best_overall_params.get("long_ma_period", 100),
-                          best_overall_params.get("pull_ma_period", 20),
-                          best_overall_params.get("atr_period", 14))
+            min_idx = max(
+                best_overall_params.get("long_ma_period", 100),
+                best_overall_params.get("pull_ma_period", 20),
+                best_overall_params.get("atr_period", 14),
+            )
         elif best_overall_name == "adaptive":
-            min_idx = max(best_overall_params.get("rsi_period", 14),
-                          best_overall_params.get("ma_period", 20),
-                          best_overall_params.get("adx_period", 14) * 2,
-                          best_overall_params.get("trend_long_ma", 100),
-                          best_overall_params.get("trend_pull_ma", 10),
-                          best_overall_params.get("atr_period", 14))
+            min_idx = max(
+                best_overall_params.get("rsi_period", 14),
+                best_overall_params.get("ma_period", 20),
+                best_overall_params.get("adx_period", 14) * 2,
+                best_overall_params.get("trend_long_ma", 100),
+                best_overall_params.get("trend_pull_ma", 10),
+                best_overall_params.get("atr_period", 14),
+            )
         else:  # hybrid_mm
-            min_idx = max(best_overall_params.get("rsi_period", 14),
-                          best_overall_params.get("ma_period", 20),
-                          best_overall_params.get("atr_period", 14))
+            min_idx = max(
+                best_overall_params.get("rsi_period", 14),
+                best_overall_params.get("ma_period", 20),
+                best_overall_params.get("atr_period", 14),
+            )
 
         evaluator = StrategyEvaluator()
         final_score, final_metrics, final_trades = evaluator.evaluate(
-            final_signals[min_idx:], prices[min_idx:],
+            final_signals[min_idx:],
+            prices[min_idx:],
             df.iloc[min_idx:].reset_index(drop=True),
         )
         n_trades = len([t for t in final_trades if t.get("pnl") is not None])
-        print(f"全量数据: score={final_score:.4f} | ret={final_metrics['total_return']*100:+.2f}% | "
-              f"sharpe={final_metrics['sharpe_ratio']:.2f} | DD={final_metrics['max_drawdown']*100:.1f}% | "
-              f"WR={final_metrics['win_rate']*100:.1f}% | trades={n_trades}")
+        print(
+            f"全量数据: score={final_score:.4f} | ret={final_metrics['total_return'] * 100:+.2f}% | "
+            f"sharpe={final_metrics['sharpe_ratio']:.2f} | DD={final_metrics['max_drawdown'] * 100:.1f}% | "
+            f"WR={final_metrics['win_rate'] * 100:.1f}% | trades={n_trades}"
+        )
 
         # 合并趋势信息到 metrics 中
         final_metrics["regime"] = regime
@@ -4890,6 +5573,7 @@ def smart_search(df, time_budget=TIME_BUDGET):
 # ---------------------------------------------------------------------------
 # Walk-Forward 验证搜索（市场状态自适应混合）
 # ---------------------------------------------------------------------------
+
 
 def walk_forward_adaptive_search(df, time_budget=TIME_BUDGET, n_windows=5):
     """
@@ -4937,8 +5621,8 @@ def walk_forward_adaptive_search(df, time_budget=TIME_BUDGET, n_windows=5):
         val_df = df.iloc[val_start:val_end].reset_index(drop=True)
         val_prices = val_df["close"].values.astype(float)
 
-        print(f"{'─'*60}")
-        print(f"窗口 {w_idx+1}/{n_windows}: 训练 [{0}:{train_end}] 验证 [{val_start}:{val_end}]")
+        print(f"{'─' * 60}")
+        print(f"窗口 {w_idx + 1}/{n_windows}: 训练 [{0}:{train_end}] 验证 [{val_start}:{val_end}]")
 
         best_score = -float("inf")
         best_params = None
@@ -4961,7 +5645,8 @@ def walk_forward_adaptive_search(df, time_budget=TIME_BUDGET, n_windows=5):
                                                 tried += 1
 
                                                 strategy = AdaptiveHybridStrategy(
-                                                    rsi_low=rsi_l, rsi_high=rsi_h,
+                                                    rsi_low=rsi_l,
+                                                    rsi_high=rsi_h,
                                                     ma_period=ma_p,
                                                     trend_long_ma=trend_long,
                                                     trend_pull_ma=trend_pull,
@@ -4975,11 +5660,20 @@ def walk_forward_adaptive_search(df, time_budget=TIME_BUDGET, n_windows=5):
 
                                                 try:
                                                     signals = strategy.generate_signals(val_df)
-                                                    min_idx = max(rsi_l, ma_p, adx_p * 2,
-                                                                  trend_long, trend_pull, atr_p)
+                                                    min_idx = max(
+                                                        rsi_l,
+                                                        ma_p,
+                                                        adx_p * 2,
+                                                        trend_long,
+                                                        trend_pull,
+                                                        atr_p,
+                                                    )
                                                     score, metrics, trades = evaluator.evaluate(
-                                                        signals[min_idx:], val_prices[min_idx:],
-                                                        val_df.iloc[min_idx:].reset_index(drop=True),
+                                                        signals[min_idx:],
+                                                        val_prices[min_idx:],
+                                                        val_df.iloc[min_idx:].reset_index(
+                                                            drop=True
+                                                        ),
                                                     )
                                                 except Exception:
                                                     score = 0.0
@@ -4990,7 +5684,8 @@ def walk_forward_adaptive_search(df, time_budget=TIME_BUDGET, n_windows=5):
                                                     best_score = score
                                                     best_params = {
                                                         "rsi_period": 14,
-                                                        "rsi_low": rsi_l, "rsi_high": rsi_h,
+                                                        "rsi_low": rsi_l,
+                                                        "rsi_high": rsi_h,
                                                         "ma_period": ma_p,
                                                         "trend_long_ma": trend_long,
                                                         "trend_pull_ma": trend_pull,
@@ -5008,22 +5703,34 @@ def walk_forward_adaptive_search(df, time_budget=TIME_BUDGET, n_windows=5):
         if best_params and best_metrics:
             trades_list = best_metrics and trades or []
             n_trades = len([t for t in trades_list if t.get("pnl") is not None])
-            print(f"  窗口最优: rsiL={best_params['rsi_low']} rsiH={best_params['rsi_high']} "
-                  f"ma={best_params['ma_period']} trendL={best_params['trend_long_ma']} "
-                  f"trendP={best_params['trend_pull_ma']} adx_th={best_params['adx_threshold']} "
-                  f"atr_p={best_params['atr_period']} atr_m={best_params['atr_multiplier']} "
-                  f"hold={best_params['max_hold_bars']}")
-            print(f"  验证评分={best_score:.4f} | 收益={best_metrics['total_return']*100:+.2f}% | "
-                  f"夏普={best_metrics['sharpe_ratio']:.2f} | DD={best_metrics['max_drawdown']*100:+.1f}% | "
-                  f"交易={n_trades} | 耗时={w_time:.1f}s")
-            window_champions.append({"window": w_idx, "params": best_params,
-                                     "score": best_score, "metrics": best_metrics})
+            print(
+                f"  窗口最优: rsiL={best_params['rsi_low']} rsiH={best_params['rsi_high']} "
+                f"ma={best_params['ma_period']} trendL={best_params['trend_long_ma']} "
+                f"trendP={best_params['trend_pull_ma']} adx_th={best_params['adx_threshold']} "
+                f"atr_p={best_params['atr_period']} atr_m={best_params['atr_multiplier']} "
+                f"hold={best_params['max_hold_bars']}"
+            )
+            print(
+                f"  验证评分={best_score:.4f} | 收益={best_metrics['total_return'] * 100:+.2f}% | "
+                f"夏普={best_metrics['sharpe_ratio']:.2f} | DD={best_metrics['max_drawdown'] * 100:+.1f}% | "
+                f"交易={n_trades} | 耗时={w_time:.1f}s"
+            )
+            window_champions.append(
+                {
+                    "window": w_idx,
+                    "params": best_params,
+                    "score": best_score,
+                    "metrics": best_metrics,
+                }
+            )
 
-            p_key = (f"rsiL{best_params['rsi_low']}_rsiH{best_params['rsi_high']}"
-                     f"_ma{best_params['ma_period']}_tL{best_params['trend_long_ma']}"
-                     f"_tP{best_params['trend_pull_ma']}_adx{best_params['adx_threshold']}"
-                     f"_ap{best_params['atr_period']}_am{best_params['atr_multiplier']}"
-                     f"_h{best_params['max_hold_bars']}")
+            p_key = (
+                f"rsiL{best_params['rsi_low']}_rsiH{best_params['rsi_high']}"
+                f"_ma{best_params['ma_period']}_tL{best_params['trend_long_ma']}"
+                f"_tP{best_params['trend_pull_ma']}_adx{best_params['adx_threshold']}"
+                f"_ap{best_params['atr_period']}_am{best_params['atr_multiplier']}"
+                f"_h{best_params['max_hold_bars']}"
+            )
             if p_key not in all_cross_scores:
                 all_cross_scores[p_key] = {"params": best_params, "scores": [], "returns": []}
             all_cross_scores[p_key]["scores"].append(best_score)
@@ -5032,13 +5739,13 @@ def walk_forward_adaptive_search(df, time_budget=TIME_BUDGET, n_windows=5):
             print(f"  未找到有效参数 (耗时 {w_time:.1f}s)")
 
         if time.time() - t_total_start > time_budget * 0.95:
-            print(f"\n总时间预算即将耗尽，提前结束（完成 {w_idx+1}/{n_windows} 窗口）")
+            print(f"\n总时间预算即将耗尽，提前结束（完成 {w_idx + 1}/{n_windows} 窗口）")
             break
 
     # 跨窗口分析
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print("跨窗口稳健性分析")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
 
     if not all_cross_scores:
         print("未找到任何有效参数")
@@ -5053,46 +5760,65 @@ def walk_forward_adaptive_search(df, time_budget=TIME_BUDGET, n_windows=5):
         avg_return = np.mean(returns)
         cv = np.std(scores) / (avg_score + 0.001)
         robustness = avg_score * (1.0 - min(cv, 0.5))
-        ranked.append({
-            "key": p_key, "params": data["params"],
-            "avg_score": avg_score, "min_score": min_score,
-            "robustness": robustness, "avg_return": avg_return,
-            "n_windows": len(scores), "scores": scores,
-        })
+        ranked.append(
+            {
+                "key": p_key,
+                "params": data["params"],
+                "avg_score": avg_score,
+                "min_score": min_score,
+                "robustness": robustness,
+                "avg_return": avg_return,
+                "n_windows": len(scores),
+                "scores": scores,
+            }
+        )
 
     ranked.sort(key=lambda x: x["robustness"], reverse=True)
 
     print(f"{'参数':75s} {'窗口':>5s} {'平均分':>8s} {'最低分':>8s} {'稳健分':>8s} {'均收益':>8s}")
     print("-" * 115)
     for r in ranked[:15]:
-        print(f"{r['key']:75s} {r['n_windows']:>5d} {r['avg_score']:>8.4f} {r['min_score']:>8.4f} {r['robustness']:>8.4f} {r['avg_return']*100:>+7.2f}%")
+        print(
+            f"{r['key']:75s} {r['n_windows']:>5d} {r['avg_score']:>8.4f} {r['min_score']:>8.4f} {r['robustness']:>8.4f} {r['avg_return'] * 100:>+7.2f}%"
+        )
 
     champion = ranked[0]
     cp = champion["params"]
-    print(f"\n稳健冠军: rsiL={cp['rsi_low']} rsiH={cp['rsi_high']} ma={cp['ma_period']} "
-          f"trendL={cp['trend_long_ma']} trendP={cp['trend_pull_ma']} "
-          f"adx_th={cp['adx_threshold']} atr_p={cp['atr_period']} atr_m={cp['atr_multiplier']} "
-          f"hold={cp['max_hold_bars']}")
+    print(
+        f"\n稳健冠军: rsiL={cp['rsi_low']} rsiH={cp['rsi_high']} ma={cp['ma_period']} "
+        f"trendL={cp['trend_long_ma']} trendP={cp['trend_pull_ma']} "
+        f"adx_th={cp['adx_threshold']} atr_p={cp['atr_period']} atr_m={cp['atr_multiplier']} "
+        f"hold={cp['max_hold_bars']}"
+    )
     print(f"跨窗口平均评分: {champion['avg_score']:.4f} (最低: {champion['min_score']:.4f})")
-    print(f"跨窗口平均收益: {champion['avg_return']*100:+.2f}%")
+    print(f"跨窗口平均收益: {champion['avg_return'] * 100:+.2f}%")
 
     # 全量数据评估
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print("冠军参数全量数据评估")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
 
     final_strategy = AdaptiveHybridStrategy(**cp)
     final_signals = final_strategy.generate_signals(df)
-    min_idx = max(cp["rsi_period"], cp["ma_period"], cp["adx_period"] * 2,
-                  cp["trend_long_ma"], cp["trend_pull_ma"], cp["atr_period"])
+    min_idx = max(
+        cp["rsi_period"],
+        cp["ma_period"],
+        cp["adx_period"] * 2,
+        cp["trend_long_ma"],
+        cp["trend_pull_ma"],
+        cp["atr_period"],
+    )
     final_score, final_metrics, final_trades = evaluator.evaluate(
-        final_signals[min_idx:], df["close"].values[min_idx:],
+        final_signals[min_idx:],
+        df["close"].values[min_idx:],
         df.iloc[min_idx:].reset_index(drop=True),
     )
     n_trades = len([t for t in final_trades if t.get("pnl") is not None])
-    print(f"全量数据: score={final_score:.4f} | ret={final_metrics['total_return']*100:+.2f}% | "
-          f"sharpe={final_metrics['sharpe_ratio']:.2f} | DD={final_metrics['max_drawdown']*100:+.1f}% | "
-          f"WR={final_metrics['win_rate']*100:.1f}% | trades={n_trades}")
+    print(
+        f"全量数据: score={final_score:.4f} | ret={final_metrics['total_return'] * 100:+.2f}% | "
+        f"sharpe={final_metrics['sharpe_ratio']:.2f} | DD={final_metrics['max_drawdown'] * 100:+.1f}% | "
+        f"WR={final_metrics['win_rate'] * 100:.1f}% | trades={n_trades}"
+    )
 
     elapsed = time.time() - t_total_start
     print(f"\nWalk-Forward 搜索完成, 总耗时 {elapsed:.1f}s")
@@ -5104,7 +5830,10 @@ def walk_forward_adaptive_search(df, time_budget=TIME_BUDGET, n_windows=5):
 # 归档
 # ---------------------------------------------------------------------------
 
-def archive_results(mode, symbol, best_params, best_metrics, df, checkpoint_path, strategy_name=None):
+
+def archive_results(
+    mode, symbol, best_params, best_metrics, df, checkpoint_path, strategy_name=None
+):
     """
     归档训练结果。
     保存模型、参数、指标、回测数据（equity/trades）和说明文档到时间戳目录。
@@ -5176,18 +5905,24 @@ def archive_results(mode, symbol, best_params, best_metrics, df, checkpoint_path
             equity, trades = evaluator.simulate(signals, prices, df)
 
             # 保存权益曲线
-            timestamps = df["timestamp"].values if "timestamp" in df.columns else list(range(len(equity)))
-            equity_df = pd.DataFrame({
-                "step": list(range(len(equity))),
-                "timestamp": timestamps[:len(equity)],
-                "equity": equity,
-            })
+            timestamps = (
+                df["timestamp"].values if "timestamp" in df.columns else list(range(len(equity)))
+            )
+            equity_df = pd.DataFrame(
+                {
+                    "step": list(range(len(equity))),
+                    "timestamp": timestamps[: len(equity)],
+                    "equity": equity,
+                }
+            )
             equity_df.to_csv(os.path.join(archive_dir, "equity.csv"), index=False, encoding="utf-8")
 
             # 保存交易记录
             if trades:
                 trades_df = pd.DataFrame(trades)
-                trades_df.to_csv(os.path.join(archive_dir, "trades.csv"), index=False, encoding="utf-8")
+                trades_df.to_csv(
+                    os.path.join(archive_dir, "trades.csv"), index=False, encoding="utf-8"
+                )
 
             n_trades = len([t for t in trades if t.get("pnl") is not None])
         except Exception as e:
@@ -5215,42 +5950,44 @@ def archive_results(mode, symbol, best_params, best_metrics, df, checkpoint_path
             readme_lines.append(f"- **ADX**: {info['adx']:.1f}")
             readme_lines.append(f"- **EMA趋势**: {info['ema50_vs_ema200']}")
             readme_lines.append(f"- **价格偏离EMA200**: {info['price_vs_ema200_pct']:+.2f}%")
-            readme_lines.append(f"- **年化波动率**: {info['volatility_annualized']*100:.1f}%")
+            readme_lines.append(f"- **年化波动率**: {info['volatility_annualized'] * 100:.1f}%")
         if strategy_name:
             readme_lines.append(f"- **选中策略**: {strategy_name}")
 
-    readme_lines.extend([
-        "",
-        "## 回测指标",
-        "",
-        "| 指标 | 数值 |",
-        "|------|------|",
-        f"| 综合评分 | {best_metrics.get('score', best_metrics.get('total_return', 0)):.6f} |",
-        f"| 总收益率 | {best_metrics.get('total_return', 0)*100:.2f}% |",
-        f"| 年化收益率 | {best_metrics.get('annualized_return', 0)*100:.2f}% |",
-        f"| 夏普比率 | {best_metrics.get('sharpe_ratio', 0):.4f} |",
-        f"| 最大回撤 | {best_metrics.get('max_drawdown', 0)*100:.2f}% |",
-        f"| 胜率 | {best_metrics.get('win_rate', 0)*100:.1f}% |",
-        f"| 交易笔数 | {n_trades} |",
-        "",
-        "## 策略参数",
-        "",
-        "```json",
-        json.dumps(best_params, indent=2, ensure_ascii=False),
-        "```",
-        "",
-        "## 文件说明",
-        "",
-        "| 文件 | 说明 |",
-        "|------|------|",
-        "| `quant_model.pt` | PyTorch 模型/参数文件 |",
-        "| `params.json` | 策略参数 JSON |",
-        "| `metrics.json` | 回测指标 JSON |",
-        "| `equity.csv` | 权益曲线（每行一个时间步） |",
-        "| `trades.csv` | 交易记录（每笔交易的类型、步数、盈亏） |",
-        "| `README.md` | 本说明文档 |",
-        "",
-    ])
+    readme_lines.extend(
+        [
+            "",
+            "## 回测指标",
+            "",
+            "| 指标 | 数值 |",
+            "|------|------|",
+            f"| 综合评分 | {best_metrics.get('score', best_metrics.get('total_return', 0)):.6f} |",
+            f"| 总收益率 | {best_metrics.get('total_return', 0) * 100:.2f}% |",
+            f"| 年化收益率 | {best_metrics.get('annualized_return', 0) * 100:.2f}% |",
+            f"| 夏普比率 | {best_metrics.get('sharpe_ratio', 0):.4f} |",
+            f"| 最大回撤 | {best_metrics.get('max_drawdown', 0) * 100:.2f}% |",
+            f"| 胜率 | {best_metrics.get('win_rate', 0) * 100:.1f}% |",
+            f"| 交易笔数 | {n_trades} |",
+            "",
+            "## 策略参数",
+            "",
+            "```json",
+            json.dumps(best_params, indent=2, ensure_ascii=False),
+            "```",
+            "",
+            "## 文件说明",
+            "",
+            "| 文件 | 说明 |",
+            "|------|------|",
+            "| `quant_model.pt` | PyTorch 模型/参数文件 |",
+            "| `params.json` | 策略参数 JSON |",
+            "| `metrics.json` | 回测指标 JSON |",
+            "| `equity.csv` | 权益曲线（每行一个时间步） |",
+            "| `trades.csv` | 交易记录（每笔交易的类型、步数、盈亏） |",
+            "| `README.md` | 本说明文档 |",
+            "",
+        ]
+    )
 
     with open(os.path.join(archive_dir, "README.md"), "w", encoding="utf-8") as f:
         f.write("\n".join(readme_lines))
@@ -5263,20 +6000,39 @@ def archive_results(mode, symbol, best_params, best_metrics, df, checkpoint_path
 # 主程序
 # ---------------------------------------------------------------------------
 
+
 def main():
     t_start = time.time()
 
     # 解析命令行参数
     import argparse
+
     parser = argparse.ArgumentParser()
-    parser.add_argument("--mode", choices=["trend", "scalp", "pure", "pure_wf", "pure_trend", "pure_adx", "hybrid", "trendfollow", "hybrid_mm", "adaptive", "smart"], default="trend",
-                        help="策略模式: trend=趋势均值回归, scalp=高频剥头皮, pure=纯价格行为, pure_wf=WF, pure_trend=趋势对齐WF, pure_adx=ADX+趋势对齐WF, hybrid=市场自适应WF, trendfollow=趋势跟随回调, hybrid_mm=混合均值回归+动量, adaptive=市场状态自适应混合, smart=智能搜索(趋势感知+多策略竞争)")
-    parser.add_argument("--symbol", default=None,
-                        help="只训练指定币种 (如 ETHUSDT)")
-    parser.add_argument("--days", type=int, default=None,
-                        help="只使用最近 N 天的数据 (如 30 或 60)")
-    parser.add_argument("--no-wf", action="store_true",
-                        help="禁用Walk-Forward验证，直接在全量数据上搜索最优参数")
+    parser.add_argument(
+        "--mode",
+        choices=[
+            "trend",
+            "scalp",
+            "pure",
+            "pure_wf",
+            "pure_trend",
+            "pure_adx",
+            "hybrid",
+            "trendfollow",
+            "hybrid_mm",
+            "adaptive",
+            "smart",
+        ],
+        default="trend",
+        help="策略模式: trend=趋势均值回归, scalp=高频剥头皮, pure=纯价格行为, pure_wf=WF, pure_trend=趋势对齐WF, pure_adx=ADX+趋势对齐WF, hybrid=市场自适应WF, trendfollow=趋势跟随回调, hybrid_mm=混合均值回归+动量, adaptive=市场状态自适应混合, smart=智能搜索(趋势感知+多策略竞争)",
+    )
+    parser.add_argument("--symbol", default=None, help="只训练指定币种 (如 ETHUSDT)")
+    parser.add_argument(
+        "--days", type=int, default=None, help="只使用最近 N 天的数据 (如 30 或 60)"
+    )
+    parser.add_argument(
+        "--no-wf", action="store_true", help="禁用Walk-Forward验证，直接在全量数据上搜索最优参数"
+    )
     args = parser.parse_args()
     mode = args.mode
 
@@ -5347,9 +6103,9 @@ def main():
 
     for fp in data_files:
         symbol = os.path.basename(fp).replace("_5m.parquet", "").replace("_1m.parquet", "")
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print(f"训练币种: {symbol}")
-        print(f"{'='*60}")
+        print(f"{'=' * 60}")
 
         df = load_crypto_data(fp)
         df = df.sort_values("timestamp").drop_duplicates().reset_index(drop=True)
@@ -5360,122 +6116,158 @@ def main():
             if len(df) > n_bars:
                 df = df.iloc[-n_bars:].reset_index(drop=True)
                 print(f"已截取最近 {days_to_use} 天数据: {len(df)} 条K线")
-        print(f"数据量: {len(df)} 条K线, 价格范围: {df['close'].min():.2f} - {df['close'].max():.2f}")
+        print(
+            f"数据量: {len(df)} 条K线, 价格范围: {df['close'].min():.2f} - {df['close'].max():.2f}"
+        )
 
         if mode == "scalp":
             best_score, best_params, best_metrics, _ = scalp_grid_search(df, per_symbol_budget)
-            all_results.append({
-                "symbol": symbol,
-                "params": best_params,
-                "score": best_score,
-                "metrics": best_metrics,
-                "df": df,
-                "filepath": fp,
-            })
+            all_results.append(
+                {
+                    "symbol": symbol,
+                    "params": best_params,
+                    "score": best_score,
+                    "metrics": best_metrics,
+                    "df": df,
+                    "filepath": fp,
+                }
+            )
         elif mode == "pure":
             best_params, best_score, best_metrics = pure_grid_search(df, per_symbol_budget)
-            all_results.append({
-                "symbol": symbol,
-                "params": best_params,
-                "score": best_score,
-                "metrics": best_metrics,
-                "df": df,
-                "filepath": fp,
-            })
+            all_results.append(
+                {
+                    "symbol": symbol,
+                    "params": best_params,
+                    "score": best_score,
+                    "metrics": best_metrics,
+                    "df": df,
+                    "filepath": fp,
+                }
+            )
         elif mode == "pure_wf":
             best_params, best_score, best_metrics = walk_forward_pure_search(df, per_symbol_budget)
-            all_results.append({
-                "symbol": symbol,
-                "params": best_params,
-                "score": best_score,
-                "metrics": best_metrics,
-                "df": df,
-                "filepath": fp,
-            })
+            all_results.append(
+                {
+                    "symbol": symbol,
+                    "params": best_params,
+                    "score": best_score,
+                    "metrics": best_metrics,
+                    "df": df,
+                    "filepath": fp,
+                }
+            )
         elif mode == "pure_trend":
             best_params, best_score, best_metrics = walk_forward_trend_search(df, per_symbol_budget)
-            all_results.append({
-                "symbol": symbol,
-                "params": best_params,
-                "score": best_score,
-                "metrics": best_metrics,
-                "df": df,
-                "filepath": fp,
-            })
+            all_results.append(
+                {
+                    "symbol": symbol,
+                    "params": best_params,
+                    "score": best_score,
+                    "metrics": best_metrics,
+                    "df": df,
+                    "filepath": fp,
+                }
+            )
         elif mode == "pure_adx":
             best_params, best_score, best_metrics = walk_forward_adx_search(df, per_symbol_budget)
-            all_results.append({
-                "symbol": symbol,
-                "params": best_params,
-                "score": best_score,
-                "metrics": best_metrics,
-                "df": df,
-                "filepath": fp,
-            })
+            all_results.append(
+                {
+                    "symbol": symbol,
+                    "params": best_params,
+                    "score": best_score,
+                    "metrics": best_metrics,
+                    "df": df,
+                    "filepath": fp,
+                }
+            )
         elif mode == "hybrid":
-            best_params, best_score, best_metrics = walk_forward_hybrid_search(df, per_symbol_budget)
-            all_results.append({
-                "symbol": symbol,
-                "params": best_params,
-                "score": best_score,
-                "metrics": best_metrics,
-                "df": df,
-                "filepath": fp,
-            })
+            best_params, best_score, best_metrics = walk_forward_hybrid_search(
+                df, per_symbol_budget
+            )
+            all_results.append(
+                {
+                    "symbol": symbol,
+                    "params": best_params,
+                    "score": best_score,
+                    "metrics": best_metrics,
+                    "df": df,
+                    "filepath": fp,
+                }
+            )
         elif mode == "trendfollow":
-            best_params, best_score, best_metrics = walk_forward_trendfollow_search(df, per_symbol_budget)
-            all_results.append({
-                "symbol": symbol,
-                "params": best_params,
-                "score": best_score,
-                "metrics": best_metrics,
-                "df": df,
-                "filepath": fp,
-            })
+            best_params, best_score, best_metrics = walk_forward_trendfollow_search(
+                df, per_symbol_budget
+            )
+            all_results.append(
+                {
+                    "symbol": symbol,
+                    "params": best_params,
+                    "score": best_score,
+                    "metrics": best_metrics,
+                    "df": df,
+                    "filepath": fp,
+                }
+            )
         elif mode == "hybrid_mm":
-            best_params, best_score, best_metrics = walk_forward_hybrid_mm_search(df, per_symbol_budget)
-            all_results.append({
-                "symbol": symbol,
-                "params": best_params,
-                "score": best_score,
-                "metrics": best_metrics,
-                "df": df,
-                "filepath": fp,
-            })
+            best_params, best_score, best_metrics = walk_forward_hybrid_mm_search(
+                df, per_symbol_budget
+            )
+            all_results.append(
+                {
+                    "symbol": symbol,
+                    "params": best_params,
+                    "score": best_score,
+                    "metrics": best_metrics,
+                    "df": df,
+                    "filepath": fp,
+                }
+            )
         elif mode == "adaptive":
             if args.no_wf:
-                best_params, best_score, best_metrics = direct_adaptive_search(df, per_symbol_budget)
+                best_params, best_score, best_metrics = direct_adaptive_search(
+                    df, per_symbol_budget
+                )
             else:
-                best_params, best_score, best_metrics = walk_forward_adaptive_search(df, per_symbol_budget)
-            all_results.append({
-                "symbol": symbol,
-                "params": best_params,
-                "score": best_score,
-                "metrics": best_metrics,
-                "df": df,
-                "filepath": fp,
-            })
+                best_params, best_score, best_metrics = walk_forward_adaptive_search(
+                    df, per_symbol_budget
+                )
+            all_results.append(
+                {
+                    "symbol": symbol,
+                    "params": best_params,
+                    "score": best_score,
+                    "metrics": best_metrics,
+                    "df": df,
+                    "filepath": fp,
+                }
+            )
         elif mode == "smart":
-            best_params, best_score, best_metrics, best_strategy_name = smart_search(df, per_symbol_budget)
-            all_results.append({
-                "symbol": symbol,
-                "params": best_params,
-                "score": best_score,
-                "metrics": best_metrics,
-                "df": df,
-                "filepath": fp,
-                "strategy_name": best_strategy_name,
-            })
+            best_params, best_score, best_metrics, best_strategy_name = smart_search(
+                df, per_symbol_budget
+            )
+            all_results.append(
+                {
+                    "symbol": symbol,
+                    "params": best_params,
+                    "score": best_score,
+                    "metrics": best_metrics,
+                    "df": df,
+                    "filepath": fp,
+                    "strategy_name": best_strategy_name,
+                }
+            )
         else:
             best_params, best_score, best_metrics = grid_search(df, per_symbol_budget)
-            all_results.append({
-                "symbol": symbol,
-                "params": best_params,
-                "score": best_score,
-                "metrics": best_metrics,
-                "df": df,
-                "filepath": fp,
-            })
+            all_results.append(
+                {
+                    "symbol": symbol,
+                    "params": best_params,
+                    "score": best_score,
+                    "metrics": best_metrics,
+                    "df": df,
+                    "filepath": fp,
+                }
+            )
 
     # 选择综合表现最好的参数
     valid_results = [r for r in all_results if r["params"] is not None and r["score"] > 0]
@@ -5512,9 +6304,12 @@ def main():
         "score": best_score,
         "metrics": best_metrics,
         "all_results": [
-            {"symbol": r["symbol"], "score": r["score"],
-             "return": r["metrics"]["total_return"] if r["metrics"] else 0,
-             "sharpe": r["metrics"]["sharpe_ratio"] if r["metrics"] else 0}
+            {
+                "symbol": r["symbol"],
+                "score": r["score"],
+                "return": r["metrics"]["total_return"] if r["metrics"] else 0,
+                "sharpe": r["metrics"]["sharpe_ratio"] if r["metrics"] else 0,
+            }
             for r in valid_results
         ],
     }
@@ -5528,14 +6323,16 @@ def main():
     if mode == "scalp":
         print(f"布林带周期:     {best_params.get('window', '?')}")
         print(f"标准差倍数:     {best_params.get('std_dev', '?')}")
-        print(f"止盈:           {best_params.get('take_profit_pct', 0)*100:.2f}%")
-        print(f"止损:           {best_params.get('stop_loss_pct', 0)*100:.2f}%")
+        print(f"止盈:           {best_params.get('take_profit_pct', 0) * 100:.2f}%")
+        print(f"止损:           {best_params.get('stop_loss_pct', 0) * 100:.2f}%")
         print(f"最大持仓K线:   {best_params.get('max_hold_bars', '?')}")
         active = []
         if best_params.get("use_volume_filter"):
             active.append(f"volume>={best_params.get('volume_threshold', 0.8)}")
         if best_params.get("rsi_extreme_low", 20) != 20:
-            active.append(f"RSI guard [{best_params.get('rsi_extreme_low')}, {best_params.get('rsi_extreme_high')}]")
+            active.append(
+                f"RSI guard [{best_params.get('rsi_extreme_low')}, {best_params.get('rsi_extreme_high')}]"
+            )
         print(f"活跃指标:       {', '.join(active) if active else '无'}")
     elif mode == "trendfollow":
         print(f"趋势方向EMA:    {best_params.get('long_ma_period', '?')} (EMA定趋势方向)")
@@ -5560,7 +6357,9 @@ def main():
         print(f"震荡市EMA:      {best_params.get('ma_period', '?')} (均值回归动量过滤)")
         print(f"趋势市长EMA:    {best_params.get('trend_long_ma', '?')} (趋势方向)")
         print(f"趋势市短EMA:    {best_params.get('trend_pull_ma', '?')} (回调入场)")
-        print(f"ADX阈值:        {best_params.get('adx_threshold', '?')} (>阈值=趋势市, <=阈值=震荡市)")
+        print(
+            f"ADX阈值:        {best_params.get('adx_threshold', '?')} (>阈值=趋势市, <=阈值=震荡市)"
+        )
         print(f"ATR周期:        {best_params.get('atr_period', '?')}")
         print(f"ATR止损倍数:    {best_params.get('atr_multiplier', '?')}")
         print(f"最大持仓K线:   {best_params.get('max_hold_bars', '?')}")
@@ -5568,17 +6367,19 @@ def main():
     elif mode == "smart":
         print(f"选中策略:       {best_result.get('strategy_name', '?')}")
         print(f"市场状态:       {best_metrics.get('regime', '?')}")
-        if best_metrics.get('regime_info'):
-            info = best_metrics['regime_info']
-            print(f"  ADX={info['adx']:.1f} | EMA趋势={info['ema50_vs_ema200']} | "
-                  f"价格偏离EMA200={info['price_vs_ema200_pct']:+.2f}% | "
-                  f"年化波动率={info['volatility_annualized']*100:.1f}%")
-        if best_result.get('strategy_name') == "trendfollow":
+        if best_metrics.get("regime_info"):
+            info = best_metrics["regime_info"]
+            print(
+                f"  ADX={info['adx']:.1f} | EMA趋势={info['ema50_vs_ema200']} | "
+                f"价格偏离EMA200={info['price_vs_ema200_pct']:+.2f}% | "
+                f"年化波动率={info['volatility_annualized'] * 100:.1f}%"
+            )
+        if best_result.get("strategy_name") == "trendfollow":
             print(f"趋势方向EMA:    {best_params.get('long_ma_period', '?')}")
             print(f"回调入场EMA:    {best_params.get('pull_ma_period', '?')}")
             print(f"ATR止损倍数:    {best_params.get('atr_multiplier', '?')}")
             print(f"最大持仓K线:   {best_params.get('max_hold_bars', '?')}")
-        elif best_result.get('strategy_name') == "hybrid_mm":
+        elif best_result.get("strategy_name") == "hybrid_mm":
             print(f"RSI超卖阈值:    {best_params.get('rsi_low', '?')}")
             print(f"RSI超买阈值:    {best_params.get('rsi_high', '?')}")
             print(f"动量EMA周期:    {best_params.get('ma_period', '?')}")
@@ -5603,12 +6404,18 @@ def main():
             print(f"趋势对齐MA:     {best_params['trend_ma_period']} (趋势方向判定)")
         if best_params.get("adx_threshold") is not None:
             if mode == "hybrid":
-                print(f"ADX判市阈值:    {best_params['adx_threshold']} (<=阈值震荡均值回归, >阈值趋势跟随)")
+                print(
+                    f"ADX判市阈值:    {best_params['adx_threshold']} (<=阈值震荡均值回归, >阈值趋势跟随)"
+                )
             else:
-                print(f"ADX阈值:        {best_params['adx_threshold']} (adx_period={best_params.get('adx_period', 14)}, ADX>阈值时空仓避险)")
+                print(
+                    f"ADX阈值:        {best_params['adx_threshold']} (adx_period={best_params.get('adx_period', 14)}, ADX>阈值时空仓避险)"
+                )
         if mode == "hybrid":
             print("活跃指标:       市场状态自适应 (震荡=均值回归, 趋势=趋势跟随)")
-        elif best_params.get("adx_threshold") is None and best_params.get("trend_ma_period") is None:
+        elif (
+            best_params.get("adx_threshold") is None and best_params.get("trend_ma_period") is None
+        ):
             print("活跃指标:       无（纯价格行为，无因子约束）")
         elif best_params.get("adx_threshold") is not None:
             print("活跃指标:       ADX趋势强度过滤 + 趋势对齐")
@@ -5621,17 +6428,36 @@ def main():
         print(f"最大持仓K线:   {best_params['max_hold_bars']}")
         print(f"RSI阈值:        {best_params.get('rsi_threshold', 30)}")
         print(f"入场提前量:     {best_params.get('entry_zone', 0.0)}")
-        indicator_keys = ["use_adx", "adx_threshold", "use_volume", "volume_threshold",
-                          "use_macd", "macd_confirm_mode", "use_ma_cross",
-                          "use_mfi", "mfi_period", "mfi_threshold",
-                          "use_stochastic", "stoch_period", "stoch_threshold",
-                          "use_rsi_divergence", "rsi_divergence_lookback",
-                          "use_macd_divergence", "macd_divergence_lookback",
-                          "use_trend_filter", "trend_window",
-                          "use_obv_trend", "obv_ma_period",
-                          "use_volume_spike", "volume_spike_threshold",
-                          "use_vwap", "vwap_period",
-                          "use_htf_macd", "use_resonance", "resonance_min_score"]
+        indicator_keys = [
+            "use_adx",
+            "adx_threshold",
+            "use_volume",
+            "volume_threshold",
+            "use_macd",
+            "macd_confirm_mode",
+            "use_ma_cross",
+            "use_mfi",
+            "mfi_period",
+            "mfi_threshold",
+            "use_stochastic",
+            "stoch_period",
+            "stoch_threshold",
+            "use_rsi_divergence",
+            "rsi_divergence_lookback",
+            "use_macd_divergence",
+            "macd_divergence_lookback",
+            "use_trend_filter",
+            "trend_window",
+            "use_obv_trend",
+            "obv_ma_period",
+            "use_volume_spike",
+            "volume_spike_threshold",
+            "use_vwap",
+            "vwap_period",
+            "use_htf_macd",
+            "use_resonance",
+            "resonance_min_score",
+        ]
         active_indicators = []
         for k in indicator_keys:
             v = best_params.get(k)
@@ -5643,11 +6469,11 @@ def main():
             print("活跃指标:       无（纯布林带策略）")
     print(f"综合评分:       {best_score:.6f}")
     print(f"夏普比率:       {best_metrics.get('sharpe_ratio', 0):.4f}")
-    print(f"总收益率:       {best_metrics.get('total_return', 0)*100:.2f}%")
-    print(f"年化收益率:     {best_metrics.get('annualized_return', 0)*100:.2f}%")
-    print(f"年化波动率:     {best_metrics.get('annualized_vol', 0)*100:.2f}%")
-    print(f"最大回撤:       {best_metrics.get('max_drawdown', 0)*100:.2f}%")
-    print(f"胜率:           {best_metrics.get('win_rate', 0)*100:.1f}%")
+    print(f"总收益率:       {best_metrics.get('total_return', 0) * 100:.2f}%")
+    print(f"年化收益率:     {best_metrics.get('annualized_return', 0) * 100:.2f}%")
+    print(f"年化波动率:     {best_metrics.get('annualized_vol', 0) * 100:.2f}%")
+    print(f"最大回撤:       {best_metrics.get('max_drawdown', 0) * 100:.2f}%")
+    print(f"胜率:           {best_metrics.get('win_rate', 0) * 100:.1f}%")
     print(f"总耗时:         {time.time() - t_start:.1f}s")
 
     # 归档保存

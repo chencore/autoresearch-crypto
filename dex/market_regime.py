@@ -21,6 +21,7 @@ import pandas as pd
 # Data fetchers
 # ---------------------------------------------------------------------------
 
+
 def _fetch_json(url: str, timeout: int = 15) -> Optional[dict]:
     """Fetch JSON from a URL with basic error handling."""
     try:
@@ -35,6 +36,7 @@ def _fetch_json(url: str, timeout: int = 15) -> Optional[dict]:
 # Indicator 1: Fear & Greed Index (0-100, free)
 # ---------------------------------------------------------------------------
 
+
 def fetch_fear_greed(limit: int = 7) -> Optional[pd.DataFrame]:
     """Fetch Crypto Fear & Greed Index from alternative.me.
 
@@ -46,11 +48,13 @@ def fetch_fear_greed(limit: int = 7) -> Optional[pd.DataFrame]:
 
     records = []
     for d in data["data"]:
-        records.append({
-            "timestamp": int(d["timestamp"]),
-            "value": int(d["value"]),
-            "classification": d["value_classification"],
-        })
+        records.append(
+            {
+                "timestamp": int(d["timestamp"]),
+                "value": int(d["value"]),
+                "classification": d["value_classification"],
+            }
+        )
     df = pd.DataFrame(records)
     df["datetime"] = pd.to_datetime(df["timestamp"], unit="s")
     return df.sort_values("timestamp")
@@ -78,9 +82,11 @@ def fear_greed_signal(value: int) -> Tuple[str, float]:
 # Indicator 2 & 3: DXY + Nasdaq (yfinance)
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class MacroSnapshot:
     """Snapshot of macro indicators."""
+
     dxy: float = 0.0
     dxy_change_30d: float = 0.0
     nasdaq: float = 0.0
@@ -102,7 +108,7 @@ def fetch_macro_snapshot() -> Optional[MacroSnapshot]:
             return None
         dxy_now = float(dxy_hist["Close"].iloc[-1])
         dxy_30d = float(dxy_hist["Close"].iloc[0])
-        dxy_chg = (dxy_now / dxy_30d - 1)
+        dxy_chg = dxy_now / dxy_30d - 1
 
         nq = yf.Ticker("^IXIC")
         nq_hist = nq.history(period="30d")
@@ -111,8 +117,10 @@ def fetch_macro_snapshot() -> Optional[MacroSnapshot]:
         nq_chg = (nq_now / nq_30d - 1) if nq_30d > 0 else 0
 
         return MacroSnapshot(
-            dxy=dxy_now, dxy_change_30d=dxy_chg,
-            nasdaq=nq_now, nasdaq_change_30d=nq_chg,
+            dxy=dxy_now,
+            dxy_change_30d=dxy_chg,
+            nasdaq=nq_now,
+            nasdaq_change_30d=nq_chg,
             timestamp=datetime.now().isoformat(),
         )
     except Exception:
@@ -152,6 +160,7 @@ def macro_signal(macro: MacroSnapshot) -> Tuple[str, float]:
 # Indicator 4: CoinGecko market data (free)
 # ---------------------------------------------------------------------------
 
+
 def fetch_coingecko_btc() -> Optional[Dict]:
     """Fetch BTC price and 24h change from CoinGecko."""
     return _fetch_json(
@@ -165,6 +174,7 @@ def fetch_coingecko_btc() -> Optional[Dict]:
 # ---------------------------------------------------------------------------
 # Indicator 5: BTC dominance (CoinGecko)
 # ---------------------------------------------------------------------------
+
 
 def fetch_btc_dominance() -> Optional[float]:
     """Fetch BTC dominance percentage from CoinGecko global data."""
@@ -188,14 +198,15 @@ def btc_dominance_signal(dominance: float) -> Tuple[str, float]:
 # Composite regime detector
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class RegimeReport:
     """Aggregated market regime assessment."""
 
     timestamp: str = field(default_factory=lambda: datetime.now().isoformat())
-    composite_score: float = 0.0        # -1 (bearish) to +1 (bullish)
-    regime: str = "NEUTRAL"             # BULLISH / BEARISH / NEUTRAL
-    confidence: float = 0.0             # 0-1, how many indicators agree
+    composite_score: float = 0.0  # -1 (bearish) to +1 (bullish)
+    regime: str = "NEUTRAL"  # BULLISH / BEARISH / NEUTRAL
+    confidence: float = 0.0  # 0-1, how many indicators agree
 
     # Individual signals
     fear_greed_value: int = 50
@@ -273,8 +284,8 @@ class MarketRegimeDetector:
             weights.append(0.35)  # high weight — macro drives crypto
             report.indicators_available += 1
             report.details.append(
-                f"Macro: {label} (DXY={macro.dxy:.0f} {macro.dxy_change_30d*100:+.1f}%, "
-                f"Nasdaq={macro.nasdaq:.0f} {macro.nasdaq_change_30d*100:+.1f}%)"
+                f"Macro: {label} (DXY={macro.dxy:.0f} {macro.dxy_change_30d * 100:+.1f}%, "
+                f"Nasdaq={macro.nasdaq:.0f} {macro.nasdaq_change_30d * 100:+.1f}%)"
             )
 
         # --- Indicator 3: BTC Dominance ---
@@ -292,10 +303,8 @@ class MarketRegimeDetector:
 
         # --- Composite ---
         if scores:
-            total_weight = sum(weights[:len(scores)])
-            report.composite_score = sum(
-                s * w / total_weight for s, w in zip(scores, weights)
-            )
+            total_weight = sum(weights[: len(scores)])
+            report.composite_score = sum(s * w / total_weight for s, w in zip(scores, weights))
 
         # Agreement (confidence)
         if len(scores) >= 2:

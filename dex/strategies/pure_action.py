@@ -38,11 +38,19 @@ class PureActionStrategy(BaseStrategy):
         adx_period: ADX lookback period.
     """
 
-    def __init__(self, window=20, std_dev=2.0,
-                 atr_period=14, atr_multiplier=2.0,
-                 max_hold_bars=36, entry_zone=0.0,
-                 enable_short=True, trend_ma_period=None,
-                 adx_threshold=None, adx_period=14):
+    def __init__(
+        self,
+        window=20,
+        std_dev=2.0,
+        atr_period=14,
+        atr_multiplier=2.0,
+        max_hold_bars=36,
+        entry_zone=0.0,
+        enable_short=True,
+        trend_ma_period=None,
+        adx_threshold=None,
+        adx_period=14,
+    ):
         self.window = window
         self.std_dev = std_dev
         self.atr_period = atr_period
@@ -72,7 +80,9 @@ class PureActionStrategy(BaseStrategy):
 
         # --- MA trend ---
         fast_ma = pd.Series(close).rolling(window=self.window, min_periods=self.window).mean()
-        slow_ma = pd.Series(close).rolling(window=self.window * 2, min_periods=self.window * 2).mean()
+        slow_ma = (
+            pd.Series(close).rolling(window=self.window * 2, min_periods=self.window * 2).mean()
+        )
 
         # --- ATR ---
         atr = compute_atr(df, self.atr_period)
@@ -80,7 +90,12 @@ class PureActionStrategy(BaseStrategy):
         # --- Long-term trend MA (trend-alignment filter) ---
         trend_ma = None
         if self.trend_ma_period is not None:
-            trend_ma = pd.Series(close).rolling(window=self.trend_ma_period, min_periods=self.trend_ma_period).mean().values
+            trend_ma = (
+                pd.Series(close)
+                .rolling(window=self.trend_ma_period, min_periods=self.trend_ma_period)
+                .mean()
+                .values
+            )
 
         # --- ADX trend strength (skip entry when trend too strong) ---
         adx = None
@@ -104,7 +119,7 @@ class PureActionStrategy(BaseStrategy):
         entry_price = 0.0
         entry_bar = 0
         highest_after_entry = 0.0
-        lowest_after_entry = float('inf')
+        lowest_after_entry = float("inf")
 
         for i in range(self.window * 2, n):
             price = close[i]
@@ -136,7 +151,7 @@ class PureActionStrategy(BaseStrategy):
             elif position == -1:
                 if low[i] < lowest_after_entry:
                     lowest_after_entry = low[i]
-                if lowest_after_entry < float('inf'):
+                if lowest_after_entry < float("inf"):
                     atr_stop = lowest_after_entry + self.atr_multiplier * atr[i]
                     if price > atr_stop:
                         signals[i] = 0
@@ -170,9 +185,9 @@ class PureActionStrategy(BaseStrategy):
                 if self.trend_ma_period is not None and trend_ma is not None:
                     if i >= self.trend_ma_period and not np.isnan(trend_ma[i]):
                         if price > trend_ma[i]:
-                            allow_short = False   # Uptrend, no short
+                            allow_short = False  # Uptrend, no short
                         elif price < trend_ma[i]:
-                            allow_long = False    # Downtrend, no long
+                            allow_long = False  # Downtrend, no long
 
                 # ADX trend-strength filter: avoid entry in strong trend
                 if self.adx_threshold is not None and adx is not None:

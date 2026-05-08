@@ -26,9 +26,9 @@ import itertools
 from datetime import datetime
 
 # Fix Windows GBK encoding issues
-if sys.platform == 'win32':
-    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
-    sys.stderr.reconfigure(encoding='utf-8', errors='replace')
+if sys.platform == "win32":
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 
 import numpy as np
 import pyarrow.parquet as pq
@@ -36,9 +36,14 @@ import torch
 
 # 导入所有策略
 from train_quant import (
-    TrendStrategy, ScalpStrategy, PureActionStrategy,
-    HybridStrategy, TrendFollowStrategy, HybridMeanRevMomentumStrategy,
-    AdaptiveHybridStrategy, StrategyEvaluator,
+    TrendStrategy,
+    ScalpStrategy,
+    PureActionStrategy,
+    HybridStrategy,
+    TrendFollowStrategy,
+    HybridMeanRevMomentumStrategy,
+    AdaptiveHybridStrategy,
+    StrategyEvaluator,
 )
 
 PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -54,6 +59,7 @@ SLIPPAGE = 0.0002
 # ============================================================================
 # 评分函数
 # ============================================================================
+
 
 def compute_final_score(metrics, trades, prefer_frequency=False):
     """
@@ -85,20 +91,20 @@ def compute_final_score(metrics, trades, prefer_frequency=False):
     if prefer_frequency:
         trade_score = min(1.0, n_trades / 80.0)
         score = (
-            ret_score * 0.20 +
-            sharpe_score * 0.15 +
-            dd_score * 0.15 +
-            wr_score * 0.15 +
-            trade_score * 0.35
+            ret_score * 0.20
+            + sharpe_score * 0.15
+            + dd_score * 0.15
+            + wr_score * 0.15
+            + trade_score * 0.35
         )
     else:
         trade_score = min(1.0, n_trades / 30.0)
         score = (
-            ret_score * 0.30 +
-            sharpe_score * 0.25 +
-            dd_score * 0.20 +
-            wr_score * 0.10 +
-            trade_score * 0.15
+            ret_score * 0.30
+            + sharpe_score * 0.25
+            + dd_score * 0.20
+            + wr_score * 0.10
+            + trade_score * 0.15
         )
 
     return score, metrics
@@ -107,6 +113,7 @@ def compute_final_score(metrics, trades, prefer_frequency=False):
 # ============================================================================
 # 数据加载
 # ============================================================================
+
 
 def load_data():
     table = pq.read_table(DATA_FILE)
@@ -123,12 +130,13 @@ def load_data():
 # 通用搜索框架
 # ============================================================================
 
+
 def evaluate_strategy(strategy, df, evaluator, min_start=None):
     """评估策略在完整数据上的表现（使用相对市场基准的宽松评分）"""
     signals = strategy.generate_signals(df)
 
     if min_start is None:
-        min_start = getattr(strategy, 'window', 20) * 2
+        min_start = getattr(strategy, "window", 20) * 2
 
     prices = df["close"].values[min_start:].astype(float)
     valid_signals = signals[min_start:]
@@ -137,7 +145,9 @@ def evaluate_strategy(strategy, df, evaluator, min_start=None):
         return 0.0, {}, [], signals
 
     # 使用模拟器计算权益曲线
-    equity, trades = evaluator.simulate(valid_signals, prices, df.iloc[min_start:].reset_index(drop=True))
+    equity, trades = evaluator.simulate(
+        valid_signals, prices, df.iloc[min_start:].reset_index(drop=True)
+    )
 
     if len(equity) == 0 or not np.all(np.isfinite(equity)):
         return 0.0, {"total_return": 0}, [], signals
@@ -181,11 +191,11 @@ def evaluate_strategy(strategy, df, evaluator, min_start=None):
     trade_score = min(1.0, n_trades / 20.0)
 
     score = (
-        ret_score * 0.30 +
-        sharpe_score * 0.20 +
-        dd_score * 0.20 +
-        wr_score * 0.15 +
-        trade_score * 0.15
+        ret_score * 0.30
+        + sharpe_score * 0.20
+        + dd_score * 0.20
+        + wr_score * 0.15
+        + trade_score * 0.15
     )
 
     return score, metrics, trades, signals
@@ -213,11 +223,12 @@ def walk_forward_eval(strategy_cls, params, df, n_windows=3, evaluator=None):
 
         strategy = strategy_cls(**params)
         signals = strategy.generate_signals(val_df)
-        min_start = getattr(strategy, 'window', 20) * 2
+        min_start = getattr(strategy, "window", 20) * 2
         prices = val_df["close"].values[min_start:].astype(float)
 
         s, m, t = evaluator.evaluate(
-            signals[min_start:], prices,
+            signals[min_start:],
+            prices,
             val_df.iloc[min_start:].reset_index(drop=True),
         )
         scores.append(s)
@@ -242,13 +253,14 @@ def walk_forward_eval(strategy_cls, params, df, n_windows=3, evaluator=None):
 # 各策略特定搜索
 # ============================================================================
 
+
 def search_trend(df, time_budget=120, market_return=0.0):
     """TrendStrategy 参数搜索"""
     evaluator = StrategyEvaluator()
     n = len(df)
     val_start = int(n * 0.85)
     val_df = df.iloc[val_start:].reset_index(drop=True)
-    val_ret = (val_df["close"].iloc[-1] / val_df["close"].iloc[0] - 1)
+    val_ret = val_df["close"].iloc[-1] / val_df["close"].iloc[0] - 1
 
     # 扩展参数空间
     grid = {
@@ -277,7 +289,8 @@ def search_trend(df, time_budget=120, market_return=0.0):
 
         params = dict(zip(grid.keys(), combo))
         strategy = TrendStrategy(
-            window=params["window"], std_dev=params["std_dev"],
+            window=params["window"],
+            std_dev=params["std_dev"],
             atr_multiplier=params["atr_multiplier"],
             max_hold_bars=params["max_hold_bars"],
             rsi_threshold=params["rsi_threshold"],
@@ -293,10 +306,12 @@ def search_trend(df, time_budget=120, market_return=0.0):
             best_trades = trades
 
     n_trades = len([t for t in (best_trades or []) if t.get("pnl") is not None])
-    print(f"  TrendStrategy: {tried}/{total} combos in {time.time()-t0:.0f}s | "
-          f"best score={best_score:.4f} ret={best_metrics.get('total_return',0)*100:+.2f}% "
-          f"sharpe={best_metrics.get('sharpe_ratio',0):.2f} DD={best_metrics.get('max_drawdown',0)*100:.1f}% "
-          f"trades={n_trades}")
+    print(
+        f"  TrendStrategy: {tried}/{total} combos in {time.time() - t0:.0f}s | "
+        f"best score={best_score:.4f} ret={best_metrics.get('total_return', 0) * 100:+.2f}% "
+        f"sharpe={best_metrics.get('sharpe_ratio', 0):.2f} DD={best_metrics.get('max_drawdown', 0) * 100:.1f}% "
+        f"trades={n_trades}"
+    )
     return best_params, best_score, best_metrics
 
 
@@ -334,7 +349,8 @@ def search_pure(df, time_budget=120):
 
         params = dict(zip(grid.keys(), combo))
         strategy = PureActionStrategy(
-            window=params["window"], std_dev=params["std_dev"],
+            window=params["window"],
+            std_dev=params["std_dev"],
             atr_period=params["atr_period"],
             atr_multiplier=params["atr_multiplier"],
             max_hold_bars=params["max_hold_bars"],
@@ -351,11 +367,23 @@ def search_pure(df, time_budget=120):
             best_params = params
             best_metrics = metrics
 
-    n_trades = len([t for t in (best_metrics and best_metrics.get('trades', []) or []) if t.get("pnl") is not None]) if best_metrics else 0
-    print(f"  PureAction: {tried}/{total} combos in {time.time()-t0:.0f}s | "
-          f"best score={best_score:.4f} ret={best_metrics.get('total_return',0)*100:+.2f}% "
-          f"sharpe={best_metrics.get('sharpe_ratio',0):.2f} DD={best_metrics.get('max_drawdown',0)*100:.1f}% "
-          f"trades={n_trades}")
+    n_trades = (
+        len(
+            [
+                t
+                for t in (best_metrics and best_metrics.get("trades", []) or [])
+                if t.get("pnl") is not None
+            ]
+        )
+        if best_metrics
+        else 0
+    )
+    print(
+        f"  PureAction: {tried}/{total} combos in {time.time() - t0:.0f}s | "
+        f"best score={best_score:.4f} ret={best_metrics.get('total_return', 0) * 100:+.2f}% "
+        f"sharpe={best_metrics.get('sharpe_ratio', 0):.2f} DD={best_metrics.get('max_drawdown', 0) * 100:.1f}% "
+        f"trades={n_trades}"
+    )
     return best_params, best_score, best_metrics
 
 
@@ -393,7 +421,8 @@ def search_hybrid(df, time_budget=120):
 
         params = dict(zip(grid.keys(), combo))
         strategy = HybridStrategy(
-            window=params["window"], std_dev=params["std_dev"],
+            window=params["window"],
+            std_dev=params["std_dev"],
             atr_period=params["atr_period"],
             atr_multiplier=params["atr_multiplier"],
             max_hold_bars=params["max_hold_bars"],
@@ -410,11 +439,23 @@ def search_hybrid(df, time_budget=120):
             best_params = params
             best_metrics = metrics
 
-    n_trades = len([t for t in (best_metrics and best_metrics.get('trades', []) or []) if t.get("pnl") is not None]) if best_metrics else 0
-    print(f"  Hybrid: {tried}/{total} combos in {time.time()-t0:.0f}s | "
-          f"best score={best_score:.4f} ret={best_metrics.get('total_return',0)*100:+.2f}% "
-          f"sharpe={best_metrics.get('sharpe_ratio',0):.2f} DD={best_metrics.get('max_drawdown',0)*100:.1f}% "
-          f"trades={n_trades}")
+    n_trades = (
+        len(
+            [
+                t
+                for t in (best_metrics and best_metrics.get("trades", []) or [])
+                if t.get("pnl") is not None
+            ]
+        )
+        if best_metrics
+        else 0
+    )
+    print(
+        f"  Hybrid: {tried}/{total} combos in {time.time() - t0:.0f}s | "
+        f"best score={best_score:.4f} ret={best_metrics.get('total_return', 0) * 100:+.2f}% "
+        f"sharpe={best_metrics.get('sharpe_ratio', 0):.2f} DD={best_metrics.get('max_drawdown', 0) * 100:.1f}% "
+        f"trades={n_trades}"
+    )
     return best_params, best_score, best_metrics
 
 
@@ -465,11 +506,23 @@ def search_trendfollow(df, time_budget=120):
             best_params = params
             best_metrics = metrics
 
-    n_trades = len([t for t in (best_metrics and best_metrics.get('trades', []) or []) if t.get("pnl") is not None]) if best_metrics else 0
-    print(f"  TrendFollow: {tried}/{total} combos in {time.time()-t0:.0f}s | "
-          f"best score={best_score:.4f} ret={best_metrics.get('total_return',0)*100:+.2f}% "
-          f"sharpe={best_metrics.get('sharpe_ratio',0):.2f} DD={best_metrics.get('max_drawdown',0)*100:.1f}% "
-          f"trades={n_trades}")
+    n_trades = (
+        len(
+            [
+                t
+                for t in (best_metrics and best_metrics.get("trades", []) or [])
+                if t.get("pnl") is not None
+            ]
+        )
+        if best_metrics
+        else 0
+    )
+    print(
+        f"  TrendFollow: {tried}/{total} combos in {time.time() - t0:.0f}s | "
+        f"best score={best_score:.4f} ret={best_metrics.get('total_return', 0) * 100:+.2f}% "
+        f"sharpe={best_metrics.get('sharpe_ratio', 0):.2f} DD={best_metrics.get('max_drawdown', 0) * 100:.1f}% "
+        f"trades={n_trades}"
+    )
     return best_params, best_score, best_metrics
 
 
@@ -507,7 +560,8 @@ def search_hybrid_mm(df, time_budget=120):
         params = dict(zip(grid.keys(), combo))
         strategy = HybridMeanRevMomentumStrategy(
             rsi_period=params["rsi_period"],
-            rsi_low=params["rsi_low"], rsi_high=params["rsi_high"],
+            rsi_low=params["rsi_low"],
+            rsi_high=params["rsi_high"],
             ma_period=params["ma_period"],
             atr_period=params["atr_period"],
             atr_multiplier=params["atr_multiplier"],
@@ -521,11 +575,23 @@ def search_hybrid_mm(df, time_budget=120):
             best_params = params
             best_metrics = metrics
 
-    n_trades = len([t for t in (best_metrics and best_metrics.get('trades', []) or []) if t.get("pnl") is not None]) if best_metrics else 0
-    print(f"  HybridMM: {tried}/{total} combos in {time.time()-t0:.0f}s | "
-          f"best score={best_score:.4f} ret={best_metrics.get('total_return',0)*100:+.2f}% "
-          f"sharpe={best_metrics.get('sharpe_ratio',0):.2f} DD={best_metrics.get('max_drawdown',0)*100:.1f}% "
-          f"trades={n_trades}")
+    n_trades = (
+        len(
+            [
+                t
+                for t in (best_metrics and best_metrics.get("trades", []) or [])
+                if t.get("pnl") is not None
+            ]
+        )
+        if best_metrics
+        else 0
+    )
+    print(
+        f"  HybridMM: {tried}/{total} combos in {time.time() - t0:.0f}s | "
+        f"best score={best_score:.4f} ret={best_metrics.get('total_return', 0) * 100:+.2f}% "
+        f"sharpe={best_metrics.get('sharpe_ratio', 0):.2f} DD={best_metrics.get('max_drawdown', 0) * 100:.1f}% "
+        f"trades={n_trades}"
+    )
     return best_params, best_score, best_metrics
 
 
@@ -567,7 +633,8 @@ def search_adaptive(df, time_budget=120):
         params = dict(zip(grid.keys(), combo))
         strategy = AdaptiveHybridStrategy(
             rsi_period=params["rsi_period"],
-            rsi_low=params["rsi_low"], rsi_high=params["rsi_high"],
+            rsi_low=params["rsi_low"],
+            rsi_high=params["rsi_high"],
             ma_period=params["ma_period"],
             trend_long_ma=params["trend_long_ma"],
             trend_pull_ma=params["trend_pull_ma"],
@@ -585,11 +652,23 @@ def search_adaptive(df, time_budget=120):
             best_params = params
             best_metrics = metrics
 
-    n_trades = len([t for t in (best_metrics and best_metrics.get('trades', []) or []) if t.get("pnl") is not None]) if best_metrics else 0
-    print(f"  Adaptive: {tried}/{total} combos in {time.time()-t0:.0f}s | "
-          f"best score={best_score:.4f} ret={best_metrics.get('total_return',0)*100:+.2f}% "
-          f"sharpe={best_metrics.get('sharpe_ratio',0):.2f} DD={best_metrics.get('max_drawdown',0)*100:.1f}% "
-          f"trades={n_trades}")
+    n_trades = (
+        len(
+            [
+                t
+                for t in (best_metrics and best_metrics.get("trades", []) or [])
+                if t.get("pnl") is not None
+            ]
+        )
+        if best_metrics
+        else 0
+    )
+    print(
+        f"  Adaptive: {tried}/{total} combos in {time.time() - t0:.0f}s | "
+        f"best score={best_score:.4f} ret={best_metrics.get('total_return', 0) * 100:+.2f}% "
+        f"sharpe={best_metrics.get('sharpe_ratio', 0):.2f} DD={best_metrics.get('max_drawdown', 0) * 100:.1f}% "
+        f"trades={n_trades}"
+    )
     return best_params, best_score, best_metrics
 
 
@@ -625,7 +704,8 @@ def search_scalp(df, time_budget=120):
 
         params = dict(zip(grid.keys(), combo))
         strategy = ScalpStrategy(
-            window=params["window"], std_dev=params["std_dev"],
+            window=params["window"],
+            std_dev=params["std_dev"],
             take_profit_pct=params["take_profit_pct"],
             stop_loss_pct=params["stop_loss_pct"],
             max_hold_bars=params["max_hold_bars"],
@@ -644,17 +724,30 @@ def search_scalp(df, time_budget=120):
             best_params = params
             best_metrics = metrics
 
-    n_trades = len([t for t in (best_metrics and best_metrics.get('trades', []) or []) if t.get("pnl") is not None]) if best_metrics else 0
-    print(f"  Scalp: {tried}/{total} combos in {time.time()-t0:.0f}s | "
-          f"best score={best_score:.4f} ret={best_metrics.get('total_return',0)*100:+.2f}% "
-          f"sharpe={best_metrics.get('sharpe_ratio',0):.2f} DD={best_metrics.get('max_drawdown',0)*100:.1f}% "
-          f"trades={n_trades}")
+    n_trades = (
+        len(
+            [
+                t
+                for t in (best_metrics and best_metrics.get("trades", []) or [])
+                if t.get("pnl") is not None
+            ]
+        )
+        if best_metrics
+        else 0
+    )
+    print(
+        f"  Scalp: {tried}/{total} combos in {time.time() - t0:.0f}s | "
+        f"best score={best_score:.4f} ret={best_metrics.get('total_return', 0) * 100:+.2f}% "
+        f"sharpe={best_metrics.get('sharpe_ratio', 0):.2f} DD={best_metrics.get('max_drawdown', 0) * 100:.1f}% "
+        f"trades={n_trades}"
+    )
     return best_params, best_score, best_metrics
 
 
 # ============================================================================
 # 冠军全量验证
 # ============================================================================
+
 
 def full_validation(strategy_cls, params, df, strategy_name, evaluator=None):
     """在完整数据上验证最优参数"""
@@ -668,9 +761,11 @@ def full_validation(strategy_cls, params, df, strategy_name, evaluator=None):
     n_trades = len(trade_pnls)
 
     print(f"\n  [{strategy_name}] 全量验证:")
-    print(f"    评分: {score:.4f} | 收益: {metrics['total_return']*100:+.2f}% | "
-          f"夏普: {metrics['sharpe_ratio']:.2f} | 回撤: {metrics['max_drawdown']*100:.1f}% | "
-          f"胜率: {metrics['win_rate']*100:.1f}% | 交易: {n_trades}")
+    print(
+        f"    评分: {score:.4f} | 收益: {metrics['total_return'] * 100:+.2f}% | "
+        f"夏普: {metrics['sharpe_ratio']:.2f} | 回撤: {metrics['max_drawdown'] * 100:.1f}% | "
+        f"胜率: {metrics['win_rate'] * 100:.1f}% | 交易: {n_trades}"
+    )
 
     if trade_pnls:
         pnls_arr = np.array([t["pnl"] for t in trade_pnls])
@@ -678,8 +773,10 @@ def full_validation(strategy_cls, params, df, strategy_name, evaluator=None):
         avg_pnl = pnls_arr.mean()
         max_win = pnls_arr.max()
         max_loss = pnls_arr.min()
-        print(f"    总PnL: {total_pnl:+.2f} | 平均PnL: {avg_pnl:+.2f} | "
-              f"最大盈利: {max_win:+.2f} | 最大亏损: {max_loss:+.2f}")
+        print(
+            f"    总PnL: {total_pnl:+.2f} | 平均PnL: {avg_pnl:+.2f} | "
+            f"最大盈利: {max_win:+.2f} | 最大亏损: {max_loss:+.2f}"
+        )
 
     # Walk-forward 稳定性
     wf_score, avg_score, stability = walk_forward_eval(
@@ -702,6 +799,7 @@ def full_validation(strategy_cls, params, df, strategy_name, evaluator=None):
 # 主程序
 # ============================================================================
 
+
 def main():
     parser = argparse.ArgumentParser(description="ETH 最优策略搜索")
     parser.add_argument("--quick", action="store_true", help="快速模式（缩短时间预算）")
@@ -717,7 +815,7 @@ def main():
 
     print("=" * 70)
     print("ETH 60天 5分钟数据 — 最优策略全面搜索")
-    print(f"时间预算: {TIME_PER_STRATEGY}s/策略 × 7策略 = {TIME_PER_STRATEGY*7}s")
+    print(f"时间预算: {TIME_PER_STRATEGY}s/策略 × 7策略 = {TIME_PER_STRATEGY * 7}s")
     print("=" * 70)
 
     # 加载数据
@@ -725,29 +823,32 @@ def main():
     df = load_data()
     print(f"  数据: {len(df)} 根K线, {df['datetime'].min()} → {df['datetime'].max()}")
     print(f"  价格范围: {df['close'].min():.1f} - {df['close'].max():.1f}")
-    print(f"  价格变化: {(df['close'].iloc[-1]/df['close'].iloc[0]-1)*100:+.2f}%")
+    print(f"  价格变化: {(df['close'].iloc[-1] / df['close'].iloc[0] - 1) * 100:+.2f}%")
 
     # 市场特征分析
     rets = df["close"].pct_change().dropna()
     vol_annual = rets.std() * math.sqrt(288 * 365)
-    print(f"  年化波动率: {vol_annual*100:.1f}%")
+    print(f"  年化波动率: {vol_annual * 100:.1f}%")
 
     # 计算ADX
     from train_quant import analyze_market_regime
+
     regime, info = analyze_market_regime(df)
-    print(f"  市场状态: {regime} (ADX={info['adx']:.1f}, 波动={info['volatility_annualized']*100:.1f}%)")
+    print(
+        f"  市场状态: {regime} (ADX={info['adx']:.1f}, 波动={info['volatility_annualized'] * 100:.1f}%)"
+    )
 
     evaluator = StrategyEvaluator()
 
     # 策略池
     strategy_configs = [
-        ("TrendStrategy",      TrendStrategy,      search_trend,      False),
-        ("PureAction",         PureActionStrategy,  search_pure,       False),
-        ("Hybrid",             HybridStrategy,      search_hybrid,     False),
-        ("TrendFollow",        TrendFollowStrategy, search_trendfollow,False),
-        ("HybridMM",           HybridMeanRevMomentumStrategy, search_hybrid_mm, False),
-        ("Adaptive",           AdaptiveHybridStrategy, search_adaptive, False),
-        ("Scalp",              ScalpStrategy,       search_scalp,      True),
+        ("TrendStrategy", TrendStrategy, search_trend, False),
+        ("PureAction", PureActionStrategy, search_pure, False),
+        ("Hybrid", HybridStrategy, search_hybrid, False),
+        ("TrendFollow", TrendFollowStrategy, search_trendfollow, False),
+        ("HybridMM", HybridMeanRevMomentumStrategy, search_hybrid_mm, False),
+        ("Adaptive", AdaptiveHybridStrategy, search_adaptive, False),
+        ("Scalp", ScalpStrategy, search_scalp, True),
     ]
 
     # 运行搜索
@@ -775,6 +876,7 @@ def main():
         except Exception as e:
             print(f"   [ERR] 搜索异常: {e}")
             import traceback
+
             traceback.print_exc()
             results[name] = None
 
@@ -803,22 +905,26 @@ def main():
     print("\n" + "=" * 70)
     print("最终排名 (按 Walk-Forward 稳定性评分)")
     print("=" * 70)
-    print(f"{'排名':<5} {'策略':<15} {'评分':>8} {'WF评分':>8} {'收益':>8} {'夏普':>7} {'回撤':>7} {'胜率':>7} {'交易':>6} {'稳定':>6}")
+    print(
+        f"{'排名':<5} {'策略':<15} {'评分':>8} {'WF评分':>8} {'收益':>8} {'夏普':>7} {'回撤':>7} {'胜率':>7} {'交易':>6} {'稳定':>6}"
+    )
     print("-" * 90)
 
     for i, v in enumerate(validated):
         m = v["metrics"]
-        print(f"{i+1:<5} {v['name']:<15} {v['score']:>8.4f} {v['wf_score']:>8.4f} "
-              f"{m['total_return']*100:>+7.2f}% {m['sharpe_ratio']:>7.2f} "
-              f"{m['max_drawdown']*100:>+6.1f}% {m['win_rate']*100:>6.1f}% "
-              f"{v['n_trades']:>6} {v['wf_stability']:>6.2f}")
+        print(
+            f"{i + 1:<5} {v['name']:<15} {v['score']:>8.4f} {v['wf_score']:>8.4f} "
+            f"{m['total_return'] * 100:>+7.2f}% {m['sharpe_ratio']:>7.2f} "
+            f"{m['max_drawdown'] * 100:>+6.1f}% {m['win_rate'] * 100:>6.1f}% "
+            f"{v['n_trades']:>6} {v['wf_stability']:>6.2f}"
+        )
 
     # 保存最优策略
     if validated:
         champion = validated[0]
-        print(f"\n{'='*70}")
+        print(f"\n{'=' * 70}")
         print(f"🏆 冠军策略: {champion['name']}")
-        print(f"{'='*70}")
+        print(f"{'=' * 70}")
         print(f"参数: {json.dumps(champion['params'], indent=2, default=str)}")
         print(f"全量评分: {champion['score']:.4f} | WF评分: {champion['wf_score']:.4f}")
 
@@ -830,10 +936,14 @@ def main():
             "wf_score": champion["wf_score"],
             "metrics": champion["metrics"],
             "all_results": [
-                {"name": v["name"], "score": v["score"], "wf_score": v["wf_score"],
-                 "ret": v["metrics"]["total_return"],
-                 "sharpe": v["metrics"]["sharpe_ratio"],
-                 "dd": v["metrics"]["max_drawdown"]}
+                {
+                    "name": v["name"],
+                    "score": v["score"],
+                    "wf_score": v["wf_score"],
+                    "ret": v["metrics"]["total_return"],
+                    "sharpe": v["metrics"]["sharpe_ratio"],
+                    "dd": v["metrics"]["max_drawdown"],
+                }
                 for v in validated
             ],
             "search_time": search_time,
@@ -847,17 +957,33 @@ def main():
         # 保存可读报告
         report_path = os.path.join(RESULTS_DIR, "eth_optimal_report.json")
         with open(report_path, "w") as f:
-            json.dump({
-                "champion": champion["name"],
-                "params": {k: (str(v) if not isinstance(v, (int, float, bool, type(None))) else v)
-                          for k, v in champion["params"].items()},
-                "score": champion["score"],
-                "wf_score": champion["wf_score"],
-                "metrics": {k: (float(v) if isinstance(v, (np.floating, np.integer)) else v)
-                           for k, v in champion["metrics"].items()},
-                "ranking": [{"rank": i+1, "name": v["name"], "score": v["score"],
-                            "wf_score": v["wf_score"]} for i, v in enumerate(validated)],
-            }, f, indent=2, ensure_ascii=False)
+            json.dump(
+                {
+                    "champion": champion["name"],
+                    "params": {
+                        k: (str(v) if not isinstance(v, (int, float, bool, type(None))) else v)
+                        for k, v in champion["params"].items()
+                    },
+                    "score": champion["score"],
+                    "wf_score": champion["wf_score"],
+                    "metrics": {
+                        k: (float(v) if isinstance(v, (np.floating, np.integer)) else v)
+                        for k, v in champion["metrics"].items()
+                    },
+                    "ranking": [
+                        {
+                            "rank": i + 1,
+                            "name": v["name"],
+                            "score": v["score"],
+                            "wf_score": v["wf_score"],
+                        }
+                        for i, v in enumerate(validated)
+                    ],
+                },
+                f,
+                indent=2,
+                ensure_ascii=False,
+            )
         print(f"报告已保存: {report_path}")
 
     print("\n完成!")

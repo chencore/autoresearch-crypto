@@ -28,6 +28,7 @@ from dex.strategies.hybrid_mm import HybridMeanRevMomentumStrategy
 # Agent definition
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class Agent:
     """A single evolving trading agent.
@@ -73,6 +74,7 @@ class Agent:
 # Default agent factory
 # ---------------------------------------------------------------------------
 
+
 def create_default_agents() -> List[Agent]:
     """Create the four default ATLAS agents with sensible initial parameters."""
     return [
@@ -81,9 +83,14 @@ def create_default_agents() -> List[Agent]:
             style="趋势跟踪",
             strategy_cls=TrendStrategy,
             params={
-                "window": 15, "std_dev": 2.5, "atr_multiplier": 2.0,
-                "max_hold_bars": 36, "rsi_threshold": 35, "entry_zone": 0.3,
-                "use_adx": True, "adx_threshold": 20,
+                "window": 15,
+                "std_dev": 2.5,
+                "atr_multiplier": 2.0,
+                "max_hold_bars": 36,
+                "rsi_threshold": 35,
+                "entry_zone": 0.3,
+                "use_adx": True,
+                "adx_threshold": 20,
             },
         ),
         Agent(
@@ -91,9 +98,13 @@ def create_default_agents() -> List[Agent]:
             style="均值回归",
             strategy_cls=PureActionStrategy,
             params={
-                "window": 20, "std_dev": 2.0, "atr_period": 14,
-                "atr_multiplier": 2.5, "max_hold_bars": 24,
-                "entry_zone": 0.0, "enable_short": True,
+                "window": 20,
+                "std_dev": 2.0,
+                "atr_period": 14,
+                "atr_multiplier": 2.5,
+                "max_hold_bars": 24,
+                "entry_zone": 0.0,
+                "enable_short": True,
             },
         ),
         Agent(
@@ -101,9 +112,12 @@ def create_default_agents() -> List[Agent]:
             style="网格交易",
             strategy_cls=GridStrategy,
             params={
-                "grid_spacing_pct": 0.008, "grid_levels": 5,
-                "base_size": 0.1, "atr_period": 14,
-                "atr_spacing_mult": 0.5, "max_position": 1.0,
+                "grid_spacing_pct": 0.008,
+                "grid_levels": 5,
+                "base_size": 0.1,
+                "atr_period": 14,
+                "atr_spacing_mult": 0.5,
+                "max_position": 1.0,
                 "trend_ma_period": 100,
             },
         ),
@@ -112,9 +126,13 @@ def create_default_agents() -> List[Agent]:
             style="事件驱动",
             strategy_cls=HybridMeanRevMomentumStrategy,
             params={
-                "rsi_period": 5, "rsi_low": 28, "rsi_high": 72,
-                "ma_period": 25, "atr_period": 12,
-                "atr_multiplier": 3.5, "max_hold_bars": 24,
+                "rsi_period": 5,
+                "rsi_low": 28,
+                "rsi_high": 72,
+                "ma_period": 25,
+                "atr_period": 12,
+                "atr_multiplier": 3.5,
+                "max_hold_bars": 24,
                 "enable_short": True,
             },
         ),
@@ -124,6 +142,7 @@ def create_default_agents() -> List[Agent]:
 # ---------------------------------------------------------------------------
 # Evolution engine
 # ---------------------------------------------------------------------------
+
 
 class EvolutionEngine:
     """Manages the 4-agent evolution cycle.
@@ -180,9 +199,17 @@ class EvolutionEngine:
     }
 
     _DISCRETE_PARAMS: set = {
-        "window", "atr_period", "max_hold_bars", "rsi_threshold",
-        "adx_threshold", "grid_levels", "trend_ma_period",
-        "rsi_period", "rsi_low", "rsi_high", "ma_period",
+        "window",
+        "atr_period",
+        "max_hold_bars",
+        "rsi_threshold",
+        "adx_threshold",
+        "grid_levels",
+        "trend_ma_period",
+        "rsi_period",
+        "rsi_low",
+        "rsi_high",
+        "ma_period",
     }
 
     # ------------------------------------------------------------------
@@ -193,6 +220,7 @@ class EvolutionEngine:
     def _filter_params(strategy_cls: type, params: Dict[str, Any]) -> Dict[str, Any]:
         """Filter params to only those accepted by the strategy's __init__."""
         import inspect
+
         sig = inspect.signature(strategy_cls.__init__)
         valid = set(sig.parameters.keys()) - {"self"}
         return {k: v for k, v in params.items() if k in valid}
@@ -228,13 +256,16 @@ class EvolutionEngine:
         wr_score = max(0, min(1.0, (wr - 0.35) / 0.30))
         trade_score = min(1.0, n_trades / 20.0)
 
-        score = (ret_score * 0.30 + sharpe_score * 0.20 +
-                 dd_score * 0.20 + wr_score * 0.15 + trade_score * 0.15)
+        score = (
+            ret_score * 0.30
+            + sharpe_score * 0.20
+            + dd_score * 0.20
+            + wr_score * 0.15
+            + trade_score * 0.15
+        )
         return score, metrics
 
-    def evaluate_agent(
-        self, agent: Agent, df: pd.DataFrame
-    ) -> Tuple[float, dict]:
+    def evaluate_agent(self, agent: Agent, df: pd.DataFrame) -> Tuple[float, dict]:
         """Evaluate a single agent on a dataset slice."""
         try:
             valid_params = self._filter_params(agent.strategy_cls, agent.params)
@@ -244,9 +275,8 @@ class EvolutionEngine:
             # GridStrategy returns float positions → convert to discrete
             if signals.dtype in (np.float64, np.float32, float):
                 from dex.strategies.grid import grid_signals_to_discrete
-                signals = grid_signals_to_discrete(
-                    signals, df["close"].values.astype(float)
-                )
+
+                signals = grid_signals_to_discrete(signals, df["close"].values.astype(float))
 
             min_start = getattr(strategy, "window", 20) * 2
             prices = df["close"].values[min_start:].astype(float)
@@ -256,7 +286,8 @@ class EvolutionEngine:
                 return 0.0, {}
 
             score, metrics = self._relaxed_score(
-                valid_signals, prices,
+                valid_signals,
+                prices,
                 df.iloc[min_start:].reset_index(drop=True),
             )
             return score, metrics
@@ -267,9 +298,7 @@ class EvolutionEngine:
     # Genetic operators
     # ------------------------------------------------------------------
 
-    def _crossover(
-        self, donor: Agent, recipient: Agent
-    ) -> Dict[str, Any]:
+    def _crossover(self, donor: Agent, recipient: Agent) -> Dict[str, Any]:
         """Mix donor genes into recipient.
 
         Each gene has ``crossover_rate`` chance of being taken from
@@ -313,9 +342,7 @@ class EvolutionEngine:
     # Evolution step
     # ------------------------------------------------------------------
 
-    def evolve(
-        self, df: pd.DataFrame, generation: int
-    ) -> List[Agent]:
+    def evolve(self, df: pd.DataFrame, generation: int) -> List[Agent]:
         """Run one evolution cycle.
 
         Args:
@@ -338,34 +365,35 @@ class EvolutionEngine:
             scores.append(score)
             sharpe = metrics.get("sharpe_ratio", 0) if metrics else 0
             ret = metrics.get("total_return", 0) * 100 if metrics else 0
-            print(f"  {agent.name} ({agent.style}): score={score:.4f} "
-                  f"sharpe={sharpe:.2f} ret={ret:+.2f}%")
+            print(
+                f"  {agent.name} ({agent.style}): score={score:.4f} "
+                f"sharpe={sharpe:.2f} ret={ret:+.2f}%"
+            )
 
         # 2. Rank agents
-        ranked = sorted(
-            enumerate(self.agents), key=lambda x: x[1].recent_score(), reverse=True
-        )
+        ranked = sorted(enumerate(self.agents), key=lambda x: x[1].recent_score(), reverse=True)
         best_idx = ranked[0][0]
         worst_idx = ranked[-1][0]
 
-        print(f"  Best: {self.agents[best_idx].name} "
-              f"(score={self.agents[best_idx].recent_score():.4f})")
-        print(f"  Worst: {self.agents[worst_idx].name} "
-              f"(score={self.agents[worst_idx].recent_score():.4f})")
+        print(
+            f"  Best: {self.agents[best_idx].name} "
+            f"(score={self.agents[best_idx].recent_score():.4f})"
+        )
+        print(
+            f"  Worst: {self.agents[worst_idx].name} "
+            f"(score={self.agents[worst_idx].recent_score():.4f})"
+        )
 
         # 3. Worst learns from best
         if self.agents[best_idx].recent_score() > self.agents[worst_idx].recent_score():
-            new_params = self._crossover(
-                self.agents[best_idx], self.agents[worst_idx]
-            )
+            new_params = self._crossover(self.agents[best_idx], self.agents[worst_idx])
             self.agents[worst_idx].params = new_params
-            print(f"  Crossover: {self.agents[worst_idx].name} <- "
-                  f"{self.agents[best_idx].name} genes")
+            print(
+                f"  Crossover: {self.agents[worst_idx].name} <- {self.agents[best_idx].name} genes"
+            )
 
         # 4. Best explores bolder
-        self.agents[best_idx].params = self._mutate(
-            self.agents[best_idx].params, scale=1.5
-        )
+        self.agents[best_idx].params = self._mutate(self.agents[best_idx].params, scale=1.5)
         print(f"  Mutation: {self.agents[best_idx].name} explores bolder")
 
         # 5. Darwinian weight rebalancing (softmax)
@@ -377,9 +405,7 @@ class EvolutionEngine:
         for agent, w in zip(self.agents, weights):
             agent.weight = float(w)
 
-        print("  Weights: " + " | ".join(
-            f"{a.name}={a.weight:.2f}" for a in self.agents
-        ))
+        print("  Weights: " + " | ".join(f"{a.name}={a.weight:.2f}" for a in self.agents))
         print()
 
         return self.agents
@@ -388,9 +414,7 @@ class EvolutionEngine:
     # Ensemble prediction
     # ------------------------------------------------------------------
 
-    def ensemble_signal(
-        self, df: pd.DataFrame, enable_short: bool = True
-    ) -> np.ndarray:
+    def ensemble_signal(self, df: pd.DataFrame, enable_short: bool = True) -> np.ndarray:
         """Generate weighted ensemble signal.
 
         Each agent votes with its weight.  Long=+1, Short=-1, Hold=0.
@@ -416,9 +440,8 @@ class EvolutionEngine:
                 # GridStrategy returns floats → convert
                 if signals.dtype in (np.float64, np.float32, float):
                     from dex.strategies.grid import grid_signals_to_discrete
-                    signals = grid_signals_to_discrete(
-                        signals, df["close"].values.astype(float)
-                    )
+
+                    signals = grid_signals_to_discrete(signals, df["close"].values.astype(float))
 
                 # Convert signals to -1/0/+1 for voting
                 vote = np.zeros(n, dtype=float)
@@ -431,8 +454,8 @@ class EvolutionEngine:
 
         # Threshold to discrete
         result = np.ones(n, dtype=int)  # default hold
-        result[weighted > 0.3] = 2      # strong long consensus
-        result[weighted < -0.3] = 3     # strong short consensus
+        result[weighted > 0.3] = 2  # strong long consensus
+        result[weighted < -0.3] = 3  # strong short consensus
         result[abs(weighted) < 0.15] = 1  # no consensus → hold
 
         return result
@@ -441,6 +464,7 @@ class EvolutionEngine:
 # ---------------------------------------------------------------------------
 # Evolution runner
 # ---------------------------------------------------------------------------
+
 
 def run_evolution(
     df: pd.DataFrame,
@@ -483,7 +507,7 @@ def run_evolution(
         else:
             # Just evaluate and update scores (no parameter crossover)
             for agent in engine.agents:
-                score, _ = engine.evaluate_agent(agent, df.iloc[-len(df)//4:])
+                score, _ = engine.evaluate_agent(agent, df.iloc[-len(df) // 4 :])
                 agent.score_history.append(score)
 
     # Final weight display
@@ -492,8 +516,10 @@ def run_evolution(
         print("Final Ensemble")
         print("=" * 60)
         for agent in engine.agents:
-            print(f"  {agent.name} ({agent.style}): weight={agent.weight:.3f}  "
-                  f"score={agent.recent_score():.4f}  gen={agent.generation}")
+            print(
+                f"  {agent.name} ({agent.style}): weight={agent.weight:.3f}  "
+                f"score={agent.recent_score():.4f}  gen={agent.generation}"
+            )
         print()
 
     return engine

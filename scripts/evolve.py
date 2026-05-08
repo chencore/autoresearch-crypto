@@ -34,9 +34,7 @@ from dex.strategies.base import StrategyEvaluator
 from dex.config import DATA_DIR
 
 
-def evaluate_ensemble(
-    engine: EvolutionEngine, df: pd.DataFrame
-) -> dict:
+def evaluate_ensemble(engine: EvolutionEngine, df: pd.DataFrame) -> dict:
     """Full backtest of the ensemble on a dataset."""
     evaluator = StrategyEvaluator()
     signals = engine.ensemble_signal(df, enable_short=True)
@@ -58,9 +56,7 @@ def evaluate_ensemble(
     }
 
 
-def compare_individual(
-    engine: EvolutionEngine, df: pd.DataFrame
-) -> list[dict]:
+def compare_individual(engine: EvolutionEngine, df: pd.DataFrame) -> list[dict]:
     """Evaluate each agent individually."""
     evaluator = StrategyEvaluator()
     results = []
@@ -72,21 +68,21 @@ def compare_individual(
         try:
             s = agent.strategy_cls(**agent.params)
             signals = s.generate_signals(df)
-            equity, trades = evaluator.simulate(
-                signals[min_start:], prices[min_start:]
-            )
+            equity, trades = evaluator.simulate(signals[min_start:], prices[min_start:])
             metrics = evaluator.compute_metrics(equity, trades)
             trade_pnls = [t for t in trades if t.get("pnl") is not None]
-            results.append({
-                "name": agent.name,
-                "style": agent.style,
-                "weight": agent.weight,
-                "total_return": metrics["total_return"],
-                "sharpe_ratio": metrics["sharpe_ratio"],
-                "max_drawdown": metrics["max_drawdown"],
-                "n_trades": len(trade_pnls),
-                "params": agent.params,
-            })
+            results.append(
+                {
+                    "name": agent.name,
+                    "style": agent.style,
+                    "weight": agent.weight,
+                    "total_return": metrics["total_return"],
+                    "sharpe_ratio": metrics["sharpe_ratio"],
+                    "max_drawdown": metrics["max_drawdown"],
+                    "n_trades": len(trade_pnls),
+                    "params": agent.params,
+                }
+            )
         except Exception:
             results.append({"name": agent.name, "error": True})
 
@@ -95,18 +91,15 @@ def compare_individual(
 
 def main():
     parser = argparse.ArgumentParser(description="ATLAS Multi-Strategy Evolution")
-    parser.add_argument("--generations", type=int, default=15,
-                        help="Number of evolution generations")
-    parser.add_argument("--data", type=str, default=None,
-                        help="Path to parquet data file")
-    parser.add_argument("--days", type=int, default=60,
-                        help="Number of recent days to use")
+    parser.add_argument(
+        "--generations", type=int, default=15, help="Number of evolution generations"
+    )
+    parser.add_argument("--data", type=str, default=None, help="Path to parquet data file")
+    parser.add_argument("--days", type=int, default=60, help="Number of recent days to use")
     args = parser.parse_args()
 
     # Load data
-    data_path = args.data or os.path.join(
-        str(DATA_DIR), "ETHUSDT_5m.parquet"
-    )
+    data_path = args.data or os.path.join(str(DATA_DIR), "ETHUSDT_5m.parquet")
     if not os.path.exists(data_path):
         print(f"Error: data file not found: {data_path}")
         sys.exit(1)
@@ -122,8 +115,10 @@ def main():
     df = df.iloc[-bars_per_day * args.days :].reset_index(drop=True)
 
     print(f"Data: {len(df)} bars ({args.days} days)")
-    print(f"Price: {df['close'].iloc[0]:.1f} -> {df['close'].iloc[-1]:.1f} "
-          f"({(df['close'].iloc[-1]/df['close'].iloc[0]-1)*100:+.2f}%)")
+    print(
+        f"Price: {df['close'].iloc[0]:.1f} -> {df['close'].iloc[-1]:.1f} "
+        f"({(df['close'].iloc[-1] / df['close'].iloc[0] - 1) * 100:+.2f}%)"
+    )
     print()
 
     # Run evolution
@@ -145,21 +140,25 @@ def main():
         if r.get("error"):
             print(f"{r['name']:<8} {'ERROR':>7}")
             continue
-        print(f"{r['name']:<8} {r['weight']:>7.3f} "
-              f"{r['total_return']*100:>+7.2f}% {r['sharpe_ratio']:>7.2f} "
-              f"{r['max_drawdown']*100:>+6.1f}% {r['n_trades']:>7}")
+        print(
+            f"{r['name']:<8} {r['weight']:>7.3f} "
+            f"{r['total_return'] * 100:>+7.2f}% {r['sharpe_ratio']:>7.2f} "
+            f"{r['max_drawdown'] * 100:>+6.1f}% {r['n_trades']:>7}"
+        )
 
     # Evaluate ensemble
     print("\n" + "=" * 60)
     print("Ensemble Performance (full period)")
     print("=" * 60)
     ensemble_metrics = evaluate_ensemble(engine, df)
-    mkt_ret = (df["close"].iloc[-1] / df["close"].iloc[0] - 1)
-    print(f"  Return:    {ensemble_metrics['total_return']*100:+.2f}%  "
-          f"(market: {mkt_ret*100:+.2f}%)")
+    mkt_ret = df["close"].iloc[-1] / df["close"].iloc[0] - 1
+    print(
+        f"  Return:    {ensemble_metrics['total_return'] * 100:+.2f}%  "
+        f"(market: {mkt_ret * 100:+.2f}%)"
+    )
     print(f"  Sharpe:    {ensemble_metrics['sharpe_ratio']:.2f}")
-    print(f"  Max DD:    {ensemble_metrics['max_drawdown']*100:.1f}%")
-    print(f"  Win Rate:  {ensemble_metrics['win_rate']*100:.1f}%")
+    print(f"  Max DD:    {ensemble_metrics['max_drawdown'] * 100:.1f}%")
+    print(f"  Win Rate:  {ensemble_metrics['win_rate'] * 100:.1f}%")
     print(f"  Trades:    {ensemble_metrics['n_trades']}")
     print(f"  Alpha:     {ensemble_metrics['total_return'] - mkt_ret:+.4f}")
 

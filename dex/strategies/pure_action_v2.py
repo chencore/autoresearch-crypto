@@ -99,9 +99,12 @@ class PureActionV2Strategy(BaseStrategy):
         # Trend MA
         trend_ma = None
         if self.trend_ma_period is not None:
-            trend_ma = pd.Series(close).rolling(
-                self.trend_ma_period, min_periods=self.trend_ma_period
-            ).mean().values
+            trend_ma = (
+                pd.Series(close)
+                .rolling(self.trend_ma_period, min_periods=self.trend_ma_period)
+                .mean()
+                .values
+            )
 
         # ADX
         adx = None
@@ -144,12 +147,19 @@ class PureActionV2Strategy(BaseStrategy):
                 if highest_after_entry > 0:
                     atr_stop = highest_after_entry - self.atr_multiplier * atr[i]
                     if price < atr_stop:
-                        signals[i] = 0; position = 0; continue
+                        signals[i] = 0
+                        position = 0
+                        continue
                 if is_downtrend:
-                    signals[i] = 0; position = 0; continue
+                    signals[i] = 0
+                    position = 0
+                    continue
                 if i - entry_bar >= self.max_hold_bars:
-                    signals[i] = 0; position = 0; continue
-                signals[i] = 2; continue
+                    signals[i] = 0
+                    position = 0
+                    continue
+                signals[i] = 2
+                continue
 
             elif position == -1:
                 if low[i] < lowest_after_entry:
@@ -157,12 +167,19 @@ class PureActionV2Strategy(BaseStrategy):
                 if lowest_after_entry < float("inf"):
                     atr_stop = lowest_after_entry + self.atr_multiplier * atr[i]
                     if price > atr_stop:
-                        signals[i] = 0; position = 0; continue
+                        signals[i] = 0
+                        position = 0
+                        continue
                 if is_uptrend:
-                    signals[i] = 0; position = 0; continue
+                    signals[i] = 0
+                    position = 0
+                    continue
                 if i - entry_bar >= self.max_hold_bars:
-                    signals[i] = 0; position = 0; continue
-                signals[i] = 3; continue
+                    signals[i] = 0
+                    position = 0
+                    continue
+                signals[i] = 3
+                continue
 
             # --- Entry signals ---
             if position == 0:
@@ -170,7 +187,9 @@ class PureActionV2Strategy(BaseStrategy):
                     continue
 
                 # Asymmetric triggers: shorts get bonus zone
-                upper_trigger = upper.iloc[i] - (self.entry_zone + self.short_entry_bonus) * rs.iloc[i]
+                upper_trigger = (
+                    upper.iloc[i] - (self.entry_zone + self.short_entry_bonus) * rs.iloc[i]
+                )
                 lower_trigger = lower.iloc[i] + self.entry_zone * rs.iloc[i]
 
                 strong_up = consec_up[i] >= 6
@@ -209,8 +228,11 @@ class PureActionV2Strategy(BaseStrategy):
                     if self.use_rsi_filter and rsi is not None:
                         rsi_ok = rsi[i] < self.rsi_oversold
                     if rsi_ok:
-                        signals[i] = 2; position = 1; entry_bar = i
-                        highest_after_entry = high[i]; continue
+                        signals[i] = 2
+                        position = 1
+                        entry_bar = i
+                        highest_after_entry = high[i]
+                        continue
 
                 # Short entry
                 if allow_short and price >= upper_trigger and not strong_up:
@@ -218,7 +240,10 @@ class PureActionV2Strategy(BaseStrategy):
                     if self.use_rsi_filter and rsi is not None:
                         rsi_ok = rsi[i] > self.rsi_overbought
                     if rsi_ok:
-                        signals[i] = 3; position = -1; entry_bar = i
-                        lowest_after_entry = low[i]; continue
+                        signals[i] = 3
+                        position = -1
+                        entry_bar = i
+                        lowest_after_entry = low[i]
+                        continue
 
         return signals

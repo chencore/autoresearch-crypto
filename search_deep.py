@@ -2,6 +2,7 @@
 对 Top-3 策略做细粒度深度参数搜索。
 在粗搜索最优参数附近展开更密的网格。
 """
+
 import sys
 import os
 import time
@@ -10,30 +11,37 @@ import itertools
 import numpy as np
 import pyarrow.parquet as pq
 import warnings
-warnings.filterwarnings('ignore')
 
-if sys.platform == 'win32':
-    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+warnings.filterwarnings("ignore")
+
+if sys.platform == "win32":
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 from train_quant import (
-    HybridMeanRevMomentumStrategy, AdaptiveHybridStrategy,
-    PureActionStrategy, StrategyEvaluator,
+    HybridMeanRevMomentumStrategy,
+    AdaptiveHybridStrategy,
+    PureActionStrategy,
+    StrategyEvaluator,
 )
 
-DATA_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                         "data", "crypto", "ETHUSDT_5m.parquet")
+DATA_FILE = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "data", "crypto", "ETHUSDT_5m.parquet"
+)
+
 
 def evaluate_strategy(strategy, df, evaluator, min_start=None):
     """宽松评估：相对市场基准评分"""
     signals = strategy.generate_signals(df)
     if min_start is None:
-        min_start = getattr(strategy, 'window', 20) * 2
+        min_start = getattr(strategy, "window", 20) * 2
     prices = df["close"].values[min_start:].astype(float)
     valid_signals = signals[min_start:]
     if len(valid_signals) < 50:
         return 0.0, {}, [], signals
 
-    equity, trades = evaluator.simulate(valid_signals, prices, df.iloc[min_start:].reset_index(drop=True))
+    equity, trades = evaluator.simulate(
+        valid_signals, prices, df.iloc[min_start:].reset_index(drop=True)
+    )
     if len(equity) == 0 or not np.all(np.isfinite(equity)):
         return 0.0, {"total_return": 0}, [], signals
 
@@ -59,8 +67,13 @@ def evaluate_strategy(strategy, df, evaluator, min_start=None):
     wr_score = max(0, min(1.0, (wr - 0.35) / 0.30))
     trade_score = min(1.0, n_trades / 20.0)
 
-    score = (ret_score * 0.30 + sharpe_score * 0.20 +
-             dd_score * 0.20 + wr_score * 0.15 + trade_score * 0.15)
+    score = (
+        ret_score * 0.30
+        + sharpe_score * 0.20
+        + dd_score * 0.20
+        + wr_score * 0.15
+        + trade_score * 0.15
+    )
     return score, metrics, trades, signals
 
 
@@ -92,21 +105,33 @@ def grid_search(strategy_cls, grid, df, eval_budget=300, use_full_data=True):
             strategy = strategy_cls(**params)
             score, metrics, trades, _ = evaluate_strategy(strategy, df_eval, evaluator)
         except Exception:
-            score = 0; metrics = {}
+            score = 0
+            metrics = {}
         tried += 1
         if score > best_score:
             best_score = score
             best_params = params
             best_metrics = metrics
 
-    ret = best_metrics.get('total_return', 0) * 100 if best_metrics else 0
-    dd = best_metrics.get('max_drawdown', 0) * 100 if best_metrics else 0
-    sharpe = best_metrics.get('sharpe_ratio', 0) if best_metrics else 0
-    n_trades = len([t for t in (best_metrics.get('trades', []) if best_metrics else [])
-                    if t.get("pnl") is not None]) if best_metrics else 0
+    ret = best_metrics.get("total_return", 0) * 100 if best_metrics else 0
+    dd = best_metrics.get("max_drawdown", 0) * 100 if best_metrics else 0
+    sharpe = best_metrics.get("sharpe_ratio", 0) if best_metrics else 0
+    n_trades = (
+        len(
+            [
+                t
+                for t in (best_metrics.get("trades", []) if best_metrics else [])
+                if t.get("pnl") is not None
+            ]
+        )
+        if best_metrics
+        else 0
+    )
 
-    print(f"  {strategy_cls.__name__}: {tried}/{total} combos in {time.time()-t0:.0f}s | "
-          f"score={best_score:.4f} ret={ret:+.2f}% sharpe={sharpe:.2f} DD={dd:.1f}% trades={n_trades}")
+    print(
+        f"  {strategy_cls.__name__}: {tried}/{total} combos in {time.time() - t0:.0f}s | "
+        f"score={best_score:.4f} ret={ret:+.2f}% sharpe={sharpe:.2f} DD={dd:.1f}% trades={n_trades}"
+    )
     return best_params, best_score, best_metrics
 
 
@@ -118,14 +143,14 @@ def main():
     # 加载数据
     table = pq.read_table(DATA_FILE)
     df = table.to_pandas()
-    for col in ['close', 'high', 'low', 'open', 'volume']:
+    for col in ["close", "high", "low", "open", "volume"]:
         df[col] = df[col].astype(float)
 
     # 只用最近60天（用户原始需求）
-    df_60d = df.iloc[-288*60:].reset_index(drop=True)
+    df_60d = df.iloc[-288 * 60 :].reset_index(drop=True)
     print(f"\n数据: 最近60天, {len(df_60d)} 根K线")
     print(f"价格: {df_60d['close'].iloc[0]:.1f} → {df_60d['close'].iloc[-1]:.1f}")
-    mkt_ret = (df_60d['close'].iloc[-1] / df_60d['close'].iloc[0] - 1) * 100
+    mkt_ret = (df_60d["close"].iloc[-1] / df_60d["close"].iloc[0] - 1) * 100
     print(f"市场收益: {mkt_ret:+.2f}%")
 
     # ====================================================================
@@ -144,7 +169,8 @@ def main():
         "max_hold_bars": [12, 18, 24, 30, 36, 48],
     }
     hmm_params, hmm_score, hmm_metrics = grid_search(
-        HybridMeanRevMomentumStrategy, hmm_grid, df_60d, eval_budget=300)
+        HybridMeanRevMomentumStrategy, hmm_grid, df_60d, eval_budget=300
+    )
 
     # ====================================================================
     print("\n" + "-" * 60)
@@ -165,7 +191,8 @@ def main():
         "max_hold_bars": [12, 18, 24, 30, 36],
     }
     adp_params, adp_score, adp_metrics = grid_search(
-        AdaptiveHybridStrategy, adp_grid, df_60d, eval_budget=300)
+        AdaptiveHybridStrategy, adp_grid, df_60d, eval_budget=300
+    )
 
     # ====================================================================
     print("\n" + "-" * 60)
@@ -183,7 +210,8 @@ def main():
         "adx_threshold": [None, 20, 25, 30],
     }
     pa_params, pa_score, pa_metrics = grid_search(
-        PureActionStrategy, pa_grid, df_60d, eval_budget=300)
+        PureActionStrategy, pa_grid, df_60d, eval_budget=300
+    )
 
     # ====================================================================
     # 汇总
@@ -201,18 +229,21 @@ def main():
     print(f"{'排名':<5} {'策略':<14} {'评分':>8} {'收益':>8} {'回撤':>7} {'夏普':>7} {'交易':>6}")
     print("-" * 58)
     for i, (name, p, s, m) in enumerate(results):
-        ret = m.get('total_return', 0) * 100 if m else 0
-        dd = m.get('max_drawdown', 0) * 100 if m else 0
-        sr = m.get('sharpe_ratio', 0) if m else 0
-        tr = len([t for t in (m.get('trades', []) if m else [])
-                  if t.get("pnl") is not None]) if m else 0
-        print(f"{i+1:<5} {name:<14} {s:>8.4f} {ret:>+7.2f}% {dd:>+6.1f}% {sr:>7.2f} {tr:>6}")
+        ret = m.get("total_return", 0) * 100 if m else 0
+        dd = m.get("max_drawdown", 0) * 100 if m else 0
+        sr = m.get("sharpe_ratio", 0) if m else 0
+        tr = (
+            len([t for t in (m.get("trades", []) if m else []) if t.get("pnl") is not None])
+            if m
+            else 0
+        )
+        print(f"{i + 1:<5} {name:<14} {s:>8.4f} {ret:>+7.2f}% {dd:>+6.1f}% {sr:>7.2f} {tr:>6}")
 
     if results:
         champ = results[0]
         print(f"\n最优策略: {champ[0]}")
         print(f"参数: {json.dumps(champ[1], indent=2, default=str)}")
-        ret = champ[3].get('total_return', 0) * 100 if champ[3] else 0
+        ret = champ[3].get("total_return", 0) * 100 if champ[3] else 0
         print(f"60天收益: {ret:+.2f}% (vs 市场 {mkt_ret:+.2f}%)")
         if champ[3]:
             print(f"超额收益: {ret - mkt_ret:+.2f}%")

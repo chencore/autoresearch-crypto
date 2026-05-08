@@ -22,6 +22,7 @@ import pandas as pd
 # Process lock (prevents duplicate instances)
 # ---------------------------------------------------------------------------
 
+
 def acquire_lock(lock_path: str) -> int:
     """Acquire an exclusive file lock to prevent duplicate process instances.
 
@@ -60,6 +61,7 @@ def acquire_lock(lock_path: str) -> int:
 # State persistence
 # ---------------------------------------------------------------------------
 
+
 def load_state(path: str) -> Optional[dict]:
     """Load trading state from a JSON file.
 
@@ -90,6 +92,7 @@ def save_state(state: dict, path: str) -> None:
 # Logging
 # ---------------------------------------------------------------------------
 
+
 class TradeLogger:
     """Simple file + console logger for live trading."""
 
@@ -119,6 +122,7 @@ class TradeLogger:
 # Retry decorator
 # ---------------------------------------------------------------------------
 
+
 def retry_on_exception(
     max_retries: int = 3,
     delay: float = 1.0,
@@ -136,6 +140,7 @@ def retry_on_exception(
     Returns:
         Decorated function wrapper.
     """
+
     def decorator(func: Callable) -> Callable:
         @functools.wraps(func)
         def wrapper(*args: Any, **kwargs: Any) -> Any:
@@ -145,14 +150,16 @@ def retry_on_exception(
                 except exceptions as e:
                     if attempt == max_retries - 1:
                         raise
-                    msg = f"{func.__name__} 失败 (尝试 {attempt+1}/{max_retries}): {e}，{delay}s 后重试..."
+                    msg = f"{func.__name__} 失败 (尝试 {attempt + 1}/{max_retries}): {e}，{delay}s 后重试..."
                     if logger:
                         logger.log(msg)
                     else:
                         print(msg)
                     time.sleep(delay)
             return None
+
         return wrapper
+
     return decorator
 
 
@@ -160,9 +167,8 @@ def retry_on_exception(
 # Time alignment
 # ---------------------------------------------------------------------------
 
-def align_next_wake_time(
-    interval_seconds: int, offset_seconds: int = 15
-) -> datetime:
+
+def align_next_wake_time(interval_seconds: int, offset_seconds: int = 15) -> datetime:
     """Calculate the next wake time aligned to interval boundaries.
 
     Args:
@@ -184,9 +190,8 @@ def align_next_wake_time(
 # Signal generation
 # ---------------------------------------------------------------------------
 
-def predict_signal(
-    strategy: Any, df: pd.DataFrame, enable_short: bool = False
-) -> Tuple[int, dict]:
+
+def predict_signal(strategy: Any, df: pd.DataFrame, enable_short: bool = False) -> Tuple[int, dict]:
     """Generate trading signal and Bollinger Band display info.
 
     Args:
@@ -222,6 +227,7 @@ def predict_signal(
 # Price utilities
 # ---------------------------------------------------------------------------
 
+
 def round_to_tick(price: float, tick_size: float) -> float:
     """Round a price to the nearest valid tick increment.
 
@@ -236,9 +242,7 @@ def round_to_tick(price: float, tick_size: float) -> float:
     return float(Decimal(ticks) * Decimal(str(tick_size)))
 
 
-def compute_order_price(
-    side: str, best_bid: float, best_ask: float, tick_size: float
-) -> float:
+def compute_order_price(side: str, best_bid: float, best_ask: float, tick_size: float) -> float:
     """Compute a POST_ONLY limit order price at the best bid/ask.
 
     Args:
@@ -288,6 +292,7 @@ def compute_ioc_price(
 # Stop-loss / time-exit check
 # ---------------------------------------------------------------------------
 
+
 def check_stop_loss(
     state: dict,
     current_price: float,
@@ -332,20 +337,26 @@ def check_stop_loss(
             if kline_low is not None and kline_low <= stop_price:
                 return True, f"多头止损: K线low={kline_low:.2f} <= 止损价={stop_price:.2f}"
             if (entry_price - current_price) / entry_price >= stop_loss_pct:
-                return True, f"多头止损: 跌幅 {(entry_price - current_price) / entry_price * 100:.2f}% >= {stop_loss_pct * 100:.0f}%"
+                return (
+                    True,
+                    f"多头止损: 跌幅 {(entry_price - current_price) / entry_price * 100:.2f}% >= {stop_loss_pct * 100:.0f}%",
+                )
     elif pos == -1:
         if entry_price > 0:
             stop_price = entry_price * (1 + stop_loss_pct)
             if kline_high is not None and kline_high >= stop_price:
                 return True, f"空头止损: K线high={kline_high:.2f} >= 止损价={stop_price:.2f}"
             if (current_price - entry_price) / entry_price >= stop_loss_pct:
-                return True, f"空头止损: 涨幅 {(current_price - entry_price) / entry_price * 100:.2f}% >= {stop_loss_pct * 100:.0f}%"
+                return (
+                    True,
+                    f"空头止损: 涨幅 {(current_price - entry_price) / entry_price * 100:.2f}% >= {stop_loss_pct * 100:.0f}%",
+                )
 
     bars_held = current_bar - entry_bar
     if entry_bar > 0 and bars_held > max_hold_bars * 2:
         if logger:
             logger.log(
-                f"[异常报警] 持仓 K 线数 {bars_held} 超过 2*max_hold={max_hold_bars*2}，跳过时间退出判断"
+                f"[异常报警] 持仓 K 线数 {bars_held} 超过 2*max_hold={max_hold_bars * 2}，跳过时间退出判断"
             )
         return False, ""
 
