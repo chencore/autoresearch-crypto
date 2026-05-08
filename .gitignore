@@ -49,3 +49,8 @@ AGENTS.md
 dev/
 results.tsv
 uv.lock
+run.log
+*.log
+
+# Data artifacts in docs
+docs/*.csv
