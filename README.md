@@ -1,85 +1,85 @@
 # autoresearch-crypto
 
-<div align="right"><a href="README_CN.md">中文</a></div>
+<div align="right"><a href="README_EN.md">English</a></div>
 
-Autonomous cryptocurrency quantitative trading strategy research framework. Evolved from the autoresearch paradigm — instead of optimizing LLMs, this framework lets AI agents autonomously discover, evolve, and execute crypto trading strategies.
+自主加密货币量化交易策略研究框架。从 autoresearch 范式演化而来——不再优化 LLM，而是让 AI Agent 自主发现、演化和执行加密货币交易策略。
 
-> **Disclaimer**: This project is for research and educational purposes. Trading cryptocurrencies carries significant risk. Past performance does not guarantee future results. Use at your own risk.
+> **免责声明**：本项目仅供研究和教育用途。加密货币交易具有重大风险。过往表现不能保证未来收益。使用风险自负。
 
-## Overview
+## 概述
 
-autoresearch-crypto is a modular quantitative trading framework designed for:
+autoresearch-crypto 是一个模块化量化交易框架，专为以下场景设计：
 
-- **Strategy Research**: Automated search and optimization of trading strategies via evolutionary algorithms
-- **Backtesting**: High-fidelity backtesting with realistic fee/slippage modeling
-- **Live Trading**: Production-ready integration with Nado DEX and OKX
-- **Agent-Driven Evolution**: ATLAS multi-strategy evolution and GEPA reflective evolution engines
+- **策略研究**：通过进化算法自动搜索和优化交易策略
+- **回测**：高保真回测，模拟真实手续费和滑点
+- **实盘交易**：与 Nado DEX 和 OKX 的生产级集成
+- **Agent 驱动演化**：ATLAS 多策略进化和 GEPA 反思式进化引擎
 
-## Features
+## 功能特性
 
-| Feature | Description |
+| 功能 | 说明 |
 |---------|-------------|
-| **11 Built-in Strategies** | Trend, mean-reversion, scalping, grid, hybrid momentum, adaptive, and more |
-| **ATLAS Evolution** | Multi-agent competitive evolution across strategy archetypes |
-| **GEPA Reflection** | Reflective learning with edge-case detection and strategy-death recovery |
-| **Market Regime Detection** | Automatic regime classification (trending / ranging / volatile) |
-| **Multi-Timeframe Analysis** | Ensemble signals across 1m, 5m, 15m, 1h, 4h timeframes |
-| **Maker/Taker Fee Optimization** | Hybrid execution: POST_ONLY (Maker) for entry/take-profit, IOC (Taker) for stop-loss |
-| **Walk-Forward Validation** | Out-of-sample testing with multiple windows |
+| **11 种内置策略** | 趋势跟踪、均值回归、剥头皮、网格、混合动量、自适应等 |
+| **ATLAS 进化** | 多 Agent 竞争性进化，跨策略原型 |
+| **GEPA 反思** | 带边界案例检测和策略枯竭恢复的反思式学习 |
+| **市场机制检测** | 自动机制分类（趋势/震荡/高波动） |
+| **多时间框架分析** | 跨 1m、5m、15m、1h、4h 时间框架的集合信号 |
+| **Maker/Taker 费率优化** | 混合执行：开仓/止盈用 POST_ONLY（Maker），止损用 IOC（Taker） |
+| **前进验证** | 多窗口样本外测试 |
 
-## Quick Start
+## 快速开始
 
-### Requirements
+### 环境要求
 
 - Python 3.10+
-- [uv](https://docs.astral.sh/uv/) package manager (recommended)
-- A single NVIDIA GPU (optional, for strategy search — 8GB+ VRAM recommended)
+- [uv](https://docs.astral.sh/uv/) 包管理器（推荐）
+- NVIDIA GPU（可选，用于策略搜索——建议 8GB+ 显存）
 
-### Installation
+### 安装
 
 ```bash
-# 1. Clone the repository
+# 1. 克隆仓库
 git clone <repo-url> autoresearch-crypto
 cd autoresearch-crypto
 
-# 2. Install dependencies
+# 2. 安装依赖
 uv sync
 
-# 3. Prepare your environment
+# 3. 准备环境变量
 cp .env.example .env
-# Edit .env and add your API keys / private keys
+# 编辑 .env，添加你的 API 密钥 / 私钥
 ```
 
-### Download Market Data
+### 下载市场数据
 
 ```bash
-# Download ETH 5-minute data (60 days)
+# 下载 ETH 5分钟数据（60天）
 uv run python prepare_crypto.py --symbol ETHUSDT --interval 5m --days 60
 ```
 
-### Strategy Search
+### 策略搜索
 
 ```bash
-# Quick scan (5 minutes)
+# 快速扫描（5分钟）
 uv run python search_eth_optimal.py --quick
 
-# Full search (recommended, ~20 minutes)
+# 完整搜索（推荐，约20分钟）
 uv run python search_eth_optimal.py
 ```
 
-### Backtest
+### 回测
 
 ```bash
-# Backtest with default strategy
+# 使用默认策略回测
 uv run python backtest_quant.py --symbol ETHUSDT --interval 5m --days 60
 
-# Backtest with a specific checkpoint
+# 使用指定 checkpoint 回测
 uv run python backtest_quant.py \
     --symbol ETHUSDT --interval 5m --days 60 \
     --checkpoint checkpoints/hybrid_mm_eth60d.pt
 ```
 
-### Live Trading (Nado DEX)
+### 实盘交易（Nado DEX）
 
 ```bash
 uv run python live_nado_quant.py \
@@ -89,98 +89,98 @@ uv run python live_nado_quant.py \
     --checkpoint checkpoints/hybrid_mm_eth60d.pt
 ```
 
-## Project Structure
+## 项目结构
 
 ```
 autoresearch-crypto/
-├── live_nado_quant.py          # Nado DEX live trading
-├── live_okx_quant.py           # OKX live trading
-├── backtest_quant.py           # Backtesting engine
-├── train_quant.py              # Strategy training / search
-├── search_eth_optimal.py       # ETH optimal strategy search
-├── search_deep.py              # Deep parameter search
-├── prepare_crypto.py           # Market data downloader
-├── dex/                        # Core framework
-│   ├── strategies/             # Strategy implementations (11 classes)
-│   ├── indicators.py           # Technical indicators
-│   ├── evolution.py            # ATLAS evolution engine
-│   ├── reflection.py           # GEPA reflective evolution
-│   ├── scoring.py              # Risk-adjusted scoring
-│   ├── market_regime.py        # Regime detection
-│   ├── config.py               # Centralized constants
-│   └── live/common.py          # Shared live trading utilities
-├── checkpoints/                # Strategy checkpoints (kept: quant_model.pt)
-├── docs/                       # Documentation
-│   ├── STRATEGIES.md           # Strategy catalog
-│   └── 策略.md                  # Original Chinese strategy notes
-└── scripts/                    # Utility scripts
-    ├── evolve.py               # Run ATLAS evolution
-    ├── evolve_gepa.py          # Run GEPA evolution
-    └── train_all.py            # Train all strategy types
+├── live_nado_quant.py          # Nado DEX 实盘交易
+├── live_okx_quant.py           # OKX 实盘交易
+├── backtest_quant.py           # 回测引擎
+├── train_quant.py              # 策略训练 / 搜索
+├── search_eth_optimal.py       # ETH 最优策略搜索
+├── search_deep.py              # 深度参数搜索
+├── prepare_crypto.py           # 市场数据下载器
+├── dex/                        # 核心框架
+│   ├── strategies/             # 策略实现（11个类）
+│   ├── indicators.py           # 技术指标
+│   ├── evolution.py            # ATLAS 进化引擎
+│   ├── reflection.py           # GEPA 反思式进化
+│   ├── scoring.py              # 风险调整评分
+│   ├── market_regime.py        # 机制检测
+│   ├── config.py               # 集中式常量配置
+│   └── live/common.py          # 实盘交易共享工具
+├── checkpoints/                # 策略检查点（保留 quant_model.pt）
+├── docs/                       # 文档
+│   ├── STRATEGIES.md           # 策略目录
+│   └── 策略.md                  # 原始中文策略笔记
+└── scripts/                    # 工具脚本
+    ├── evolve.py               # 运行 ATLAS 进化
+    ├── evolve_gepa.py          # 运行 GEPA 进化
+    └── train_all.py            # 训练所有策略类型
 ```
 
-## Strategies
+## 策略一览
 
-| Strategy | Type | Best For | Frequency |
-|----------|------|----------|-----------|
-| **HybridMM** | Mean-reversion + Momentum | Range + Trend | Low (~2/day) |
-| TrendStrategy | Bollinger Band Mean-reversion | Range-bound | Very Low |
-| ScalpStrategy | High-frequency Scalping | High Volatility | Very High |
-| TrendFollowStrategy | Trend Following | Strong Trends | Low |
-| AdaptiveHybridStrategy | Self-adapting | Mixed Regimes | Medium |
-| GridStrategy | Grid Trading | Sideways | Medium |
-| PureActionStrategy | Extremes Reversal | Overbought/Oversold | Medium |
+| 策略 | 类型 | 适用市场 | 交易频率 | 风险等级 |
+|----------|-------|------|------------------|-----------|
+| **HybridMM** | 均值回归 + 动量 | 震荡 + 趋势 | 低（约2笔/天） | 中等 |
+| **Trend** | 布林带均值回归 | 震荡市 | 极低 | 中等 |
+| **Scalp** | 高频剥头皮 | 高波动 | 极高 | 高 |
+| **TrendFollow** | 趋势跟踪 | 强趋势 | 低 | 中等 |
+| **Grid** | 网格交易 | 横盘 | 中等 | 低 |
+| **PureAction** | 极端反转 | 超买/超卖 | 中等 | 中等 |
+| **Adaptive** | 自适应 | 所有机制 | 中等 | 中等 |
 
-See [docs/STRATEGIES.md](docs/STRATEGIES.md) for full details.
+详见 [docs/STRATEGIES.md](docs/STRATEGIES.md)。
 
-## Evolution Engines
+## 进化引擎
 
-### ATLAS Multi-Strategy Evolution
+### ATLAS 多策略进化
 
-Competitive evolution where multiple agents (Alpha, Beta, Gamma, Delta) evolve different strategy archetypes simultaneously:
+多 Agent（Alpha、Beta、Gamma、Delta）同时进化不同策略原型：
 
 ```bash
 uv run python scripts/evolve.py --generations 30
 ```
 
-### GEPA Reflective Evolution
+### GEPA 反思式进化
 
-Reflective learning with forced hypothesis logging every 5 rounds:
+每 5 轮强制记录假设的反思式学习：
 
 ```bash
 uv run python scripts/evolve_gepa.py --cycles 30
 ```
 
-## Risk Scoring
+## 风险评分
 
-The framework uses a risk-penalized score instead of raw Sharpe ratio to prevent agents from favoring high-leverage / high-drawdown strategies:
+框架使用风险惩罚评分代替原始夏普比率，防止 Agent 偏好高杠杆/高回撤策略：
 
 ```
 Score = Sharpe * (1 - |MaxDD|)^-1 * TradePenalty * EdgeGuard
 ```
 
-## Configuration
+## 配置
 
-All trading defaults are centralized in [`dex/config.py`](dex/config.py):
+所有交易默认值集中在 [`dex/config.py`](dex/config.py)：
 
-| Parameter | Default | Description |
+| 参数 | 默认值 | 说明 |
 |-----------|---------|-------------|
-| `INITIAL_CAPITAL` | 10000.0 | Backtest initial capital |
-| `COMMISSION` | 0.02% | DEX Maker fee |
-| `SLIPPAGE` | 0.02% | Execution slippage |
-| `EVAL_MAX_DRAWDOWN` | 30% | Hard disable threshold |
+| `INITIAL_CAPITAL` | 10000.0 | 回测初始资金 |
+| `COMMISSION` | 0.02% | DEX Maker 手续费 |
+| `SLIPPAGE` | 0.02% | 执行滑点 |
+| `EVAL_MAX_DRAWDOWN` | 30% | 硬性禁用阈值 |
 
-## Platform Support
+## 平台支持
 
-| Exchange | Status | File |
+| 交易所 | 状态 | 文件 |
 |----------|--------|------|
-| Nado DEX | Supported | `live_nado_quant.py` |
-| OKX | Supported | `live_okx_quant.py` |
+| Nado DEX | 已支持 | `live_nado_quant.py` |
+| OKX | 已支持 | `live_okx_quant.py` |
 
-## Contributing
+## 参与贡献
 
-Contributions are welcome. Please open an issue or pull request.
+欢迎贡献！请查看 [CONTRIBUTING.md](CONTRIBUTING.md) 了解如何参与。
 
-## License
+## 许可证
 
-MIT — see [LICENSE](LICENSE).
+MIT — 详见 [LICENSE](LICENSE)。
