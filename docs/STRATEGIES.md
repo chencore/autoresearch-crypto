@@ -1,6 +1,6 @@
 # Strategy Catalog
 
-This document describes all trading strategies available in `autoresearch-dex`.
+This document describes all trading strategies available in `autoresearch-crypto`.
 
 ## Summary Table
 

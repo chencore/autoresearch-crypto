@@ -1,5 +1,5 @@
 [project]
-name = "autoresearch-dex"
+name = "autoresearch-crypto"
 version = "0.1.0"
 description = "Autonomous cryptocurrency quantitative trading strategy research framework"
 readme = "README.md"
@@ -25,8 +25,8 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/yourusername/autoresearch-dex"
-Repository = "https://github.com/yourusername/autoresearch-dex"
+Homepage = "https://github.com/yourusername/autoresearch-crypto"
+Repository = "https://github.com/yourusername/autoresearch-crypto"
 
 [tool.uv]
 index-url = "https://pypi.org/simple"

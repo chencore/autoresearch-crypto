@@ -1,4 +1,4 @@
-# Contributing to autoresearch-dex
+# Contributing to autoresearch-crypto
 
 Thank you for your interest in contributing! This document provides guidelines for participating in the project.
 
@@ -87,8 +87,8 @@ Changes affecting live trading (`live_nado_quant.py`, `live_okx_quant.py`, `dex/
 
 ```bash
 # Clone your fork
-git clone https://github.com/yourusername/autoresearch-dex.git
-cd autoresearch-dex
+git clone https://github.com/yourusername/autoresearch-crypto.git
+cd autoresearch-crypto
 
 # Install dependencies
 uv sync --extra dev
@@ -108,4 +108,4 @@ uv run python backtest_quant.py --symbol ETHUSDT --interval 5m --days 30
 
 ## Questions?
 
-Open a [Discussion](https://github.com/yourusername/autoresearch-dex/discussions) or reach out in an issue.
+Open a [Discussion](https://github.com/yourusername/autoresearch-crypto/discussions) or reach out in an issue.

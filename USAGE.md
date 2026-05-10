@@ -10,8 +10,8 @@
 
 ```bash
 # 克隆项目
-git clone <repo-url> autoresearch-dex
-cd autoresearch-dex
+git clone <repo-url> autoresearch-crypto
+cd autoresearch-crypto
 
 # 安装依赖（uv 比 pip 快，推荐）
 pip install uv          # 如果没有 uv
@@ -165,7 +165,7 @@ uv run python train_quant.py --mode adaptive
 ## 8. 目录结构
 
 ```
-autoresearch-dex/
+autoresearch-crypto/
 ├── live_nado_quant.py      # Nado DEX 实盘交易
 ├── train_quant.py           # 策略类 + 训练搜索
 ├── search_eth_optimal.py    # ETH 最优策略搜索

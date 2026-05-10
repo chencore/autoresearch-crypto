@@ -108,7 +108,7 @@ LOOP FOREVER:
 ## 项目结构
 
 ```
-autoresearch-dex/
+autoresearch-crypto/
 ├── dex/
 │   ├── strategies/          # 8 个策略类
 │   ├── indicators.py        # 共享技术指标
