@@ -1,4 +1,6 @@
-# autoresearch-dex
+# autoresearch-crypto
+
+<div align="right"><a href="README.md">English</a></div>
 
 自主加密货币量化交易策略研究框架。从 autoresearch 范式演化而来——不再优化 LLM，而是让 AI Agent 自主发现、演化和执行加密货币交易策略。
 
@@ -6,7 +8,7 @@
 
 ## 概述
 
-autoresearch-dex 是一个模块化量化交易框架，专为以下场景设计：
+autoresearch-crypto 是一个模块化量化交易框架，专为以下场景设计：
 
 - **策略研究**：通过进化算法自动搜索和优化交易策略
 - **回测**：高保真回测，模拟真实手续费和滑点
@@ -37,8 +39,8 @@ autoresearch-dex 是一个模块化量化交易框架，专为以下场景设计
 
 ```bash
 # 1. 克隆仓库
-git clone <repo-url> autoresearch-dex
-cd autoresearch-dex
+git clone <repo-url> autoresearch-crypto
+cd autoresearch-crypto
 
 # 2. 安装依赖
 uv sync
@@ -90,7 +92,7 @@ uv run python live_nado_quant.py \
 ## 项目结构
 
 ```
-autoresearch-dex/
+autoresearch-crypto/
 ├── live_nado_quant.py          # Nado DEX 实盘交易
 ├── live_okx_quant.py           # OKX 实盘交易
 ├── backtest_quant.py           # 回测引擎

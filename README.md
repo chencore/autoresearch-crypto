@@ -1,4 +1,6 @@
-# autoresearch-dex
+# autoresearch-crypto
+
+<div align="right"><a href="README_CN.md">中文</a></div>
 
 Autonomous cryptocurrency quantitative trading strategy research framework. Evolved from the autoresearch paradigm — instead of optimizing LLMs, this framework lets AI agents autonomously discover, evolve, and execute crypto trading strategies.
 
@@ -6,7 +8,7 @@ Autonomous cryptocurrency quantitative trading strategy research framework. Evol
 
 ## Overview
 
-autoresearch-dex is a modular quantitative trading framework designed for:
+autoresearch-crypto is a modular quantitative trading framework designed for:
 
 - **Strategy Research**: Automated search and optimization of trading strategies via evolutionary algorithms
 - **Backtesting**: High-fidelity backtesting with realistic fee/slippage modeling
@@ -37,8 +39,8 @@ autoresearch-dex is a modular quantitative trading framework designed for:
 
 ```bash
 # 1. Clone the repository
-git clone <repo-url> autoresearch-dex
-cd autoresearch-dex
+git clone <repo-url> autoresearch-crypto
+cd autoresearch-crypto
 
 # 2. Install dependencies
 uv sync
@@ -90,7 +92,7 @@ uv run python live_nado_quant.py \
 ## Project Structure
 
 ```
-autoresearch-dex/
+autoresearch-crypto/
 ├── live_nado_quant.py          # Nado DEX live trading
 ├── live_okx_quant.py           # OKX live trading
 ├── backtest_quant.py           # Backtesting engine
