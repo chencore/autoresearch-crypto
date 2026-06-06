@@ -89,12 +89,25 @@ uv run python live_nado_quant.py \
     --checkpoint checkpoints/hybrid_mm_eth60d.pt
 ```
 
+### 实盘交易（Binance）
+
+```bash
+# Testnet 模拟盘（推荐先用这个测试）
+uv run python live_binance_quant.py \
+    --symbol BTCUSDT --interval 5m --demo --capital 100
+
+# 实盘交易（真钱！策略稳定后再用）
+uv run python live_binance_quant.py \
+    --symbol BTCUSDT --interval 5m --live --capital 500 --leverage 2
+```
+
 ## 项目结构
 
 ```
 autoresearch-crypto/
 ├── live_nado_quant.py          # Nado DEX 实盘交易
 ├── live_okx_quant.py           # OKX 实盘交易
+├── live_binance_quant.py       # Binance 实盘交易
 ├── backtest_quant.py           # 回测引擎
 ├── train_quant.py              # 策略训练 / 搜索
 ├── search_eth_optimal.py       # ETH 最优策略搜索
@@ -176,6 +189,7 @@ Score = Sharpe * (1 - |MaxDD|)^-1 * TradePenalty * EdgeGuard
 |----------|--------|------|
 | Nado DEX | 已支持 | `live_nado_quant.py` |
 | OKX | 已支持 | `live_okx_quant.py` |
+| Binance | 已支持 | `live_binance_quant.py` |
 
 ## 参与贡献
 

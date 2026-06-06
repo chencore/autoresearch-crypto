@@ -89,12 +89,25 @@ uv run python live_nado_quant.py \
     --checkpoint checkpoints/hybrid_mm_eth60d.pt
 ```
 
+### Live Trading (Binance)
+
+```bash
+# Testnet paper trading (recommended for testing)
+uv run python live_binance_quant.py \
+    --symbol BTCUSDT --interval 5m --demo --capital 100
+
+# Live trading (real money — only after strategy is stable)
+uv run python live_binance_quant.py \
+    --symbol BTCUSDT --interval 5m --live --capital 500 --leverage 2
+```
+
 ## Project Structure
 
 ```
 autoresearch-crypto/
 ├── live_nado_quant.py          # Nado DEX live trading
 ├── live_okx_quant.py           # OKX live trading
+├── live_binance_quant.py       # Binance live trading
 ├── backtest_quant.py           # Backtesting engine
 ├── train_quant.py              # Strategy training / search
 ├── search_eth_optimal.py       # ETH optimal strategy search
@@ -176,6 +189,7 @@ All trading defaults are centralized in [`dex/config.py`](dex/config.py):
 |----------|--------|------|
 | Nado DEX | Supported | `live_nado_quant.py` |
 | OKX | Supported | `live_okx_quant.py` |
+| Binance | Supported | `live_binance_quant.py` |
 
 ## Contributing
 
