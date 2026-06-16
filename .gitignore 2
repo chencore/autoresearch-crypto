@@ -1,0 +1,103 @@
+# ---------- OS ----------
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ---------- Editors / IDE ----------
+.idea/
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+*.swp
+*.swo
+*~
+
+# ---------- Logs / tmp ----------
+*.log
+logs/
+tmp/
+temp/
+*.pid
+*.seed
+*.pid.lock
+
+# ---------- 环境变量 / 密钥 ----------
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# ---------- Node.js (frontend H5) ----------
+node_modules/
+dist/
+build/
+.next/
+.nuxt/
+.cache/
+coverage/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.pnpm-store/
+
+# ---------- Flutter / Dart (app) ----------
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+**/ios/Pods/
+**/ios/.symlinks/
+**/ios/Flutter/flutter_export_environment.sh
+**/ios/Flutter/Generated.xcconfig
+**/ios/Runner/GeneratedPluginRegistrant.*
+**/android/.gradle/
+**/android/local.properties
+**/android/app/debug
+**/android/app/profile
+**/android/app/release
+*.iml
+*.ipr
+*.iws
+
+# ---------- Java / Maven / Gradle (backend) ----------
+target/
+!**/src/main/**/target/
+!**/src/test/**/target/
+build/
+.gradle/
+gradle-app.setting
+!gradle-wrapper.jar
+.gradletasknamecache
+*.class
+*.jar
+!gradle/wrapper/gradle-wrapper.jar
+!**/mvnw
+!**/mvnw.cmd
+*.war
+*.ear
+hs_err_pid*
+replay_pid*
+
+# ---------- Python (若有脚本/工具) ----------
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+
+# ---------- Claude Code / 本地工具配置 ----------
+.claude/settings.local.json
+.claude/cache/
+.mcp.json.local
+
+# ---------- 其他 ----------
+*.bak
+*.orig
