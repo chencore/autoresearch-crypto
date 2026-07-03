@@ -31,6 +31,31 @@
 
 <!-- 最新条目在最上面 -->
 
+### 2026-07-04 · setup-frontend-scaffold
+
+**摘要**：初始化 Vue 3 + Vite + TypeScript + Naive UI 前端骨架，新增 `frontend/` 顶层目录，承载 app 实例、路由、Pinia、Naive UI、axios client、全局布局、四个业务页面占位。父分支：`version/v0.1`。
+
+**关键决策**：
+- 手起 `package.json` 而非 `create-vue` CLI，只放本 task 需要的最小集，与 backend 骨架对称
+- Vite proxy 单条 `/api` 配置同时支持 HTTP + WebSocket（`ws: true`），`/health` 单独配
+- 路由用 `createWebHistory()` 而非 hash，开发态 Vite 自动 fallback
+- Naive UI 全局注册（`app.use(naive)`），单机应用 bundle 体积不敏感
+- axios baseURL `/api/v1`，`/health` 独立 fetch（后端 health 在根路径非 /api/v1）
+
+**踩坑 / 经验**：
+- pnpm 11 不再读 `package.json` 的 `pnpm.onlyBuiltDependencies`，改用 `pnpm-workspace.yaml` 的 `allowBuilds` 字段（pnpm install 时自动生成模板）
+- `tsconfig.node.json` 用 `composite: true` 时不能 `noEmit: true`（TS6310），简化为单 tsconfig 包含 vite.config.ts
+- vite.config.ts 用 `node:url` 需要 `@types/node`，否则 typecheck 报 TS2307
+- Vite 5 默认监听 IPv6（`localhost:5173` → `::1`），`curl 127.0.0.1` 走 IPv4 连不上，用 `localhost` 即可
+
+**相关产出**：
+- 归档位置：`openspec/changes/archive/2026-07-04-setup-frontend-scaffold/`
+- 主规范：`openspec/specs/frontend-scaffold/spec.md`（首次创建）
+- 项目级 task 勾选：`spec/tasks.md` setup-frontend-scaffold ✅
+- 父分支：`version/v0.1`
+
+---
+
 ### 2026-07-04 · setup-backend-scaffold
 
 **摘要**：初始化 FastAPI 后端骨架，新增 `backend/` 顶层目录，承载 app 实例、配置加载、SQLite 连接、CORS、统一错误处理、五个业务 router 占位与 `/health` 接口。父分支：`version/v0.1`。
