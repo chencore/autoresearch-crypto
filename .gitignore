@@ -49,7 +49,7 @@ AGENTS.md
 # Experimental code/artifacts
 dev/
 results.tsv
-uv.lock
+/uv.lock
 run.log
 *.log
 
