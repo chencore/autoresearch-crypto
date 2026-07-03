@@ -20,7 +20,7 @@
 
 > 单机本地量化工作台 MVP。目标：在现有 `dex/` 交易核心之上加 FastAPI + Vue 3 Web 界面，覆盖策略管理 / 回测可视化 / 实盘监控 / 参数调优四个模块。
 
-- [ ] **setup-backend-scaffold** — 初始化 FastAPI 后端骨架（路由结构、SQLite + SQLAlchemy、CORS、统一错误处理、配置加载），打通 `/health` 接口
+- [x] **setup-backend-scaffold** — 初始化 FastAPI 后端骨架（路由结构、SQLite + SQLAlchemy、CORS、统一错误处理、配置加载），打通 `/health` 接口
 - [ ] **setup-frontend-scaffold** — 初始化 Vue 3 + Vite + TypeScript + Naive UI 前端骨架（路由、布局、API client、开发代理），打通首页
 - [ ] **strategy-management-api** — 后端扫描 `dex/strategies/`，提供策略列表、参数定义、运行状态接口
 - [ ] **strategy-management-ui** — 前端策略管理页（策略列表 + 详情抽屉），只读展示

@@ -31,6 +31,28 @@
 
 <!-- 最新条目在最上面 -->
 
+### 2026-07-04 · setup-backend-scaffold
+
+**摘要**：初始化 FastAPI 后端骨架，新增 `backend/` 顶层目录，承载 app 实例、配置加载、SQLite 连接、CORS、统一错误处理、五个业务 router 占位与 `/health` 接口。父分支：`version/v0.1`。
+
+**关键决策**：
+- 后端独立 `pyproject.toml`（uv 环境），与根交易核心环境隔离 — 决策提升至 `spec/design.md` 决策 6
+- backend 引用根 `dex/` 包用 `sys.path.insert`（path 依赖因根项目 name 含 `-` 不可用）— 决策提升至 `spec/design.md` 决策 7
+- 完整 `from dex.strategies.base import` 触发 numpy/torch 重依赖，本 task 只验证 `from dex.config import` 路径可达，完整 import 留给后续业务 task 补装交易核心依赖
+
+**踩坑 / 经验**：
+- 路由用 `@router.get("/")` 会触发 FastAPI 307 重定向到带尾斜杠版本，改为 `@router.get("")` 直接命中
+- 异常处理器注册 `fastapi.HTTPException` 不捕获 Starlette 路由器抛的 404，改注册 `starlette.exceptions.HTTPException` 才统一错误格式
+- `pydantic-settings` 的 `list[str]` 字段从 `.env` 读取时需用 JSON 数组格式（`CORS_ORIGINS=["http://localhost:5173"]`）
+
+**相关产出**：
+- 归档位置：`openspec/changes/archive/2026-07-04-setup-backend-scaffold/`
+- 主规范：`openspec/specs/backend-scaffold/spec.md`（首次创建）
+- 项目级 task 勾选：`spec/tasks.md` setup-backend-scaffold ✅
+- 父分支：`version/v0.1`
+
+---
+
 ### 2026-07-03 · v0.1-kickoff
 
 **摘要**：版本 v0.1 kickoff，确立 v0.1 为单机本地量化工作台，在现有 `dex/` 交易核心之上新增 FastAPI + Vue 3 Web 界面。
