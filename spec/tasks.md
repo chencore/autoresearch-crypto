@@ -16,32 +16,26 @@
 
 ---
 
-## M1 · 项目基础（Milestone 1）
+## 版本 v0.1
 
-- [ ] **setup-project-scaffold** — 初始化前后端骨架、CI/CD、环境变量
-- [ ] **TODO** — TODO
+> 单机本地量化工作台 MVP。目标：在现有 `dex/` 交易核心之上加 FastAPI + Vue 3 Web 界面，覆盖策略管理 / 回测可视化 / 实盘监控 / 参数调优四个模块。
 
-## M2 · 核心功能（Milestone 2）
-
-- [ ] **add-user-auth** — 用户注册/登录、Token 鉴权（示例已归档）
-- [ ] **TODO** — TODO
-- [ ] **TODO** — TODO
-
-## M3 · 扩展功能（Milestone 3）
-
-- [ ] **TODO** — TODO
-
-## M4 · 上线准备（Milestone 4）
-
-- [ ] **setup-production-deployment** — 生产环境部署、监控、告警
-- [ ] **TODO** — TODO
+- [ ] **setup-backend-scaffold** — 初始化 FastAPI 后端骨架（路由结构、SQLite + SQLAlchemy、CORS、统一错误处理、配置加载），打通 `/health` 接口
+- [ ] **setup-frontend-scaffold** — 初始化 Vue 3 + Vite + TypeScript + Naive UI 前端骨架（路由、布局、API client、开发代理），打通首页
+- [ ] **strategy-management-api** — 后端扫描 `dex/strategies/`，提供策略列表、参数定义、运行状态接口
+- [ ] **strategy-management-ui** — 前端策略管理页（策略列表 + 详情抽屉），只读展示
+- [ ] **backtest-api** — 后端扫描 `data/crypto/`，提供交易对列表 + 回测执行接口（调 `BaseStrategy.simulate`），返回收益曲线 / 交易明细 / 指标
+- [ ] **backtest-ui** — 前端回测页：选交易对 + 策略 + 时间段 → 跑回测 → 展示收益曲线 + 交易明细 + 指标卡片
+- [ ] **live-monitor-api** — 后端用子进程拉起 / 停止 `live_binance_quant.py` / `live_okx_quant.py` / `live_nado_quant.py`，流式读取 `logs/` 状态文件 + 进程 stdout
+- [ ] **live-monitor-ui** — 前端实盘页：选交易所 → 启停 → 展示持仓 / 未实现盈亏 / 最近成交 / 实时日志
+- [ ] **evolution-api** — 后端调 ATLAS（`dex/evolution.py`）或 GEPA（`dex/reflection.py`），通过 WebSocket 推送每代进度
+- [ ] **evolution-ui** — 前端调优页：选引擎 + 配置 → 启动 → WebSocket 接进度 → 展示进化曲线 / 当前最佳 / 最终结果
+- [ ] **integration-launch-script** — 一条命令拉起前后端的根目录启动脚本 + README 更新
 
 ---
 
 ## 进度概览
 
-- 总任务数：TODO
+- 总任务数：11
 - 已完成：0
 - 进行中：0
-
-（建议每完成一个 Milestone 手动更新以上数字）
