@@ -31,6 +31,33 @@
 
 <!-- 最新条目在最上面 -->
 
+### 2026-07-04 · strategy-management-api
+
+**摘要**：实现策略管理只读接口，`GET /api/v1/strategy` 列表 + `GET /api/v1/strategy/{name}` 详情，用 `pkgutil` 扫描 `dex/strategies/` 目录 + `inspect.signature` 反射 `__init__` 与 `generate_signals`，发现 10 个 `BaseStrategy` 子类。父分支：`version/v0.1`。
+
+**关键决策**：
+- 扫描目录发现策略而非依赖 `__all__`——`dex/strategies/__init__.py` 的 `__all__` 漏了 `PureActionV2Strategy` 与 `MultiTFEnsembleStrategy`，扫描目录是单一真相源
+- 参数反射用 `inspect.signature` 而非 AST 解析——运行时反射准确，无需处理装饰器/继承/`super()` 调用
+- 类型推断三级兜底：有 annotation 用 annotation → 无 annotation 从默认值字面量推断 → 无默认值标 `"unknown"`
+- 默认值序列化用 `json.loads(json.dumps(default))` 兜底——`MultiTFEnsembleStrategy.tf_params` 嵌套 dict 可处理，失败转 `str()`
+- `signal_kind` 硬编码映射（仅 `GridStrategy` → `"position_target"`）——只有 1 个例外，反射源码判断不可靠
+- `runtime_params` 反射 `generate_signals` 签名排除 `self`/`df`——自动适应未来签名变化
+- 策略元数据每次请求实时反射，不缓存——10 个策略反射 < 100ms，单机无并发压力
+
+**踩坑 / 经验**：
+- `bool` 必须在 `int` 前判断（`isinstance(True, int)` 为 True），否则 bool 参数被标成 int
+- `inspect.getmembers` 会拿到导入的基类，需用 `obj.__module__ != module.__name__` 过滤
+- 探索阶段误报"11 个策略"，实际是 10 个（`grep "^class .*Strategy"` 含 `BaseStrategy` 抽象类与 `StrategyEvaluator` 非策略类）——已修正 `spec/requirements.md` 三处
+- 根 `.gitignore` 的 `uv.lock` 匹配任意层级，改为 `/uv.lock` 只忽略根，让 `backend/uv.lock` 可提交
+
+**相关产出**：
+- 归档位置：`openspec/changes/archive/2026-07-04-strategy-management-api/`
+- 主规范：`openspec/specs/strategy-management/spec.md`（首次创建）
+- 项目级 task 勾选：`spec/tasks.md` strategy-management-api ✅
+- 父分支：`version/v0.1`
+
+---
+
 ### 2026-07-04 · setup-frontend-scaffold
 
 **摘要**：初始化 Vue 3 + Vite + TypeScript + Naive UI 前端骨架，新增 `frontend/` 顶层目录，承载 app 实例、路由、Pinia、Naive UI、axios client、全局布局、四个业务页面占位。父分支：`version/v0.1`。
