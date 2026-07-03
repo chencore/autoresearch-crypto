@@ -113,6 +113,16 @@
 - **放弃的方案**：HTTP 轮询
 - **理由**：进化每代耗时 30s~数分钟，轮询体验差且浪费请求；FastAPI 原生支持 WS，前端 Naive UI 也有进度组件
 
+### 决策 6：后端独立 pyproject.toml，与根交易核心环境隔离
+- **选择**：`backend/pyproject.toml` 独立管理 fastapi/uvicorn/sqlalchemy 等依赖，根 `pyproject.toml` 不变
+- **放弃的方案**：把后端依赖塞进根 `pyproject.toml`
+- **理由**：根环境是交易核心（torch + ccxt + pandas），重且与 Web 无关；后端依赖轻量，独立管理避免污染交易核心环境、便于后续单独部署。后续业务 task 需要 import dex 时，在 backend 环境补装交易核心依赖
+
+### 决策 7：backend 用 sys.path insert 引用根 dex/ 包
+- **选择**：在 `backend/app/__init__.py` 顶部 `sys.path.insert(0, <项目根>)`
+- **放弃的方案**：`[tool.uv.sources]` path 依赖引用根项目
+- **理由**：根 `pyproject.toml` 的 `name=autoresearch-crypto` 含 `-` 不是合法 import 名，且根项目未声明 packages，path 依赖装了也 import 不到 `dex`；sys.path insert 一次性解决，所有 backend 模块均可 `from dex... import`
+
 ## 7. 待定项（Open Questions）
 
 - 子进程 stdout 如何切片发给前端？考虑按行缓冲 + 环形缓冲区（限最近 1000 行）
