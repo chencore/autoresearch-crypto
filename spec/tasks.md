@@ -27,7 +27,7 @@
 - [x] **backtest-api** — 后端扫描 `data/crypto/`，提供交易对列表 + 回测执行接口（调 `BaseStrategy.simulate`），返回收益曲线 / 交易明细 / 指标
 - [x] **backtest-ui** — 前端回测页：选交易对 + 策略 + 时间段 → 跑回测 → 展示收益曲线 + 交易明细 + 指标卡片
 - [x] **live-monitor-api** — 后端用子进程拉起 / 停止 `live_binance_quant.py` / `live_okx_quant.py` / `live_nado_quant.py`，流式读取 `logs/` 状态文件 + 进程 stdout
-- [ ] **live-monitor-ui** — 前端实盘页：选交易所 → 启停 → 展示持仓 / 未实现盈亏 / 最近成交 / 实时日志
+- [x] **live-monitor-ui** — 前端实盘页：选交易所 → 启停 → 展示持仓 / 未实现盈亏 / 最近成交 / 实时日志
 - [ ] **evolution-api** — 后端调 ATLAS（`dex/evolution.py`）或 GEPA（`dex/reflection.py`），通过 WebSocket 推送每代进度
 - [ ] **evolution-ui** — 前端调优页：选引擎 + 配置 → 启动 → WebSocket 接进度 → 展示进化曲线 / 当前最佳 / 最终结果
 - [ ] **integration-launch-script** — 一条命令拉起前后端的根目录启动脚本 + README 更新
