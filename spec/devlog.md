@@ -31,6 +31,37 @@
 
 <!-- 最新条目在最上面 -->
 
+### 2026-07-04 · backtest-api
+
+**摘要**：实现回测执行接口（R-v0.1-ck-4），`GET /api/v1/backtest/symbols` 扫描 `data/crypto/` 列交易对，`POST /api/v1/backtest/run` 跑完整回测流程返回 equity_curve / trades / metrics / meta。父分支：`version/v0.1`。
+
+**关键决策**：
+- 文件名解析用正则 `{SYMBOL}_{INTERVAL}_{DAYS}d.parquet`，不读 parquet 元数据——文件名是单一真相源
+- 回测流程封装在 `services/backtest_runner.py`，router 只做 HTTP 适配——evolution-api 后续可直接 import service 不走 HTTP
+- trades 反查 `df.timestamp` / `df.close` 填充 `timestamp` / `price` 在 service 层做，不动 dex——v0.1 铁律「在 dex 之上加 Web，不污染交易核心」
+- equity_curve 返回 `{step, timestamp, equity}` 点对象数组，不返回三个并行数组——前端 v-for 直接渲染
+- numpy 类型用 `float()` / `int()` 显式转，不用 `.tolist()` 兜底——避免 dict 被转成 list 的坑
+- 错误响应用 `JSONResponse` 直接返回 `{error:{code,message}}`，绕过全局异常处理器——不依赖处理器实现细节
+- evaluator 用 `dex.config` 默认 `INITIAL_CAPITAL=10000` / `COMMISSION=0.0002` / `SLIPPAGE=0.0002`，v0.1 不暴露给前端
+
+**踩坑 / 经验**：
+- `spec/requirements.md` R-v0.1-ck-4 写「调 `BaseStrategy.simulate`」是笔误——实际 `simulate` 在 `StrategyEvaluator` 上，`BaseStrategy` 只有 `generate_signals`。本 task 按实际 API 实现，项目级 spec 仅人工修改不动
+- `pd.DatetimeIndex.astype('int64')` 在 pandas 2.x 行为不确定（可能返回 ns / s），用 `timestamps.values.astype('datetime64[ns]').view('int64')` 显式拿 ns 再 `// 10**6` 转 ms
+- 根环境 `prepare_crypto.py` 装不上（torch==2.6.0+cu124 无 macOS arm64 wheel），用 backend 环境生成 synthetic parquet 兜底
+- `StrategyEvaluator.simulate` 返回的 trades 只含 `step` 索引，无 `timestamp`/`price`，必须 service 层反查 `df` 填充
+
+**验证数据**：
+- synthetic `ETHUSDT_5m_7d.parquet`（2016 bar，2026-06-25 ~ 2026-07-02，列含 timestamp/datetime/open/high/low/close/volume）
+- 用户实盘验证需自行 `uv run python prepare_crypto.py` 下载真实数据（根环境需先解决 torch 依赖）
+
+**相关产出**：
+- 归档位置：`openspec/changes/archive/2026-07-04-backtest-api/`
+- 主规范：`openspec/specs/backtest-api/spec.md`（首次创建）
+- 项目级 task 勾选：`spec/tasks.md` backtest-api ✅
+- 父分支：`version/v0.1`
+
+---
+
 ### 2026-07-04 · strategy-management-ui
 
 **摘要**：实现前端策略管理只读页（R-v0.1-ck-3），`Strategies.vue` 占位页重写为 NDataTable 列表 + NDrawer 详情抽屉，新增 `api/strategy.ts` 封装两个接口与 TypeScript 类型。父分支：`version/v0.1`。
