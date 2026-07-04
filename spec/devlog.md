@@ -31,6 +31,37 @@
 
 <!-- 最新条目在最上面 -->
 
+### 2026-07-04 · data-download-api
+
+**摘要**：v0.1 追加 R-v0.1-ck-10 的后端部分。复用根目录 `prepare_crypto.py` 子进程下载 Binance K 线,4 个 REST 接口(POST /start / GET /status/{task_id} / POST /stop / GET /files)+ 1 个 WebSocket 端点(/ws/data-download/{task_id})推 5 类事件(started/progress/completed/error/stopped)。小改 `prepare_crypto.py` 让全局 `PROXY` 从 `HTTPS_PROXY`/`HTTP_PROXY`/`ALL_PROXY` 环境变量读(优先级 HTTPS_PROXY > HTTP_PROXY > ALL_PROXY,未设时 `PROXY = {}` 向后兼容)。单任务串行(已有 running 任务时返回 409 already_running)。父分支：`version/v0.1`。
+
+**关键决策**：
+- 复用 EvolutionManager 模式(subprocess + 线程读 stdout + event_buffer cap 500 + subscribers + asyncio.run_coroutine_threadsafe 跨 loop 广播 + cancel_event 协作式停止)+ live_manager 模式(subprocess.Popen + cwd=PROJECT_DIR + SIGTERM→5s→SIGKILL)——两套已验证模式合并,降低实现风险
+- 单任务串行用「全局 _active_task_id」而非 FIFO 队列——v0.1 单机本地用户手动触发,排队让用户困惑(以为成功但实际等很久),直接拒绝更明确;多任务并行留 v0.2
+- proxy_url 在后端转环境变量传子进程——最小改动,prepare_crypto.py 仅改 3 行(读 env var 设 PROXY),不改 argparse;环境变量是 requests/curl 社区惯例
+- PROXY 优先级 HTTPS_PROXY > HTTP_PROXY > ALL_PROXY——HTTPS_PROXY 是访问 Binance(HTTPS)最相关变量,ALL_PROXY 是 socks 类代理兜底,与 curl/requests 社区惯例一致
+- files 接口从磁盘扫描而非维护内存索引——用户可能手动删文件或外部下载新文件,磁盘扫描保证一致性;文件数预期 <100,扫描成本可忽略
+- stop 用 SIGTERM 而非 SIGKILL——给 prepare_crypto.py 干净退出机会(刷新 stdout、关 file handle),SIGKILL 直接终止可能留下半写 parquet
+- 状态机 running → completed/failed/stopped + stopping 中间态——让前端可显示「停止中」
+
+**踩坑 / 经验**：
+- `uv run python prepare_crypto.py` 在 macOS arm64 上失败——根 `pyproject.toml` 把 torch 钉到 `+cu124`(CUDA-only) wheel,macOS arm64 无 wheel;这是项目预存问题(非本变更引入),后端正确捕获 stdout(含 error hint)推 WS,任务标 failed;前端 UI 测试时需用户自行解决 torch 环境(或在小改 prepare_crypto.py 时考虑用 backend venv 跑)
+- subprocess.Popen 用 `stderr=subprocess.STDOUT` 把 stderr 合到 stdout——uv/prepare_crypto.py 的错误信息(stderr)也能被读 stdout 线程捕获推 WS,否则错误信息丢
+- `text=True, bufsize=1` 让 stdout 行缓冲——`for line in iter(proc.stdout.readline, "")` 才能行级实时;不加 text=True 返 bytes 需手动 decode
+- 单任务串行校验在 `start()` 内部用 `with self._lock` 保护——API 层先调 `get_active_task_id()` 检查只是优化(避免无谓创建 task),真正防 race 在 manager.start() 锁内:检查 `_active_task_id` 对应 task 的 status 是否 "running",stale(已 failed/completed)则清空再创建新 task
+- WS late subscriber 测试:用真实 API 创建 task(因 torch 问题秒失败)→ WS 连接 → 收到 5 个历史事件(started + 3 progress + error)→ 验证 event_buffer 重放正确
+
+**未完成验证**：
+- 真实下载成功路径(prepare_crypto.py 完整跑完落 parquet)未在本会话验证——受 macOS torch 环境阻塞;前端 UI 实现(data-download-ui)时若用户环境已解决 torch 可端到端测
+- pyright typecheck 未跑(backend pyproject.toml 无 pyright 依赖,仅 ruff)——ruff check 通过
+
+**相关产出**：
+- 归档位置：`openspec/changes/archive/2026-07-04-data-download-api/`
+- 主规范：`openspec/specs/data-download-api/spec.md`（首次创建,6 条需求）
+- 项目级 task 勾选：`spec/tasks.md` data-download-api ✅（v0.1 进度 12/13,剩 data-download-ui）
+
+---
+
 ### 2026-07-04 · v0.1 追加需求 · 回测数据下载
 
 **摘要**：v0.1 收官后追加 R-v0.1-ck-10 回测数据下载能力（支持 VPN 代理）。复用根目录 `prepare_crypto.py` 子进程下载 Binance K 线,前端表单(symbol/interval/days/proxy_url/force)→ 后端 subprocess.Popen → WebSocket 推 stdout 行进度 → 文件落 `data/crypto/`。单任务串行。
