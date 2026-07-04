@@ -31,6 +31,39 @@
 
 <!-- 最新条目在最上面 -->
 
+### 2026-07-04 · live-monitor-ui
+
+**摘要**：实现前端实盘监控页（R-v0.1-ck-5），`Live.vue` 占位页重写为顶部 3 交易所卡片网格 + 启停 Modal + 中部状态区（NDescriptions 透传 state dict）+ 底部日志区（`<pre>` 末尾 200 行 2s 轮询），新增 `api/live.ts` 封装 5 个接口与 8 个 TS 类型。父分支：`version/v0.1`。
+
+**关键决策**：
+- 卡片网格用 NGrid `cols=3` + `responsive="screen"`，宽屏一行排开 / 窄屏堆叠，naive-ui 自带无需手写 CSS
+- 启动表单用 NModal 居中弹窗（4 字段小表单）不用 NDrawer——Drawer 适合长表单，内联展开破坏网格美观
+- 状态区 `v-for` 遍历 `Object.entries(state)` 渲染 NDescriptionsItem——3 个脚本 state 字段不一致，透传避免前端跟脚本字段变化同步
+- 日志区用 `<pre>` 不用 NCode——NCode 行号 + 高亮渲染 200 行开销大，`<pre>` 等宽字体足够，max-height 400px 滚动
+- 轮询用 `setInterval(fetchExchanges, 2000)` + `setInterval(fetchDetail, 2000)`，`onUnmounted` 清理——axios 30s 超时远小于 2s 不会堆积
+- 轮询竞态用 `pollSeq` 序号法——每次发起请求前 `++pollSeq`，响应回来比对才更新；AbortController 需管理生命周期 + CanceledError 处理，序号法 3 行代码搞定
+- 状态/日志区合并 `Promise.allSettled` 拉取——都 2s 间隔 + 都依赖 selectedExchange，合并简化生命周期，allSettled 让一个失败不影响另一个
+- 轮询失败 `console.warn` 不弹 message——2s × 失败 = 每 2s 弹一次刷屏；手动操作（启动/停止）失败才弹 message
+- 错误分级：`already_running` / `not_running` → warning（业务预期），`network` / 其他 → error
+
+**踩坑 / 经验**：
+- macOS arm64 上 start 返 200 + PID 后子进程立刻退出（torch 缺失），2s 后卡片变 stopped——这是预期行为，success message 已显示「已启动」，用户从状态变化理解失败
+- vite proxy 已配 `/api → 127.0.0.1:8000`，前端通过 5173 端口直接访问后端 API，无需 CORS
+- typecheck 一次通过（vue-tsc --noEmit），naive-ui 组件类型完整
+- NCard `@click` 与按钮 `@click.stop` 配合——卡片点击选中交易所，按钮区 `@click.stop` 阻止冒泡避免触发选中
+
+**未完成验证**：
+- 视觉渲染（卡片网格、Modal 表单、状态/日志区、选中高亮）需手动浏览器目视，AI 环境无浏览器
+- typecheck + dev server 启动 + vite proxy 联通后端 + start 流程通过 proxy 全绿
+
+**相关产出**：
+- 归档位置：`openspec/changes/archive/2026-07-04-live-monitor-ui/`
+- 主规范：`openspec/specs/live-monitor-ui/spec.md`（首次创建）
+- 项目级 task 勾选：`spec/tasks.md` live-monitor-ui ✅
+- 父分支：`version/v0.1`
+
+---
+
 ### 2026-07-04 · live-monitor-api
 
 **摘要**：实现后端实盘进程管理 5 个接口（R-v0.1-ck-5），`api/v1/live.py` 占位重写为 exchanges / start / stop / status / logs，新增 `services/live_manager.py`（线程安全进程映射单例）+ `services/live_state_reader.py`（读 state JSON + log txt，nado 取最新日志文件）+ `schemas/live.py`（8 个 Pydantic 模型）。父分支：`version/v0.1`。
