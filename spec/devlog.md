@@ -31,6 +31,35 @@
 
 <!-- 最新条目在最上面 -->
 
+### 2026-07-04 · strategy-management-ui
+
+**摘要**：实现前端策略管理只读页（R-v0.1-ck-3），`Strategies.vue` 占位页重写为 NDataTable 列表 + NDrawer 详情抽屉，新增 `api/strategy.ts` 封装两个接口与 TypeScript 类型。父分支：`version/v0.1`。
+
+**关键决策**：
+- API 类型与 fetch 函数同放 `api/strategy.ts`，不另起 `types/` 目录——v0.1 接口少，手写管理最简单；自动生成留待 v0.2
+- 列表用 NDataTable 而非手写 table——自带 loading / 空状态 / 列对齐，与详情抽屉的参数表风格统一
+- 详情用 NDrawer 而非独立路由 / NModal——保留列表上下文，符合管理台交互习惯
+- 抽屉内四段（NDescriptions / pre docstring / NDataTable 参数表 / NSpace tag 区）不套 NCard，避免多层 padding 浪费空间
+- 每次打开抽屉重新拉详情，不缓存——开发态可能改 dex 代码后重启后端，缓存会显示旧数据
+- 错误用 NMessage 顶部一闪，404 在抽屉内用 NEmpty 局部显示
+
+**踩坑 / 经验**：
+- `useMessage()` 必须在 `<NMessageProvider>` 内调用，setup-frontend-scaffold 的 App.vue 未包，本 task 补上
+- 关闭防异步用 `currentName.value !== name` 检查，比 `cancelled` 标志位更直接（关闭 / 切换都会改 currentName）
+- `JSON.stringify(row.default, null, 2)` 让嵌套 dict 默认值可读，配合 `<pre>` 保留换行
+- NDataTable 的 `ellipsis: { tooltip: true }` 处理 module 列长字符串
+
+**未完成验证**：
+- tasks.md 5.9 切换抽屉不残留：需手动浏览器目视，AI 环境无浏览器；代码层用 `currentName` 守卫保证
+
+**相关产出**：
+- 归档位置：`openspec/changes/archive/2026-07-04-strategy-management-ui/`
+- 主规范：`openspec/specs/strategy-management-ui/spec.md`（首次创建）
+- 项目级 task 勾选：`spec/tasks.md` strategy-management-ui ✅
+- 父分支：`version/v0.1`
+
+---
+
 ### 2026-07-04 · strategy-management-api
 
 **摘要**：实现策略管理只读接口，`GET /api/v1/strategy` 列表 + `GET /api/v1/strategy/{name}` 详情，用 `pkgutil` 扫描 `dex/strategies/` 目录 + `inspect.signature` 反射 `__init__` 与 `generate_signals`，发现 10 个 `BaseStrategy` 子类。父分支：`version/v0.1`。

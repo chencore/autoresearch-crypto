@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { NLayout, NLayoutSider, NLayoutContent, NMenu, type MenuOption } from 'naive-ui'
+import { NLayout, NLayoutSider, NLayoutContent, NMenu, NMessageProvider, type MenuOption } from 'naive-ui'
 
 const route = useRoute()
 const router = useRouter()
@@ -29,7 +29,9 @@ function onMenuSelect(key: string): void {
       <NMenu :options="menuOptions" :value="activeKey" @update:value="onMenuSelect" />
     </NLayoutSider>
     <NLayoutContent style="padding: 24px">
-      <router-view />
+      <NMessageProvider>
+        <router-view />
+      </NMessageProvider>
     </NLayoutContent>
   </NLayout>
 </template>
