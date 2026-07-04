@@ -163,11 +163,11 @@ export async function stopEvolution(runId: string): Promise<EvolveStopResponse> 
 export function buildEvolveWsUrl(runId: string): string {
   const base = import.meta.env.VITE_API_BASE_URL || '/api/v1'
   if (base.startsWith('http://')) {
-    return base.replace('http://', 'ws://') + '/evolve/' + runId
+    return base.replace('http://', 'ws://') + '/ws/evolve/' + runId
   }
   if (base.startsWith('https://')) {
-    return base.replace('https://', 'wss://') + '/evolve/' + runId
+    return base.replace('https://', 'wss://') + '/ws/evolve/' + runId
   }
   const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-  return `${proto}//${window.location.host}${base}/evolve/${runId}`
+  return `${proto}//${window.location.host}${base}/ws/evolve/${runId}`
 }
