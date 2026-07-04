@@ -31,6 +31,43 @@
 
 <!-- 最新条目在最上面 -->
 
+### 2026-07-04 · integration-launch-script
+
+**摘要**：v0.1 收官变更,新增根目录 `dev.sh`（一键启动前后端 dev 模式 + trap 清理）+ `dev-stop.sh`（端口兜底清理）,修改 `README.md` 加「Web 工作台(v0.1)」章节 + 原「快速开始」改名「命令行模式(原 v0.0 工作流)」。v0.1 全部 11 个 task 完成。父分支：`version/v0.1`。
+
+**关键决策**：
+- 单脚本前台运行 + trap 清理,不用后台 daemon——dev 模式开发者要看实时日志,前台运行日志直接输出最直观;daemon 模式适合生产(v0.2)
+- 后端用 `uv run --project backend` 从根目录启动 + `PYTHONPATH=backend`——pydantic-settings `env_file=".env"` 相对 CWD,从根启动读根 `.env` 拿真实 API key;`--project` 让 uv 用 backend/pyproject.toml 的 venv;PYTHONPATH 让 uvicorn 找到 `app.main`
+- 前端用 `(cd frontend && exec pnpm dev) &` 子 shell——vite 对 CWD 敏感(vite.config.ts 相对路径 alias),子 shell 隔离 CWD 最可靠
+- 端口检查用 `lsof -ti :PORT`——macOS / Linux 都自带,`-ti` 直接拿 PID 列表可复用给 dev-stop.sh
+- `dev-stop.sh` 独立脚本不集成到 `dev.sh stop`——dev.sh 设计为前台运行 Ctrl+C 即停;dev-stop.sh 是「异常退出兜底」场景,两个脚本职责清晰
+- README 不删原命令行章节,降级标题保留——Web 工作台是 v0.1 增量,原命令行用户(实盘 / 训练 / 进化 CLI)不应被强制迁移
+- 不做生产模式 build 脚本(backend serve 静态文件)——留给 v0.2
+- 不做 Docker 封装——v0.1 单机个人用 shell 脚本足够
+
+**踩坑 / 经验**：
+- `uv run --project backend uvicorn app.main:app` 从根目录跑会 `ModuleNotFoundError: No module named 'app'`——`--project` 只告诉 uv 用哪个 venv,不改变 Python 模块搜索路径;需 `PYTHONPATH=backend` 让 Python 找到 `app/` 包
+- bash 3.2(macOS 默认)的 `wait`（无参数）在 SIGINT 到达时不立即返回——`kill -INT PID`（单进程）无法触发 trap;但终端 Ctrl+C 发 SIGINT 给整个前台进程组(包括子进程),子进程直接退出,wait 返回,cleanup 执行——真实使用场景工作正常
+- SIGTERM 在 bash 3.2 的 `wait` 期间能立即触发 trap——`kill -TERM PID` 可靠;dev-stop.sh 用 SIGTERM 兜底
+- uvicorn `--reload` 模式有 reloader 父进程 + worker 子进程,SIGKILL 父进程后 worker 可能成孤儿(multiprocessing-fork spawn)继续监听端口——cleanup 用 `pkill -KILL -P $pid` 杀子进程 + `pkill -KILL -f 'uvicorn app.main'` 兜底
+- `lsof -ti :8000 :5173`（多端口参数）不工作——lsof 把第二个端口当文件名参数;正确写法 `lsof -i :8000 -i :5173` 或 `lsof -i :8000,5173`
+- `lsof -ti :8000` 返多 PID 时用换行分隔,echo 输出会断行——`tr '\n' ' '` 转空格更美观
+- `set -euo pipefail` 在 dev.sh 中不合适——子进程崩溃不应立即杀脚本(另一个子进程可能还在跑),改 `set -uo pipefail` 让 polling/wait 自行处理
+- 进程组信号测试:用 Python `os.setsid()` 让 dev.sh 成为 session leader,`kill -INT -PGID` 模拟终端 Ctrl+C——验证 trap + 子进程优雅退出全链路
+
+**未完成验证**：
+- 真实终端 Ctrl+C 体验需用户手动验证(本会话用进程组信号模拟已通过)
+- Windows .bat / .ps1 脚本未做(v0.1 用户平台 macOS,留待 v0.2)
+- 生产模式 build + backend serve 静态文件未做(留待 v0.2)
+
+**相关产出**：
+- 归档位置：`openspec/changes/archive/2026-07-04-integration-launch-script/`
+- 主规范：`openspec/specs/integration-launch-script/spec.md`（首次创建）
+- 项目级 task 勾选：`spec/tasks.md` integration-launch-script ✅（v0.1 全部 11/11 完成）
+- 父分支：`version/v0.1`
+
+---
+
 ### 2026-07-04 · evolution-ui
 
 **摘要**：实现前端调优页（R-v0.1-ck-6），`Evolve.vue` 占位页重写为顶部表单（引擎 / symbol / generations / evolution_interval）+ 中部状态条（status tag + NProgress + run_id）+ NGrid 2 列三区（Agents NDataTable / 进化曲线 echarts line chart / 事件日志 `<pre>` 滚动）+ 最终结果卡（atlas: best_agent + final_weights / gepa: experiment_count + blind_spots），新增 `api/evolve.ts` 封装 4 个 REST 函数 + WS URL 帮助 + 7 类事件类型 union。父分支：`version/v0.1`。
