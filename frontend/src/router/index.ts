@@ -8,6 +8,7 @@ const router = createRouter({
     { path: '/backtest', component: () => import('@/pages/Backtest.vue') },
     { path: '/live', component: () => import('@/pages/Live.vue') },
     { path: '/evolve', component: () => import('@/pages/Evolve.vue') },
+    { path: '/data-download', component: () => import('@/pages/DataDownload.vue') },
     { path: '/:pathMatch(.*)*', redirect: '/strategies' },
   ],
 })
