@@ -31,6 +31,36 @@
 
 <!-- 最新条目在最上面 -->
 
+### 2026-07-04 · data-download-ui
+
+**摘要**：v0.1 追加 R-v0.1-ck-10 的前端部分。新增 `/data-download` 路由 + 侧边栏菜单项,`DataDownload.vue` 页面消费已交付的 4 个 REST + 1 个 WS 接口:表单(symbol NInput / interval NSelect 6 项 / days NInputNumber 1-365 / proxy_url NInput / force NCheckbox)→ POST /start → WebSocket 接 5 类事件(started/progress/completed/error/stopped)→ 事件日志 `<pre>` 等宽字体实时滚动 + 运行状态 Tag + 最终结果卡片 + 已下载文件表格(挂载时拉、completed/stopped 后自动刷新)。父分支:`version/v0.1`。
+
+**关键决策**:
+- 复用 Evolve.vue 的 WS 模式(event_buffer 重放 + late subscriber + stop 消息 + onclose 断开检测)——Evolve 页已验证此模式,DataDownload.vue 结构与 Evolve 几乎一致,降低实现风险;v0.1 仅 2 个 WS 页面,不抽公共 `useWsProgress` composable(过早抽象,v0.2 新增第三个再抽)
+- `buildDataDownloadWsUrl(taskId)` 独立写在 `api/data-download.ts`,不抽公共 `buildWsUrl(path, id)`——同 D1,过早抽象;两函数各 10 行,互不耦合
+- WS URL 必须含 `/ws/` 前缀——后端 ws router 挂在 `/ws` 前缀下,前端构造 URL 时直接拼 `/ws/data-download/{task_id}`;此前 evolve.ts 因漏 `/ws/` 前缀导致 WS upgrade 403(已修复),data-download.ts 直接照搬修复后版本
+- 文件大小 `formatBytes()` 转 "126KB" / "1.2MB" 显示,mtime 用 `toLocaleString()` 转本地时间——用户看 "129453 bytes" 不直观
+- 事件日志用 `<pre>` + 等宽字体——prepare_crypto.py 的 stdout 含对齐空格(如 "    +100 (累计 100)"),等宽保持对齐
+- 下载完成(completed)或停止(stopped)后自动 `refreshFiles()`——用户期望下载完立刻看到新文件;不轮询 /files(浪费请求,下载期间文件不变)
+- proxy_url 用 NInput 而非 NSelect——代理 URL 格式多样(用户名密码 / 不同端口),NInput 最灵活;后端 Pydantic 校验前缀(http:// / https:// / socks5://),失败返 422,前端 message.error 提示
+- force 用 NCheckbox 而非 NSwitch——force 是低频操作,Checkbox 比 Switch 更明确表达「勾选才启用」语义
+
+**踩坑 / 经验**:
+- macOS arm64 上启动下载秒失败——根 `pyproject.toml` 把 torch 钉到 `+cu124`(CUDA-only) wheel,macOS arm64 无 wheel;这是项目预存问题(非本变更引入),前端正确收到 error 事件,message.error 弹出 + 事件日志展示 stderr 行,WS 流程端到端验证通过(只是任务本身失败)
+- 复用 evolve.ts 的 WS URL 构造模式时,直接复制修复后版本(含 `/ws/` 前缀)——避免重蹈 403 覆辙
+- 终态事件(completed/error/stopped)统一在 `handleWsMessage` 内调 `closeWs()`,onclose 检测 `status === 'running'` 才提示「连接断开」——避免主动关闭时误报断开
+
+**未完成验证**:
+- 真实下载成功路径未验证——受 macOS torch 环境阻塞;用户环境解决 torch 后可端到端测 completed 事件 + 文件列表刷新 + 文件大小展示
+- 停止按钮(4.4)未端到端测——任务秒失败来不及点;复用 Evolve.vue 已验证模式 + 后端 stop 端点已在 data-download-api 任务中 curl 验证,功能等价
+
+**相关产出**:
+- 归档位置:`openspec/changes/archive/2026-07-04-data-download-ui/`
+- 主规范:`openspec/specs/data-download-ui/spec.md`(首次创建,5 条需求)
+- 项目级 task 勾选:`spec/tasks.md` data-download-ui ✅(v0.1 进度 13/13,v0.1 全部完成)
+
+---
+
 ### 2026-07-04 · data-download-api
 
 **摘要**：v0.1 追加 R-v0.1-ck-10 的后端部分。复用根目录 `prepare_crypto.py` 子进程下载 Binance K 线,4 个 REST 接口(POST /start / GET /status/{task_id} / POST /stop / GET /files)+ 1 个 WebSocket 端点(/ws/data-download/{task_id})推 5 类事件(started/progress/completed/error/stopped)。小改 `prepare_crypto.py` 让全局 `PROXY` 从 `HTTPS_PROXY`/`HTTP_PROXY`/`ALL_PROXY` 环境变量读(优先级 HTTPS_PROXY > HTTP_PROXY > ALL_PROXY,未设时 `PROXY = {}` 向后兼容)。单任务串行(已有 running 任务时返回 409 already_running)。父分支：`version/v0.1`。
