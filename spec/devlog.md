@@ -31,6 +31,37 @@
 
 <!-- 最新条目在最上面 -->
 
+### 2026-07-04 · backtest-ui
+
+**摘要**：实现前端回测可视化页（R-v0.1-ck-4），`Backtest.vue` 占位页重写为左侧表单 + 右侧结果区，引入 echarts 画收益曲线，新增 `api/backtest.ts` 封装两个接口与 TS 类型。父分支：`version/v0.1`。
+
+**关键决策**：
+- 图表库选 echarts + vue-echarts（按需引入 LineChart / GridComponent / TooltipComponent）——naive-ui 无图表组件，echarts 中文社区最流行，bundle 增量 ~300KB 单机可接受
+- 交易对 select value 用 `${symbol}|${interval}|${days}` 拼接字符串，submit 时 split——比 `value-key` 简单，比三个独立 select 节省空间
+- 指标卡片用 NStatistic 不用 NCard——NStatistic 专为数值展示设计，自带 tabular-nums 字体
+- 收益曲线 x 轴用 timestamp（int ms），echarts `type='time'` 自动渲染日期轴——比 category 模式省心
+- 交易明细表一次性渲染不分页——v0.1 单回测约 200~400 条 trades 可接受
+- 错误时结果区恢复 NEmpty 不保留上次结果——避免显示陈旧数据
+- 表单与结果区左右分栏（左 320px / 右 flex 1）——1280px 宽屏省垂直空间
+
+**踩坑 / 经验**：
+- `pnpm dev` 必须从 frontend 目录跑，从 backend 跑会触发 `ERR_PNPM_NO_PKG_MANIFEST`
+- echarts 6.x + vue-echarts 8.x 配合 Vue 3.5 + TypeScript 5.6 typecheck 一次通过，无类型缺失
+- NDatePicker range 返回 `[start_ts, end_ts]` ms int，转 ISO 用 `new Date(ts).toISOString()` 显式 UTC，避免时区偏移
+- 复用 `strategy-management-ui` 的 `fetchStrategyList` 直接拉策略列表，无需新建
+
+**未完成验证**：
+- 视觉渲染（指标卡片染色、收益曲线图、交易明细表染色）需手动浏览器目视，AI 环境无浏览器
+- API 路径、Vue 模块加载、echarts 依赖、typecheck 全绿
+
+**相关产出**：
+- 归档位置：`openspec/changes/archive/2026-07-04-backtest-ui/`
+- 主规范：`openspec/specs/backtest-ui/spec.md`（首次创建）
+- 项目级 task 勾选：`spec/tasks.md` backtest-ui ✅
+- 父分支：`version/v0.1`
+
+---
+
 ### 2026-07-04 · backtest-api
 
 **摘要**：实现回测执行接口（R-v0.1-ck-4），`GET /api/v1/backtest/symbols` 扫描 `data/crypto/` 列交易对，`POST /api/v1/backtest/run` 跑完整回测流程返回 equity_curve / trades / metrics / meta。父分支：`version/v0.1`。
