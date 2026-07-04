@@ -1,0 +1,198 @@
+## 1. Pydantic 模型
+
+- [x] 1.1 创建 `backend/app/schemas/evolve.py`:
+  - `class EvolveStartRequest(BaseModel)`: `engine: str`、`symbol: str`、`interval: str`、`days: int`、`generations: int`、`evolution_interval: int = 5`
+  - `class EvolveStartResponse(BaseModel)`: `run_id: str`、`status: str`
+  - `class EvolveAgentState(BaseModel)`: `name: str`、`style: str`、`score: float`、`weight: float`、`generation: int`、`params: dict[str, Any]`
+  - `class EvolveRunSummary(BaseModel)`: `id: str`、`engine: str`、`symbol: str`、`status: str`、`current_gen: int`、`total_generations: int`、`started_at: str`、`completed_at: str | None`、`error: str | None`
+  - `class EvolveRunListResponse(BaseModel)`: `runs: list[EvolveRunSummary]`、`total: int`
+  - `class EvolveRunDetail(BaseModel)`: `id: str`、`engine: str`、`symbol: str`、`interval: str`、`days: int`、`generations: int`、`status: str`、`current_gen: int`、`started_at: str`、`completed_at: str | None`、`error: str | None`、`agents: list[EvolveAgentState]`、`event_count: int`
+  - `class EvolveStopRequest(BaseModel)`: `run_id: str`
+  - `class EvolveStopResponse(BaseModel)`: `run_id: str`、`status: str`
+
+## 2. 进化管理器
+
+- [x] 2.1 创建 `backend/app/services/evolution_manager.py`:
+  - imports: `asyncio`、`threading`、`uuid`、`from datetime import datetime`、`from dataclasses import dataclass, field`、`from typing import Any`、`from fastapi import WebSocket`
+  - `@dataclass class EvolutionRun`:
+    - `id: str`
+    - `engine: str`
+    - `symbol: str`
+    - `interval: str`
+    - `days: int`
+    - `generations: int`
+    - `status: str = "running"`(running / completed / failed / stopping / stopped)
+    - `current_gen: int = 0`
+    - `agents: list[dict] = field(default_factory=list)`
+    - `event_buffer: list[dict] = field(default_factory=list)`
+    - `subscribers: list[WebSocket] = field(default_factory=list)`
+    - `cancel_event: threading.Event = field(default_factory=threading.Event)`
+    - `thread: threading.Thread | None = None`
+    - `error: str | None = None`
+    - `started_at: str = field(default_factory=lambda: datetime.now().isoformat())`
+    - `completed_at: str | None = None`
+    - `def summary(self) -> dict` → EvolveRunSummary 字段
+    - `def detail(self) -> dict` → EvolveRunDetail 字段(含 agents + event_count)
+  - `class EvolutionManager`:
+    - `__init__`: `self._runs: dict[str, EvolutionRun] = {}`、`self._lock = threading.Lock()`、`self._loop: asyncio.AbstractEventLoop | None = None`
+    - `def set_loop(self, loop)`: `self._loop = loop`
+    - `def create_run(self, config: dict) -> str`:
+      - 生成 `run_id = str(uuid.uuid4())`
+      - 创建 `EvolutionRun(id=run_id, engine=config["engine"], symbol=config["symbol"], ...)`
+      - 加锁 `self._runs[run_id] = run`
+      - 启动线程 `threading.Thread(target=_run_evolution_thread, args=(run_id, config), daemon=True).start()`
+      - 返回 `run_id`
+    - `def get_run(self, run_id) -> EvolutionRun | None`:加锁返回
+    - `def list_runs(self) -> list[dict]`:加锁,按 started_at 降序返回 `[r.summary() for r in self._runs.values()]`
+    - `def request_stop(self, run_id) -> str | None`:
+      - 加锁取 run,不存在返 None
+      - 若 status in ("completed", "failed", "stopped") 返 `"already_finished"`
+      - 设 `cancel_event.set()` + `status = "stopping"`,返 None
+    - `def update_gen(self, run_id, gen)`:加锁设 `current_gen = gen`
+    - `def update_agents(self, run_id, agents: list[dict])`:加锁设 `agents = agents`
+    - `def mark_completed(self, run_id)`:加锁设 `status = "completed"` + `completed_at = datetime.now().isoformat()`
+    - `def mark_failed(self, run_id, error: str)`:加锁设 `status = "failed"` + `error = error` + `completed_at = ...`
+    - `def mark_stopped(self, run_id)`:加锁设 `status = "stopped"` + `completed_at = ...`
+    - `def broadcast(self, run_id, event: dict)`:
+      - 加锁取 run + append event_buffer + cap 500(`event_buffer = event_buffer[-300:]` if len > 500) + 复制 `subs = list(run.subscribers)`
+      - 若 `self._loop is None`:return
+      - for ws in subs: `asyncio.run_coroutine_threadsafe(ws.send_json(event), self._loop)`(fire-and-forget,不 await)
+    - `def subscribe(self, run_id, ws) -> bool`:加锁,run 不存在返 False,`subscribers.append(ws)` 返 True
+    - `def unsubscribe(self, run_id, ws)`:加锁 `subscribers.remove(ws)` if in
+  - 模块级单例 `evolution_manager = EvolutionManager()`
+
+## 3. 进化 runner
+
+- [x] 3.1 创建 `backend/app/services/evolution_runner.py`:
+  - imports: `import inspect`、`import pandas as pd`、`from typing import Any`、`from dex.config import DATA_DIR`、`from dex.strategies.base import StrategyEvaluator`、`from dex.evolution import EvolutionEngine, create_default_agents`、`from dex.reflection import ReflectionEngine`、`from dex.strategies.trend import TrendStrategy`、`from dex.strategies.pure_action import PureActionStrategy`、`from dex.strategies.grid import GridStrategy, grid_signals_to_discrete`、`from dex.strategies.hybrid_mm import HybridMeanRevMomentumStrategy`、`from app.services.evolution_manager import evolution_manager`
+  - `class EvolveRunnerError(Exception)`: `__init__(code, message)`
+  - `def _load_data(symbol, interval, days) -> pd.DataFrame`:
+    - `path = DATA_DIR / f"{symbol}_{interval}_{days}d.parquet"`
+    - 不存在抛 `EvolveRunnerError("data_not_found", f"data file not found: {path.name}")`
+    - `df = pd.read_parquet(path)`
+    - 强制 `df["open/high/low/close/volume"] = float`(若存在)
+    - 返回 df
+  - `def make_evaluate_fn(df)`:
+    - 复刻 `scripts/evolve_gepa.py:make_evaluate_fn`:evaluator + val_df(后 1/4)+ _relaxed_score + evaluate_fn(根据 params keys 推断 strategy_cls)
+    - 返回 `evaluate_fn` 闭包
+  - `def _run_atlas(run_id, config, df)`:
+    - `engine = EvolutionEngine(evolution_interval=config.get("evolution_interval", 5))`
+    - `total = config["generations"]`
+    - `evolution_manager.broadcast(run_id, {"type":"started", "run_id":run_id, "config":config, "total":total})`
+    - `for gen in range(1, total + 1)`:
+      - `run = evolution_manager.get_run(run_id)`
+      - `if run and run.cancel_event.is_set():` → `evolution_manager.broadcast(run_id, {"type":"stopped", "run_id":run_id, "generation":gen-1})` + `evolution_manager.mark_stopped(run_id)` + return
+      - `evolution_manager.update_gen(run_id, gen)`
+      - `if gen % engine.evolution_interval == 0 or gen == 1:` `engine.evolve(df, gen)`
+      - `else:` `for agent in engine.agents: score, _ = engine.evaluate_agent(agent, df.iloc[-len(df)//4:]); agent.score_history.append(score)`
+      - 构造 `agents_state = [{"name":a.name, "style":a.style, "score":a.recent_score(), "weight":a.weight, "generation":a.generation, "params":a.params} for a in engine.agents]`
+      - `evolution_manager.update_agents(run_id, agents_state)`
+      - `evolution_manager.broadcast(run_id, {"type":"generation", "run_id":run_id, "generation":gen, "total":total, "agents":agents_state})`
+    - `best = max(engine.agents, key=lambda a: a.recent_score())`
+    - `evolution_manager.broadcast(run_id, {"type":"completed", "run_id":run_id, "best_agent":{"name":best.name,"style":best.style,"score":best.recent_score(),"weight":best.weight,"params":best.params}, "final_weights":{a.name:a.weight for a in engine.agents}})`
+  - `def _run_gepa(run_id, config, df)`:
+    - `agents = create_default_agents()`
+    - `engine = ReflectionEngine()`
+    - `evaluate_fn = make_evaluate_fn(df)`
+    - `total = config["generations"]`
+    - `evolution_manager.broadcast(run_id, {"type":"started", "run_id":run_id, "config":config, "total":total})`
+    - `for cycle in range(1, total + 1)`:
+      - `run = evolution_manager.get_run(run_id)`
+      - `if run and run.cancel_event.is_set():` → broadcast stopped + mark_stopped + return
+      - `evolution_manager.update_gen(run_id, cycle)`
+      - `agent = agents[(cycle - 1) % len(agents)]`
+      - `hypothesis = engine.hypotheses[(cycle - 1) % len(engine.hypotheses)]`
+      - `log = engine.run_experiment(agent_name=agent.name, hypothesis=hypothesis, params_before=dict(agent.params), evaluate_fn=evaluate_fn)`
+      - `accepted = log.score_after > log.score_before`
+      - `if accepted: agent.params = log.params_after`
+      - `agents_state = [{"name":a.name, "style":a.style, "score":0.0, "weight":0.25, "generation":cycle, "params":a.params} for a in agents]`(gepa 无 score_history,用 0.0 占位)
+      - `evolution_manager.update_agents(run_id, agents_state)`
+      - `evolution_manager.broadcast(run_id, {"type":"cycle", "run_id":run_id, "cycle":cycle, "total":total, "agent":agent.name, "hypothesis":hypothesis.text, "score_before":log.score_before, "score_after":log.score_after, "accepted":accepted, "reflection":log.reflection})`
+      - `if cycle % 5 == 0:` `summary, _ = engine.meta_reflect()` + `evolution_manager.broadcast(run_id, {"type":"meta_reflection", "run_id":run_id, "cycle":cycle, "summary":summary})`
+    - `evolution_manager.broadcast(run_id, {"type":"completed", "run_id":run_id, "experiment_count":len(engine.experiment_logs), "meta_count":len(engine.meta_reflections), "blind_spots":engine.blind_spots[-3:]})`
+  - `def run_evolution_thread(run_id: str, config: dict) -> None`:
+    - try:
+      - `df = _load_data(config["symbol"], config["interval"], config["days"])`
+      - `if config["engine"] == "atlas": _run_atlas(run_id, config, df)`
+      - `elif config["engine"] == "gepa": _run_gepa(run_id, config, df)`
+      - `else:` raise EvolveRunnerError("invalid_engine", ...)
+      - `evolution_manager.mark_completed(run_id)`
+    - except EvolveRunnerError as e:
+      - `evolution_manager.mark_failed(run_id, e.message)`
+      - `evolution_manager.broadcast(run_id, {"type":"error", "run_id":run_id, "code":e.code, "message":e.message})`
+    - except Exception as e:
+      - `evolution_manager.mark_failed(run_id, str(e))`
+      - `evolution_manager.broadcast(run_id, {"type":"error", "run_id":run_id, "code":"runner_failed", "message":str(e)})`
+
+## 4. 路由改造
+
+- [x] 4.1 改造 `backend/app/api/v1/evolve.py`:
+  - imports: `from fastapi import APIRouter`、`from fastapi.responses import JSONResponse`、`from app.schemas.evolve import *`、`from app.services.evolution_manager import evolution_manager`、`from app.services.evolution_runner import EvolveRunnerError`
+  - `router = APIRouter()`
+  - `_STATUS_MAP = {"invalid_engine": 400, "data_not_found": 404, "not_found": 404, "already_finished": 409}`
+  - `def _error(code, message) -> JSONResponse`: 返 `JSONResponse(status_code=_STATUS_MAP.get(code, 500), content={"error":{"code":code,"message":message}})`
+  - `@router.post("/start")`:
+    - 接 `req: EvolveStartRequest`
+    - `if req.engine not in ("atlas", "gepa"): return _error("invalid_engine", f"engine must be 'atlas' or 'gepa', got: {req.engine}")`
+    - `config = req.model_dump()`
+    - try: `run_id = evolution_manager.create_run(config)` 返 `EvolveStartResponse(run_id=run_id, status="running")`
+    - except EvolveRunnerError as e: `return _error(e.code, e.message)`(注:create_run 不直接抛,实际 _load_data 在线程中抛 → start 时数据校验需提前)
+    - **修订**:`create_run` 前先调 `_load_data` 校验文件存在(同步抛 EvolveRunnerError → 转 _error);数据加载在线程中再次调
+    - 实际实现:`create_run` 内部 try `_load_data` 同步,失败抛 EvolveRunnerError;成功后启动线程(线程内不再 _load_data,直接用预加载 df 或重新加载)
+    - 简化:`create_run` 仅校验文件存在(`(DATA_DIR / f"{symbol}_{interval}_{days}d.parquet").exists()`)→ 不存在抛 `EvolveRunnerError("data_not_found", ...)`;线程内 `_load_data` 再加载
+  - `@router.get("/runs", response_model=EvolveRunListResponse)`:
+    - `runs = evolution_manager.list_runs()`
+    - 返 `EvolveRunListResponse(runs=[EvolveRunSummary(**r) for r in runs], total=len(runs))`
+  - `@router.get("/runs/{run_id}")`:
+    - `run = evolution_manager.get_run(run_id)`
+    - `if not run: return _error("not_found", f"run not found: {run_id}")`
+    - 返 `run.detail()`(直接 dict,不用 response_model 因 agents 字段嵌套)
+  - `@router.post("/stop")`:
+    - 接 `req: EvolveStopRequest`
+    - `err = evolution_manager.request_stop(req.run_id)`
+    - `if err is None: return EvolveStopResponse(run_id=req.run_id, status="stopping")`
+    - `if err == "already_finished":`
+      - `run = evolution_manager.get_run(req.run_id)`
+      - `return _error("already_finished", f"run {req.run_id} is already {run.status}")` if run else `_error("not_found", ...)`
+    - 其他 → `_error("not_found", f"run not found: {req.run_id}")`
+
+- [x] 4.2 改造 `backend/app/api/v1/ws.py`:
+  - imports: `import asyncio`、`from fastapi import APIRouter, WebSocket, WebSocketDisconnect`
+  - `from app.services.evolution_manager import evolution_manager`
+  - 保留现有 `/{topic}` 占位(向后兼容,或删除)
+  - 新增 `@router.websocket("/evolve/{run_id}")`:
+    - `async def evolve_ws(websocket: WebSocket, run_id: str)`:
+      - `await websocket.accept()`
+      - `run = evolution_manager.get_run(run_id)`
+      - `if not run:` `await websocket.send_json({"type":"error","code":"not_found","message":f"run not found: {run_id}"})` + `await websocket.close()` + return
+      - send history:`for event in run.event_buffer: await websocket.send_json(event)`
+      - `evolution_manager.subscribe(run_id, websocket)`
+      - try:
+        - `while True:`:
+          - `if run.status in ("completed", "failed", "stopped"):` break
+          - try: `msg = await asyncio.wait_for(websocket.receive_json(), timeout=1.0)`; `if msg.get("action") == "stop": evolution_manager.request_stop(run_id)`
+          - `except asyncio.TimeoutError:` pass
+          - `except WebSocketDisconnect:` break
+      - finally:
+        - `evolution_manager.unsubscribe(run_id, websocket)`
+        - `try: await websocket.close()` except: pass
+
+- [x] 4.3 改造 `backend/app/main.py`:
+  - 添加 `import asyncio` + `from app.services.evolution_manager import evolution_manager`
+  - 添加 `@app.on_event("startup")`:
+    - `async def _capture_loop(): evolution_manager.set_loop(asyncio.get_running_loop())`
+
+## 5. 验证
+
+- [x] 5.1 `cd backend && uv run python -c "from app.services.evolution_manager import evolution_manager; from app.services.evolution_runner import run_evolution_thread; from app.api.v1.evolve import router; from app.api.v1.ws import router as ws_router; print('ok')"`
+- [x] 5.2 `cd backend && uv run uvicorn app.main:app --port 8000` 启动成功
+- [x] 5.3 `curl -s http://127.0.0.1:8000/api/v1/evolve/runs` 返回 `{"runs":[],"total":0}`
+- [x] 5.4 `curl -s -X POST http://127.0.0.1:8000/api/v1/evolve/start -H "Content-Type: application/json" -d '{"engine":"random","symbol":"ETHUSDT","interval":"5m","days":"7","generations":5}'` 返回 400 + `{"error":{"code":"invalid_engine",...}}`
+- [x] 5.5 `curl -s -X POST http://127.0.0.1:8000/api/v1/evolve/start -H "Content-Type: application/json" -d '{"engine":"atlas","symbol":"DOGEUSDT","interval":"5m","days":"7","generations":5}'` 返回 404 + `{"error":{"code":"data_not_found",...}}`
+- [x] 5.6 `curl -s -X POST http://127.0.0.1:8000/api/v1/evolve/start -H "Content-Type: application/json" -d '{"engine":"atlas","symbol":"ETHUSDT","interval":"5m","days":"7","generations":3}'` 返回 `{"run_id":"<uuid>","status":"running"}`(注:ETHUSDT_5m_7d.parquet 已由 backtest task 生成;若 torch 装不上子线程会立刻 failed)
+- [x] 5.7 `curl -s http://127.0.0.1:8000/api/v1/evolve/runs` 返回 1 项,验证 status 字段
+- [x] 5.8 `curl -s http://127.0.0.1:8000/api/v1/evolve/runs/<run_id>` 返回详情(若已 failed,error 字段含 ImportError 信息)
+- [x] 5.9 用 `python3 -c "import asyncio, websockets, json; ..."` 或 `websocat` 连 `ws://127.0.0.1:8000/api/v1/ws/evolve/<run_id>` 收到 event_buffer 历史事件
+- [x] 5.10 启动 gepa run(若 torch 装不上同样会 failed,验证 error 推送)
+- [x] 5.11 `curl -s -X POST http://127.0.0.1:8000/api/v1/evolve/stop -H "Content-Type: application/json" -d '{"run_id":"<invalid>"}'` 返回 404 + `{"error":{"code":"not_found",...}}`
+- [x] 5.12 `curl -s -X POST http://127.0.0.1:8000/api/v1/evolve/stop -H "Content-Type: application/json" -d '{"run_id":"<completed_run_id>"}'` 返回 409 + `{"error":{"code":"already_finished",...}}`

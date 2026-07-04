@@ -31,6 +31,39 @@
 
 <!-- 最新条目在最上面 -->
 
+### 2026-07-04 · evolution-api
+
+**摘要**：实现后端 ATLAS / GEPA 进化引擎 + WebSocket 推送（R-v0.1-ck-6），新增 `services/evolution_manager.py`（线程安全 run 映射单例）+ `services/evolution_runner.py`（复刻进化循环 + 跨 loop 推事件）+ `schemas/evolve.py`（8 个 Pydantic 模型），改造 `api/v1/evolve.py`（4 个 REST 接口）+ `api/v1/ws.py`（/evolve/{run_id} WebSocket）+ `main.py`（startup 捕获主 loop）。父分支：`version/v0.1`。
+
+**关键决策**：
+- 复刻进化循环不调顶层 `run_evolution` / `gepa_evolve`——monolithic 函数无法插入 broadcast hook；直接 for 循环调 `engine.evolve()` / `engine.run_experiment()` 完全控制事件推送时机
+- 进化跑在 `threading.Thread(daemon=True)` 不用 asyncio executor——长跑任务线程法无需持有 loop 引用即可启动，更直观
+- 跨 loop 推事件用 `asyncio.run_coroutine_threadsafe(ws.send_json(event), self._loop)`——线程不能直接调 ws.send_json（破坏 asyncio 单线程模型）；run_coroutine_threadsafe fire-and-forget 调度到主 loop
+- event_buffer cap 500 让 late subscriber 追进度——用户刷新页面 / 重连 WS 时收到历史事件；cap 500 防内存无限增长
+- cancel_event 协作式停止——Python 无安全 kill 线程机制；每代 / 每周期开头检查 `is_set()`，延迟最多 1 代可接受
+- GEPA evaluate_fn 用 params keys 推断 strategy_cls（复用 scripts/evolve_gepa.py 模式）——不能改 dex 代码；4 个 strategy 各有特征 key
+- run 完成后保留在映射表不自动清理——前端延迟请求 / WS 重连需重发 event_buffer；移除后 404 体验差
+- WebSocket 完成后主动 close——客户端明确知道「进化结束不用再等事件」
+
+**踩坑 / 经验**：
+- ATLAS / GEPA 实际可在 backend uv 环境跑通（不像 live_*.py 需要 torch）——evolution.py 只 import numpy/pandas/strategies，无 torch 依赖；ETHUSDT_5m_7d.parquet 2016 bars 上 atlas 3 代 ~130ms、gepa 6 cycle ~1s
+- 7d 5m 数据（2016 bars）atlas 30 代 < 1s 跑完无法测停止——临时生成 30d 5m（8640 bars）数据集，gepa 100 cycle 跑到 cycle 38 时 stop 生效，WS 收到 stopped 事件 cycle=38 验证通过
+- WebSocket 连接已完成的 run 时，send_json event_buffer 后立即 close——客户端 websockets 库抛 ConnectionClosedOK，需 try/except 捕获正常退出
+- `asyncio.wait_for(websocket.receive_json(), timeout=1.0)` 让 WS 协程每秒检查 run.status 是否变完成态——避免阻塞 forever 接收导致 run 完成后 WS 不关
+- `request_stop` 返回 `None` / `"already_finished"` / `"not_found"` 三态——区分 not_found（404）和 already_finished（409）让前端能给用户更精确的反馈
+
+**未完成验证**：
+- 大规模进化（100+ 代 / 1000+ cycle）的性能未压测，v0.1 单机个人用不追求
+- 多 subscriber 并发推送未压测，v0.1 单浏览器标签页场景
+
+**相关产出**：
+- 归档位置：`openspec/changes/archive/2026-07-04-evolution-api/`
+- 主规范：`openspec/specs/evolution-api/spec.md`（首次创建）
+- 项目级 task 勾选：`spec/tasks.md` evolution-api ✅
+- 父分支：`version/v0.1`
+
+---
+
 ### 2026-07-04 · live-monitor-ui
 
 **摘要**：实现前端实盘监控页（R-v0.1-ck-5），`Live.vue` 占位页重写为顶部 3 交易所卡片网格 + 启停 Modal + 中部状态区（NDescriptions 透传 state dict）+ 底部日志区（`<pre>` 末尾 200 行 2s 轮询），新增 `api/live.ts` 封装 5 个接口与 8 个 TS 类型。父分支：`version/v0.1`。
