@@ -27,7 +27,48 @@ autoresearch-crypto 是一个模块化量化交易框架，专为以下场景设
 | **Maker/Taker 费率优化** | 混合执行：开仓/止盈用 POST_ONLY（Maker），止损用 IOC（Taker） |
 | **前进验证** | 多窗口样本外测试 |
 
-## 快速开始
+## Web 工作台(v0.1)
+
+单机本地量化工作台,浏览器访问,无鉴权,覆盖 4 个 MVP 模块:
+
+- **策略管理**(只读):浏览 `dex/strategies/` 下 11 个内置策略 + 参数定义
+- **回测可视化**:选交易对 + 策略 → 跑回测 → 收益曲线 + 交易明细 + 指标卡片
+- **实盘监控**:启停 `live_binance_quant.py` / `live_okx_quant.py` / `live_nado_quant.py`,看持仓 / 未实现盈亏 / 实时日志
+- **参数调优**:ATLAS 多策略进化 / GEPA 反思式进化,WebSocket 实时推送每代进度 + 进化曲线
+
+### 前置条件
+
+```bash
+# 根环境(实盘交易依赖,arm64 macOS 装不上 torch 可跳过)
+uv sync
+
+# 后端环境(FastAPI 栈)
+cd backend && uv sync && cd ..
+
+# 前端环境
+cd frontend && pnpm install && cd ..
+```
+
+### 启动
+
+```bash
+./dev.sh
+```
+
+脚本同时拉起后端(uvicorn 8000)+ 前端(vite 5173),`Ctrl+C` 同时停止。访问 [http://localhost:5173](http://localhost:5173)。
+
+异常退出端口残留时,用 `./dev-stop.sh` 兜底清理 8000/5173 端口。
+
+### 已知限制
+
+- 单机 / 无鉴权,不要暴露到公网
+- 回测结果不持久化,关闭即丢(v0.2 加)
+- 实盘进程依赖根环境 torch,arm64 macOS 装不上,实盘模块在 Linux/WSL 可用
+- 策略参数 v0.1 只读,编辑留给 v0.2
+
+> 命令行模式(原 `search_eth_optimal.py` / `live_*.py` / `backtest_quant.py` 工作流)见 [下方章节](#命令行模式原-v00-工作流)
+
+## 命令行模式(原 v0.0 工作流)
 
 ### 环境要求
 
