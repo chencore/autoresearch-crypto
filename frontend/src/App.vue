@@ -13,6 +13,7 @@ const menuOptions: MenuOption[] = [
   { label: '回测可视化', key: '/backtest' },
   { label: '实盘监控', key: '/live' },
   { label: '参数调优', key: '/evolve' },
+  { label: '数据下载', key: '/data-download' },
 ]
 
 function onMenuSelect(key: string): void {
