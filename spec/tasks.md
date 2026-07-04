@@ -23,7 +23,7 @@
 - [x] **setup-backend-scaffold** — 初始化 FastAPI 后端骨架（路由结构、SQLite + SQLAlchemy、CORS、统一错误处理、配置加载），打通 `/health` 接口
 - [x] **setup-frontend-scaffold** — 初始化 Vue 3 + Vite + TypeScript + Naive UI 前端骨架（路由、布局、API client、开发代理），打通首页
 - [x] **strategy-management-api** — 后端扫描 `dex/strategies/`，提供策略列表、参数定义、运行状态接口
-- [ ] **strategy-management-ui** — 前端策略管理页（策略列表 + 详情抽屉），只读展示
+- [x] **strategy-management-ui** — 前端策略管理页（策略列表 + 详情抽屉），只读展示
 - [ ] **backtest-api** — 后端扫描 `data/crypto/`，提供交易对列表 + 回测执行接口（调 `BaseStrategy.simulate`），返回收益曲线 / 交易明细 / 指标
 - [ ] **backtest-ui** — 前端回测页：选交易对 + 策略 + 时间段 → 跑回测 → 展示收益曲线 + 交易明细 + 指标卡片
 - [ ] **live-monitor-api** — 后端用子进程拉起 / 停止 `live_binance_quant.py` / `live_okx_quant.py` / `live_nado_quant.py`，流式读取 `logs/` 状态文件 + 进程 stdout
@@ -37,5 +37,5 @@
 ## 进度概览
 
 - 总任务数：11
-- 已完成：3
+- 已完成：4
 - 进行中：0
