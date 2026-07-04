@@ -8,6 +8,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from app.api.v1.router import api_router
 from app.core.config import settings
 from app.core.exceptions import http_exception_handler, unhandled_exception_handler
+from app.services.data_download_manager import data_download_manager
 from app.services.evolution_manager import evolution_manager
 
 logging.basicConfig(level=logging.INFO)
@@ -36,7 +37,9 @@ async def health() -> dict:
 
 @app.on_event("startup")
 async def _capture_event_loop() -> None:
-    evolution_manager.set_loop(asyncio.get_running_loop())
+    loop = asyncio.get_running_loop()
+    evolution_manager.set_loop(loop)
+    data_download_manager.set_loop(loop)
 
 
 app.include_router(api_router, prefix="/api/v1")
