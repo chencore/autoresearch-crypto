@@ -10,6 +10,7 @@ dependencies = [
     "pydantic-settings>=2.1",
     "numpy>=2.2.6",
     "pandas>=2.3.3",
+    "pyarrow>=24.0.0",
 ]
 
 [project.optional-dependencies]
