@@ -42,9 +42,6 @@ checkpoints/*.pt
 .DS_Store
 Thumbs.db
 
-# Agent prompt files (generated per-session by launchers)
-CLAUDE.md
-AGENTS.md
 
 # Experimental code/artifacts
 dev/
