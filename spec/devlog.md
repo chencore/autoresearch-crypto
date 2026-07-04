@@ -31,6 +31,42 @@
 
 <!-- 最新条目在最上面 -->
 
+### 2026-07-04 · evolution-ui
+
+**摘要**：实现前端调优页（R-v0.1-ck-6），`Evolve.vue` 占位页重写为顶部表单（引擎 / symbol / generations / evolution_interval）+ 中部状态条（status tag + NProgress + run_id）+ NGrid 2 列三区（Agents NDataTable / 进化曲线 echarts line chart / 事件日志 `<pre>` 滚动）+ 最终结果卡（atlas: best_agent + final_weights / gepa: experiment_count + blind_spots），新增 `api/evolve.ts` 封装 4 个 REST 函数 + WS URL 帮助 + 7 类事件类型 union。父分支：`version/v0.1`。
+
+**关键决策**：
+- WebSocket URL 派生：从 `VITE_API_BASE_URL` 取基础路径，`http://` → `ws://` / `https://` → `wss://` 替换拼接 `/evolve/{run_id}`；相对路径用 `window.location.protocol/host` 推导——dev 走 vite proxy 5173 → 8000,生产同源由后端 serve 静态文件
+- 三区布局用 NGrid `cols=2 responsive="screen"`（左 Agents 表 / 右 进化曲线 / 下 事件日志 span=2）——进化是动态过程用户想同时看 agents + 曲线 + 日志,Tab 切换会错过信息,垂直堆叠宽屏浪费空间
+- 进化曲线用 echarts line chart 4 条线按 agent name 索引——atlas 每个 generation 事件 4 个 agent 都有 score 追加 4 点;gepa 每个 cycle 事件只 1 个 agent score_after 追加该 series(其他 series 该 x 设 null echarts 自动断线 connectNulls=false)
+- 事件日志用 `<pre>` 不用 NCode / NLog——NCode 行号 + 高亮 200 行开销大,NLog 版本兼容性不确定,`<pre>` 等宽字体 + cap 200 + nextTick 自动滚到底最简单可控
+- 停止走 WS 不走 REST——WS 已连接省一次 HTTP 请求,后端 WS 协程收到 `{action:'stop'}` 立即调 request_stop 与 REST 等效
+- WS onerror 不弹 message 仅 console.warn——后端通过 error 事件通知业务错误,onerror 弹 message 会与 error 事件重复;onclose 触发时若 status 仍是 running 则置 disconnected + warning
+- 最终结果卡在 completed 事件后渲染——completed 事件已含全部最终数据(best_agent + final_weights / experiment_count + blind_spots)无需额外请求,启动时预留位置体验差
+- 进度条用 NProgress 不用 NStatistic——进度条视觉直观百分比 + 数字 inside 一目了然,NStatistic 只显示数字无视觉进度
+- gepa agents 表 score 列显示 `—`——gepa 后端不维护 score_history 固定 0,关注 score_before/after 在事件日志中展示
+
+**踩坑 / 经验**：
+- `catch { pass }` 在 TypeScript/JavaScript 中是无效语法——改为 `catch { /* ignore close errors */ }` 空 block 才合法
+- chartOption 中 `seriesMap[a.name]?.[e.generation] !== undefined` 这行是 stray no-op(表达式语句无副作用),删除即可
+- vite proxy `ws: true` 配置支持浏览器原生 WebSocket,但 Python `websockets` 库使用不同的 HTTP upgrade 握手 vite proxy 不支持——验证时改用 Node.js `ws` 库(模拟浏览器行为)5 个事件全部收到,浏览器原生 WebSocket 在生产可正常工作
+- WebSocket 连接已完成的 run 会立即 close——客户端需 try/catch 处理 ConnectionClosedOK(后端 send 完 event_buffer 后主动 close)
+- ETHUSDT 5m 7d(2016 bars)atlas 30 代 < 1s 跑完——进化曲线 30 个数据点 × 4 agent = 120 点 echarts 完全可承受无卡顿
+- typecheck 一次通过(vue-tsc --noEmit),naive-ui 组件类型完整无 any
+
+**未完成验证**：
+- 视觉渲染(表单 / 状态条 / 三区 / 最终结果卡)需手动浏览器目视,AI 环境无浏览器
+- typecheck + dev server 启动 + vite proxy WS 联通(Node.js ws 库代理验证)全绿
+- atlas / gepa 双引擎事件流未端到端浏览器实测(依赖任务 9 后端,已在 task 9 用 Node.js ws 库验证 5 类事件 received)
+
+**相关产出**：
+- 归档位置：`openspec/changes/archive/2026-07-04-evolution-ui/`
+- 主规范：`openspec/specs/evolution-ui/spec.md`（首次创建）
+- 项目级 task 勾选：`spec/tasks.md` evolution-ui ✅
+- 父分支：`version/v0.1`
+
+---
+
 ### 2026-07-04 · evolution-api
 
 **摘要**：实现后端 ATLAS / GEPA 进化引擎 + WebSocket 推送（R-v0.1-ck-6），新增 `services/evolution_manager.py`（线程安全 run 映射单例）+ `services/evolution_runner.py`（复刻进化循环 + 跨 loop 推事件）+ `schemas/evolve.py`（8 个 Pydantic 模型），改造 `api/v1/evolve.py`（4 个 REST 接口）+ `api/v1/ws.py`（/evolve/{run_id} WebSocket）+ `main.py`（startup 捕获主 loop）。父分支：`version/v0.1`。
