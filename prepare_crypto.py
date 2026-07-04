@@ -20,8 +20,14 @@ import pyarrow.parquet as pq
 import numpy as np
 import pandas as pd
 
-# 全局代理设置
-PROXY = {}
+# 全局代理设置：从环境变量读（优先级 HTTPS_PROXY > HTTP_PROXY > ALL_PROXY）
+# 未设任何环境变量时为空 dict，行为与改动前一致（向后兼容）
+_proxy_url = (
+    os.environ.get("HTTPS_PROXY")
+    or os.environ.get("HTTP_PROXY")
+    or os.environ.get("ALL_PROXY")
+)
+PROXY = {"http": _proxy_url, "https": _proxy_url} if _proxy_url else {}
 
 # ---------------------------------------------------------------------------
 # 常量
