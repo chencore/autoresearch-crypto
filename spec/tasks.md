@@ -32,10 +32,15 @@
 - [x] **evolution-ui** — 前端调优页：选引擎 + 配置 → 启动 → WebSocket 接进度 → 展示进化曲线 / 当前最佳 / 最终结果
 - [x] **integration-launch-script** — 一条命令拉起前后端的根目录启动脚本 + README 更新
 
+> **v0.1 追加（2026-07-04）**：以下 task 为 v0.1 收官后追加的「回测数据下载」能力，对应 R-v0.1-ck-10。
+
+- [ ] **data-download-api** — 后端复用 `prepare_crypto.py` 子进程下载 K 线，WebSocket 推送 stdout 行进度；小改 `prepare_crypto.py` 让代理从 `HTTP_PROXY`/`HTTPS_PROXY` 环境变量读；单任务串行
+- [ ] **data-download-ui** — 前端「数据下载」页：表单（symbol/interval/days/proxy_url/force）+ WebSocket 接进度 + 已下载文件列表
+
 ---
 
 ## 进度概览
 
-- 总任务数：11
+- 总任务数：13
 - 已完成：11
 - 进行中：0

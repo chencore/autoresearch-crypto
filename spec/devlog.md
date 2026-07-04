@@ -31,6 +31,29 @@
 
 <!-- 最新条目在最上面 -->
 
+### 2026-07-04 · v0.1 追加需求 · 回测数据下载
+
+**摘要**：v0.1 收官后追加 R-v0.1-ck-10 回测数据下载能力（支持 VPN 代理）。复用根目录 `prepare_crypto.py` 子进程下载 Binance K 线,前端表单(symbol/interval/days/proxy_url/force)→ 后端 subprocess.Popen → WebSocket 推 stdout 行进度 → 文件落 `data/crypto/`。单任务串行。
+
+**关键决策**：
+- 复用 `prepare_crypto.py` 不重写下载逻辑——已有 Binance API 调用 + 重试 + 技术指标计算 + parquet 写入全链路,后端只做子进程封装 + 进度推送
+- 小改 `prepare_crypto.py` 让全局 `PROXY` 从 `HTTP_PROXY`/`HTTPS_PROXY` 环境变量读——原代码 `proxies=PROXY` 显式传空 dict 会覆盖 requests 默认的环境变量行为;改 3 行加 `os.environ.get(...)` 即可,不设环境变量时行为不变(向后兼容)
+- 单任务串行(同时只允许一个下载)——Binance API 有限流,并发下载易触发;v0.1 单机个人用,串行足够
+- WebSocket 推 stdout 行(不是结构化事件)——prepare_crypto.py 用 `print(..., flush=True)` 输出进度,后端逐行读 stdout 推 WS 即可,不强制改 prepare_crypto.py 加结构化输出
+- 前端表单 symbol 自由输入不预定义——用户可能下 SOLUSDT 等任意 symbol,预定义列表维护成本高
+- 代理 URL 前端输入 + 环境变量传递——后端启动子进程时设 `HTTPS_PROXY`/`HTTP_PROXY`,prepare_crypto.py 改后自动读取
+
+**追加的 spec 条目**：
+- `spec/requirements.md`：新增 R-v0.1-ck-10(回测数据下载 + VPN 代理)
+- `spec/tasks.md`：在 `## 版本 v0.1` 下追加 `data-download-api` + `data-download-ui` 两个 task(总任务数 11→13)
+- `spec/design.md`：不动(复用 evolution-api 的「子进程 + 跨 loop WS 推事件」模式 + live-monitor-api 的 subprocess.Popen 模式,无新架构决策)
+
+**相关产出**：
+- 父分支：`version/v0.1`
+- 后续：开 `feature/data-download-api` + `feature/data-download-ui` 两个分支分别实施
+
+---
+
 ### 2026-07-04 · integration-launch-script
 
 **摘要**：v0.1 收官变更,新增根目录 `dev.sh`（一键启动前后端 dev 模式 + trap 清理）+ `dev-stop.sh`（端口兜底清理）,修改 `README.md` 加「Web 工作台(v0.1)」章节 + 原「快速开始」改名「命令行模式(原 v0.0 工作流)」。v0.1 全部 11 个 task 完成。父分支：`version/v0.1`。

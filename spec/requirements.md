@@ -22,6 +22,8 @@
 
 **[v0.1 新增] R-v0.1-ck-6** · **参数调优 / 进化**：前端触发 ATLAS（`dex/evolution.py`）或 GEPA（`dex/reflection.py`）进化引擎；后端通过 WebSocket 实时推送每代得分、当前最佳参数、进度百分比；结束后展示最终结果与进化曲线。
 
+**[v0.1 追加：2026-07-04] R-v0.1-ck-10** · **回测数据下载（支持 VPN 代理）**：前端「数据下载」页提供表单（symbol 自由输入 / interval 下拉 1m·5m·15m·1h·4h·1d / days 1~365 默认 60 / 代理 URL 可选 / 「强制重新下载」checkbox 默认不勾），提交后后端用 `subprocess.Popen` 拉起根目录 `prepare_crypto.py`（传 `--symbol --interval --limit --force`），通过 WebSocket 实时推送子进程 stdout 行作为进度（如 `+100 (累计 100)` / `保存至 xxx.parquet` / `失败: ...`）。后端启动子进程时把前端传入的 `proxy_url` 设为 `HTTPS_PROXY` / `HTTP_PROXY` 环境变量；小改 `prepare_crypto.py` 让其全局 `PROXY` 从环境变量读取（不设环境变量时行为不变，向后兼容）。同时只允许一个下载任务在跑（单任务串行，类似 evolution）；下载完成后文件落 `data/crypto/{SYMBOL}_{INTERVAL}_{DAYS}d.parquet`，自动出现在回测页交易对下拉。
+
 ## 4. 非功能需求
 
 **[v0.1 新增] R-v0.1-ck-7**：
@@ -55,3 +57,4 @@
 ## 修订历史
 
 - **v0.1 (2026-07-03)** · 由 ck 发起首次 kickoff：新增 R-v0.1-ck-1 ~ R-v0.1-ck-9，确立 v0.1 为单机本地量化工作台
+- **v0.1 追加 (2026-07-04)** · 由 ck 追加：新增 R-v0.1-ck-10 回测数据下载（支持 VPN 代理），补全「自动获取数据」环节
