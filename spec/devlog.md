@@ -31,6 +31,36 @@
 
 <!-- 最新条目在最上面 -->
 
+### 2026-07-04 · live-monitor-api
+
+**摘要**：实现后端实盘进程管理 5 个接口（R-v0.1-ck-5），`api/v1/live.py` 占位重写为 exchanges / start / stop / status / logs，新增 `services/live_manager.py`（线程安全进程映射单例）+ `services/live_state_reader.py`（读 state JSON + log txt，nado 取最新日志文件）+ `schemas/live.py`（8 个 Pydantic 模型）。父分支：`version/v0.1`。
+
+**关键决策**：
+- 进程映射用内存单例 + `threading.Lock`，不持久化 PID——v0.1 单机个人用，后端重启孤儿进程留给用户 `pkill` 清理，持久化回捞需处理 PID 复用竞态太复杂
+- 日志用 HTTP 轮询（`?tail=200`，Query `ge=1, le=1000`）不用 WebSocket——脚本日志 append 模式无流式概念，2s 轮询单机开销可忽略，WebSocket 留给 evolution-api
+- state 字段 `dict[str, Any]` 透传不裁剪——3 个脚本 state 字段不一致，透传避免后端跟脚本字段变化同步
+- nado 日志 `glob("live_nado_log_*.txt")` 按文件名降序取最新——nado 每次启动新日志文件，文件名时间戳字典序即时间序
+- start 用 `subprocess.Popen(["uv", "run", "python", script, ...], cwd=PROJECT_DIR, stdout=DEVNULL, stderr=DEVNULL)` fire-and-forget——脚本依赖根 uv 环境（torch/ccxt），`uv run` 自动激活；不等脚本输出，启动失败通过 `/status` + `/logs` 轮询发现
+- stop 用 `terminate() → wait(5)` 超时 `kill()` 兜底——SIGTERM 让脚本 graceful shutdown 保存 state，5s 足够清理
+- `_cleanup_if_dead` 在每次 is_running/get_pid/list_exchanges/stop 调用前检查 `proc.poll()`，子进程退出立即清理映射
+
+**踩坑 / 经验**：
+- macOS arm64 上 `torch==2.6.0+cu124` 无 wheel，`uv run python live_binance_quant.py` 子进程会立刻退出——API 设计上 start 返 200 + PID（Popen 成功），前端通过 `/exchanges` 看到 stopped + `/logs` 看到 ImportError，这是预期行为
+- nado CLI 用 `--ticker` 不是 `--symbol`，v0.1 统一用 `--symbol` 让 nado 启动报错——已知限制，留给 v0.2 按 exchange 适配 CLI 参数
+- 11 项 curl 验证全绿：5.4 start binance 返 PID 21083，5.5 等 2s 后 exchanges 显示 stopped（子进程退出），5.6 stop not_running 404，5.7 fake state 文件 → status 返 state + updated_at，5.8 fake log 500 行 → tail=10 返末尾 10 行 + total_lines=500，5.10 tail=5000 被 Query le=1000 拦截返 422
+
+**未完成验证**：
+- 真实 live_*.py 启动需 Linux/WSL 环境（macOS arm64 torch 装不上），本 task 仅验证 API 行为正确（start 返 200、子进程退出后 status 显示 stopped、logs 能读）
+- nado 实盘启动会报错（CLI 参数不匹配），v0.2 修复
+
+**相关产出**：
+- 归档位置：`openspec/changes/archive/2026-07-04-live-monitor-api/`
+- 主规范：`openspec/specs/live-monitor-api/spec.md`（首次创建）
+- 项目级 task 勾选：`spec/tasks.md` live-monitor-api ✅
+- 父分支：`version/v0.1`
+
+---
+
 ### 2026-07-04 · backtest-ui
 
 **摘要**：实现前端回测可视化页（R-v0.1-ck-4），`Backtest.vue` 占位页重写为左侧表单 + 右侧结果区，引入 echarts 画收益曲线，新增 `api/backtest.ts` 封装两个接口与 TS 类型。父分支：`version/v0.1`。
