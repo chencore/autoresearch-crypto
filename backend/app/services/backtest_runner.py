@@ -35,6 +35,7 @@ def _load_data(req: BacktestRequest) -> pd.DataFrame:
     if not filepath.exists():
         raise BacktestError("data_not_found", f"data file not found: {filepath.name}")
     df = pd.read_parquet(filepath)
+    df["datetime"] = pd.to_datetime(df["datetime"])
     if req.start:
         df = df[df["datetime"] >= pd.Timestamp(req.start)].reset_index(drop=True)
     if req.end:
